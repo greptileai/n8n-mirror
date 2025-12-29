@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useToast } from '@/app/composables/useToast';
-import { providerDisplayNames, TOOLS_SELECTOR_MODAL_KEY } from '@/features/ai/chatHub/constants';
+import { providerDisplayNames } from '@/features/ai/chatHub/constants';
 import type { ChatHubLLMProvider, ChatModelDto } from '@n8n/api-types';
 import ChatFile from '@n8n/chat/components/ChatFile.vue';
 import {
@@ -18,7 +18,6 @@ import ToolsSelector from './ToolsSelector.vue';
 import { isLlmProviderModel, createMimeTypes } from '@/features/ai/chatHub/chat.utils';
 import { useI18n } from '@n8n/i18n';
 import { I18nT } from 'vue-i18n';
-import { useUIStore } from '@/app/stores/ui.store';
 import type { MessagingState } from '@/features/ai/chatHub/chat.types';
 
 const { selectedModel, selectedTools, messagingState, showCreditsClaimedCallout } = defineProps<{
@@ -49,7 +48,6 @@ const attachments = ref<File[]>([]);
 
 const toast = useToast();
 const i18n = useI18n();
-const uiStore = useUIStore();
 
 const speechInput = useSpeechRecognition({
 	continuous: true,
@@ -186,21 +184,6 @@ watch(speechInput.error, (event) => {
 		});
 	}
 });
-
-function onSelectTools() {
-	if (selectedModel?.model.provider === 'custom-agent') {
-		emit('editAgent', selectedModel.model.agentId);
-		return;
-	}
-
-	uiStore.openModalWithData({
-		name: TOOLS_SELECTOR_MODAL_KEY,
-		data: {
-			selected: selectedTools,
-			onConfirm: (newTools: INode[]) => emit('selectTools', newTools),
-		},
-	});
-}
 
 defineExpose({
 	focus: () => inputRef.value?.focus(),
@@ -352,7 +335,7 @@ defineExpose({
 									: i18n.baseText('chatHub.tools.selector.disabled.tooltip')
 							"
 							transparent-bg
-							@click="onSelectTools"
+							@change="emit('selectTools', $event)"
 						/>
 					</div>
 					<div :class="$style.actions">
