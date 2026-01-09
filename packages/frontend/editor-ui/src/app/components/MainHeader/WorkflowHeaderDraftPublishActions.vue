@@ -97,11 +97,14 @@ const publishButtonEnabled = computed(() => {
 		return false;
 	}
 
-	return (
-		(workflowsStore.workflow.versionId &&
-			workflowsStore.workflow.versionId !== workflowsStore.workflow.activeVersion?.versionId) ||
-		uiStore.stateIsDirty
-	);
+	if (
+		workflowsStore.workflow.versionId &&
+		workflowsStore.workflow.versionId === workflowsStore.workflow.activeVersion?.versionId
+	) {
+		return false;
+	}
+
+	return uiStore.stateIsDirty;
 });
 
 const publishTooltipText = computed(() => {
