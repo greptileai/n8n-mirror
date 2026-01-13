@@ -15,6 +15,11 @@ import {
 import { makeN8nLlmFailedAttemptHandler } from '../n8nLlmFailedAttemptHandler';
 import { N8nLlmTracing } from '../N8nLlmTracing';
 import { searchModels } from './methods/searchModels';
+import { BinaryDataToContentBlockFnKey } from '../../agents/Agent/agents/ToolsAgent/V3/types';
+import {
+	defaultBinaryDataToContentBlock,
+	isDocumentFile,
+} from '../../agents/Agent/agents/ToolsAgent/common';
 
 const modelField: INodeProperties = {
 	displayName: 'Model',
@@ -83,8 +88,8 @@ export class LmChatAnthropic implements INodeType {
 		name: 'lmChatAnthropic',
 		icon: 'file:anthropic.svg',
 		group: ['transform'],
-		version: [1, 1.1, 1.2, 1.3],
-		defaultVersion: 1.3,
+		version: [1, 1.1, 1.2, 1.3, 1.4],
+		defaultVersion: 1.4,
 		description: 'Language Model Anthropic',
 		defaults: {
 			name: 'Anthropic Chat Model',
@@ -365,6 +370,28 @@ export class LmChatAnthropic implements INodeType {
 		// If topP is set to a value and temperature is not, unset default Langchain temperature
 		if (options.topP !== undefined && options.temperature === undefined) {
 			delete model.temperature;
+		}
+
+		if (version >= 1.4) {
+			// Add PDF support at ver 1.4
+			model[BinaryDataToContentBlockFnKey] = async (ctx, data) => {
+				if (isDocumentFile(data.mimeType)) {
+					const bufferData = data.id
+						? await ctx.helpers.binaryToBuffer(await ctx.helpers.getBinaryStream(data.id))
+						: data.data.replace(/^base64,/, '');
+
+					return {
+						type: 'document',
+						source: {
+							type: 'base64',
+							media_type: data.mimeType,
+							data: bufferData.toString('base64'),
+						},
+					};
+				}
+
+				return await defaultBinaryDataToContentBlock(ctx, data);
+			};
 		}
 
 		return {

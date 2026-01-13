@@ -1,9 +1,11 @@
+import type { ContentBlock } from '@langchain/core/messages';
 import type {
 	ToolCallData,
 	ToolCallRequest,
 	AgentResult,
 	RequestResponseMetadata as SharedRequestResponseMetadata,
 } from '@utils/agent-execution';
+import type { IBinaryData, IExecuteFunctions, ISupplyDataFunctions } from 'n8n-workflow';
 
 // Re-export shared types for backwards compatibility
 export type { ToolCallData, ToolCallRequest, AgentResult };
@@ -32,3 +34,17 @@ export type AgentOptions = {
 	enableStreaming?: boolean;
 	maxTokensFromMemory?: number;
 };
+
+export const BinaryDataToContentBlockFnKey = Symbol('binaryDataToContentBlock');
+
+export type BinaryDataToContentBlockFn = (
+	ctx: IExecuteFunctions | ISupplyDataFunctions,
+	data: IBinaryData,
+) => Promise<ContentBlock | null>;
+
+declare module '@langchain/core/language_models/chat_models' {
+	// Extend interface from langchain to add custom logic to convert binary data to content blocks
+	interface BaseChatModel {
+		[BinaryDataToContentBlockFnKey]?: BinaryDataToContentBlockFn;
+	}
+}
