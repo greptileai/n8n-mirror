@@ -235,6 +235,7 @@ describe('GET /credentials', () => {
 					'credential:read',
 					'credential:share',
 					'credential:update',
+					'credential:use',
 				].sort(),
 			);
 		}
@@ -276,6 +277,7 @@ describe('GET /credentials', () => {
 					'credential:share',
 					'credential:shareGlobally',
 					'credential:update',
+					'credential:use',
 				].sort(),
 			);
 		}
@@ -355,7 +357,7 @@ describe('GET /credentials', () => {
 		expect(teamCredAsEditor.id).toBe(teamCredentialAsEditor.id);
 		expect(teamCredAsEditor.data).toBeDefined();
 		expect(teamCredAsEditor.scopes).toEqual(
-			['credential:read', 'credential:update', 'credential:delete'].sort(),
+			['credential:read', 'credential:update', 'credential:delete', 'credential:use'].sort(),
 		);
 	});
 
