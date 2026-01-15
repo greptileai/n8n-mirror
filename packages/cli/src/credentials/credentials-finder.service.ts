@@ -84,19 +84,32 @@ export class CredentialsFinderService {
 	 * For other scopes (like credential:update, credential:delete), also checks for credential:read
 	 * so users can find credentials they can view, even if they can't perform the action.
 	 * The actual permission check is done by @ProjectScope decorator.
+	 *
+	 * @param scopes - The scopes to check for
+	 * @param includeReadUseForActions - If true, when checking for action scopes (like update, delete),
+	 *   also include read/use roles so credentials can be found. If false, only return roles that have
+	 *   the specific action scope. Default is true for findCredentialForUser, false for filtering operations.
 	 */
-	private async getRolesForCredentialScopes(scopes: Scope[]): Promise<{
+	private async getRolesForCredentialScopes(
+		scopes: Scope[],
+		includeReadUseForActions = true,
+	): Promise<{
 		projectRoles: string[];
 		credentialRoles: string[];
 	}> {
 		const shouldCheckRead = scopes.includes('credential:read');
 		const shouldCheckUse = scopes.includes('credential:use') || shouldCheckRead;
 		// For non-read/use scopes (like update, delete), also check for read so users can find
-		// credentials they can view, even if they can't perform the action
+		// credentials they can view, even if they can't perform the action.
+		// However, if includeReadUseForActions is false, don't include read/use when only action scopes
+		// are requested, to ensure we only return credentials the user can actually perform the action on.
 		const hasOtherCredentialScopes = scopes.some(
 			(s) => s.startsWith('credential:') && s !== 'credential:read' && s !== 'credential:use',
 		);
-		const shouldCheckReadForOtherScopes = hasOtherCredentialScopes && !shouldCheckRead;
+		// Only include read/use for other scopes if read or use is also explicitly requested,
+		// OR if includeReadUseForActions is true (for findCredentialForUser use case)
+		const shouldCheckReadForOtherScopes =
+			hasOtherCredentialScopes && (shouldCheckRead || includeReadUseForActions);
 
 		const [projectRoles, credentialRolesRead, credentialRolesUse, credentialRolesOther] =
 			await Promise.all([
@@ -104,10 +117,10 @@ export class CredentialsFinderService {
 				shouldCheckRead || shouldCheckReadForOtherScopes
 					? this.roleService.rolesWithScope('credential', ['credential:read'])
 					: Promise.resolve([]),
-				shouldCheckUse
+				shouldCheckUse && (shouldCheckRead || shouldCheckReadForOtherScopes)
 					? this.roleService.rolesWithScope('credential', ['credential:use'])
 					: Promise.resolve([]),
-				// For other credential scopes (like update, delete), get roles with those scopes
+				// For other credential scopes (like update, delete, share), get roles with those scopes
 				hasOtherCredentialScopes
 					? this.roleService.rolesWithScope(
 							'credential',
@@ -120,9 +133,12 @@ export class CredentialsFinderService {
 			]);
 
 		// Combine roles that have any of the requested scopes
-		const credentialRoles = [
-			...new Set([...credentialRolesRead, ...credentialRolesUse, ...credentialRolesOther]),
-		];
+		// When includeReadUseForActions is false and we're checking for action scopes,
+		// only use credentialRolesOther to ensure we only return roles with the specific action scope
+		const credentialRoles =
+			!includeReadUseForActions && hasOtherCredentialScopes
+				? credentialRolesOther
+				: [...new Set([...credentialRolesRead, ...credentialRolesUse, ...credentialRolesOther])];
 
 		return { projectRoles, credentialRoles };
 	}
@@ -138,7 +154,12 @@ export class CredentialsFinderService {
 		let where: FindOptionsWhere<CredentialsEntity> = { isGlobal: false };
 
 		if (!hasGlobalScope(user, scopes, { mode: 'allOf' })) {
-			const { projectRoles, credentialRoles } = await this.getRolesForCredentialScopes(scopes);
+			// For filtering operations, don't include read/use when only action scopes are requested
+			// This ensures we only return credentials the user can actually perform the action on
+			const { projectRoles, credentialRoles } = await this.getRolesForCredentialScopes(
+				scopes,
+				false,
+			);
 			where = {
 				...where,
 				shared: {
@@ -223,12 +244,34 @@ export class CredentialsFinderService {
 		let where: FindOptionsWhere<SharedCredentials> = {};
 
 		if (!hasGlobalScope(user, scopes, { mode: 'allOf' })) {
-			const { projectRoles, credentialRoles } = await this.getRolesForCredentialScopes(scopes);
+			// For filtering operations (like finding credentials user can share),
+			// don't include read/use when only action scopes are requested
+			const hasActionScopesOnly = scopes.some(
+				(s) =>
+					s.startsWith('credential:') &&
+					s !== 'credential:read' &&
+					s !== 'credential:use' &&
+					!scopes.includes('credential:read') &&
+					!scopes.includes('credential:use'),
+			);
+			const { projectRoles, credentialRoles } = await this.getRolesForCredentialScopes(
+				scopes,
+				!hasActionScopesOnly,
+			);
+			// For action scopes like credential:share, we need to ensure the user's credential role
+			// has the required scope. We still filter by project roles to ensure the user has
+			// access to the project, but we use project:list (a basic project access scope)
+			// rather than the action scope itself, to avoid granting action permissions through
+			// project roles alone.
+			const projectRolesForFiltering = hasActionScopesOnly
+				? await this.roleService.rolesWithScope('project', ['project:list'])
+				: projectRoles;
+
 			where = {
 				role: In(credentialRoles),
 				project: {
 					projectRelations: {
-						role: In(projectRoles),
+						role: In(projectRolesForFiltering),
 						userId: user.id,
 					},
 				},

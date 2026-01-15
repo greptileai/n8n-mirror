@@ -98,9 +98,10 @@ describe('CredentialsFinderService', () => {
 				['credential:read' as const],
 			);
 
-			expect(roleService.rolesWithScope).toHaveBeenCalledTimes(2);
+			expect(roleService.rolesWithScope).toHaveBeenCalledTimes(3);
 			expect(roleService.rolesWithScope).toHaveBeenCalledWith('project', ['credential:read']);
 			expect(roleService.rolesWithScope).toHaveBeenCalledWith('credential', ['credential:read']);
+			expect(roleService.rolesWithScope).toHaveBeenCalledWith('credential', ['credential:use']);
 
 			expect(sharedCredentialsRepository.findOne).toHaveBeenCalledWith({
 				where: {
