@@ -258,6 +258,10 @@ export class RoleService {
 			!entity.scopes.includes('credential:read')
 		) {
 			entity.scopes.push('credential:read');
+			// Global credentials should also have credential:use so users can actually use them
+			if (!entity.scopes.includes('credential:use')) {
+				entity.scopes.push('credential:use');
+			}
 		}
 
 		return entity;
