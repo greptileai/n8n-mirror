@@ -96,6 +96,7 @@ export const PROJECT_EDITOR_SCOPES: Scope[] = [
 	'workflow:execute-chat',
 	'credential:create',
 	'credential:read',
+	'credential:use',
 	'credential:update',
 	'credential:delete',
 	'credential:list',
