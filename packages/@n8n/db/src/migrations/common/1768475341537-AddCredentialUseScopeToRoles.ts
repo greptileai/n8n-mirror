@@ -16,7 +16,7 @@ import type { MigrationContext, ReversibleMigration } from '../migration-types';
  * Both system roles (managed by code) and custom roles (user-created) are updated.
  */
 export class AddCredentialUseScopeToRoles1768475341537 implements ReversibleMigration {
-	async up({ escape, runQuery, logger }: MigrationContext) {
+	async up({ escape, runQuery, logger, dbType }: MigrationContext) {
 		const scopeTableName = escape.tableName('scope');
 		const scopeSlugColumn = escape.columnName('slug');
 		const displayNameColumn = escape.columnName('displayName');
@@ -29,9 +29,13 @@ export class AddCredentialUseScopeToRoles1768475341537 implements ReversibleMigr
 		const roleScopeScopeSlugColumn = escape.columnName('scopeSlug');
 
 		// Step 1: Ensure credential:use scope exists
-		const insertScopeQuery = `INSERT INTO ${scopeTableName} (${scopeSlugColumn}, ${displayNameColumn}, ${descriptionColumn})
+		const isPostgresOrSqlite = dbType === 'postgresdb' || dbType === 'sqlite';
+		const insertScopeQuery = isPostgresOrSqlite
+			? `INSERT INTO ${scopeTableName} (${scopeSlugColumn}, ${displayNameColumn}, ${descriptionColumn})
          VALUES (:slug, :displayName, :description)
-         ON CONFLICT (${scopeSlugColumn}) DO NOTHING`;
+         ON CONFLICT (${scopeSlugColumn}) DO NOTHING`
+			: `INSERT IGNORE INTO ${scopeTableName} (${scopeSlugColumn}, ${displayNameColumn}, ${descriptionColumn})
+         VALUES (:slug, :displayName, :description)`;
 
 		await runQuery(insertScopeQuery, {
 			slug: 'credential:use',
@@ -42,7 +46,8 @@ export class AddCredentialUseScopeToRoles1768475341537 implements ReversibleMigr
 		logger.debug('Ensured credential:use scope exists');
 
 		// Step 2: Add credential:use to all roles that have credential:read (all role types)
-		const batchInsertQuery = `
+		const batchInsertQuery = isPostgresOrSqlite
+			? `
 		INSERT INTO ${roleScopeTableName} (${roleScopeRoleSlugColumn}, ${roleScopeScopeSlugColumn})
 		SELECT DISTINCT role.${roleSlugColumn}, :useScope
 		FROM ${roleTableName} role
@@ -50,6 +55,14 @@ export class AddCredentialUseScopeToRoles1768475341537 implements ReversibleMigr
 			ON role.${roleSlugColumn} = role_scope.${roleScopeRoleSlugColumn}
 		WHERE role_scope.${roleScopeScopeSlugColumn} = :readScope
 		ON CONFLICT (${roleScopeRoleSlugColumn}, ${roleScopeScopeSlugColumn}) DO NOTHING
+	`
+			: `
+		INSERT IGNORE INTO ${roleScopeTableName} (${roleScopeRoleSlugColumn}, ${roleScopeScopeSlugColumn})
+		SELECT DISTINCT role.${roleSlugColumn}, :useScope
+		FROM ${roleTableName} role
+		INNER JOIN ${roleScopeTableName} role_scope
+			ON role.${roleSlugColumn} = role_scope.${roleScopeRoleSlugColumn}
+		WHERE role_scope.${roleScopeScopeSlugColumn} = :readScope
 	`;
 
 		await runQuery(batchInsertQuery, {
@@ -62,20 +75,28 @@ export class AddCredentialUseScopeToRoles1768475341537 implements ReversibleMigr
 
 	async down({ escape, runQuery, logger }: MigrationContext) {
 		const roleScopeTableName = escape.tableName('role_scope');
+		const roleScopeRoleSlugColumn = escape.columnName('roleSlug');
 		const roleScopeScopeSlugColumn = escape.columnName('scopeSlug');
 
-		// Remove all credential:use scopes from all roles
-		// Since the up migration only adds credential:use to roles with credential:read,
-		// all credential:use scopes can be safely removed to revert the migration.
+		// Remove credential:use scopes only from roles that also have credential:read
+		// This is the exact inverse of what up() does, ensuring we don't remove
+		// manually granted credential:use scopes from roles without credential:read.
+		// Using EXISTS for cross-database compatibility.
 		const deleteQuery = `
-			DELETE FROM ${roleScopeTableName}
-			WHERE ${roleScopeScopeSlugColumn} = :useScope
+			DELETE FROM ${roleScopeTableName} rs1
+			WHERE rs1.${roleScopeScopeSlugColumn} = :useScope
+				AND EXISTS (
+					SELECT 1 FROM ${roleScopeTableName} rs2
+					WHERE rs2.${roleScopeRoleSlugColumn} = rs1.${roleScopeRoleSlugColumn}
+						AND rs2.${roleScopeScopeSlugColumn} = :readScope
+				)
 		`;
 
 		await runQuery(deleteQuery, {
+			readScope: 'credential:read',
 			useScope: 'credential:use',
 		});
 
-		logger.info('Removed credential:use scope from all roles');
+		logger.info('Removed credential:use scope from roles with credential:read');
 	}
 }
