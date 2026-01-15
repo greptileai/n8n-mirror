@@ -1172,6 +1172,7 @@ describe('CredentialsService', () => {
 			// ASSERT
 			expect(credentialsFinderService.findCredentialsForUser).toHaveBeenCalledWith(user, [
 				'credential:read',
+				'credential:use',
 			]);
 			expect(result).toHaveLength(2);
 			expect(result).toEqual(
@@ -1198,6 +1199,7 @@ describe('CredentialsService', () => {
 			// ASSERT
 			expect(credentialsFinderService.findCredentialsForUser).toHaveBeenCalledWith(user, [
 				'credential:read',
+				'credential:use',
 			]);
 			expect(result).toHaveLength(2);
 			expect(result).toEqual(

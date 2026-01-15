@@ -357,8 +357,11 @@ export class CredentialsService {
 		// necessary to get the scopes
 		const projectRelations = await this.projectService.getProjectRelationsForUser(user);
 
-		// get all credentials the user can use in workflows (requires credential:use scope)
+		// get all credentials the user can view or use in workflows
+		// Users with credential:read can view (for governance), users with credential:use can use
+		// We check for both to show all credentials the user has any access to
 		const allCredentials = await this.credentialsFinderService.findCredentialsForUser(user, [
+			'credential:read',
 			'credential:use',
 		]);
 
