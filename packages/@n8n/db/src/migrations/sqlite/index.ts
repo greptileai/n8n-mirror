@@ -260,7 +260,7 @@ const sqliteMigrations: Migration[] = [
 	AddWorkflowPublishScopeToProjectRoles1766064542000,
 	AddChatMessageIndices1766068346315,
 	ChangeWorkflowStatisticsFKToNoAction1767018516000,
-  AddCredentialUseScopeToRoles1768475341537,
+	AddCredentialUseScopeToRoles1768475341537,
 ];
 
 export { sqliteMigrations };
