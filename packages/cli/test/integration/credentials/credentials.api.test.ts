@@ -262,6 +262,7 @@ describe('GET /credentials', () => {
 					'credential:share',
 					'credential:shareGlobally',
 					'credential:update',
+					'credential:use',
 				].sort(),
 			);
 
