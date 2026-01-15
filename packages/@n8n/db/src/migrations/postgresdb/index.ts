@@ -269,6 +269,6 @@ export const postgresMigrations: Migration[] = [
 	AddWorkflowVersionIdToExecutionData1765892199653,
 	AddWorkflowPublishScopeToProjectRoles1766064542000,
 	AddChatMessageIndices1766068346315,
-	AddCredentialUseScopeToRoles1768475341537,
 	ExpandInsightsWorkflowIdLength1766500000000,
+	AddCredentialUseScopeToRoles1768475341537,
 ];
