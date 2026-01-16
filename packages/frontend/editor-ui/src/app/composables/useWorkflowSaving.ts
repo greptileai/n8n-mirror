@@ -1,6 +1,7 @@
 import { useNpsSurveyStore } from '@/app/stores/npsSurvey.store';
 import { useUIStore } from '@/app/stores/ui.store';
 import type { LocationQuery, NavigationGuardNext, useRouter } from 'vue-router';
+import { watch } from 'vue';
 import { useMessage } from './useMessage';
 import { useI18n } from '@n8n/i18n';
 import { MODAL_CANCEL, MODAL_CLOSE, MODAL_CONFIRM, VIEWS, AutoSaveState } from '@/app/constants';
@@ -25,6 +26,7 @@ import { getResourcePermissions } from '@n8n/permissions';
 import { useDebounceFn } from '@vueuse/core';
 import { useBuilderStore } from '@/features/ai/assistant/builder.store';
 import { useWorkflowAutosaveStore } from '@/app/stores/workflowAutosave.store';
+import { useNetworkStore } from '@/app/stores/network.store';
 
 export function useWorkflowSaving({
 	router,
@@ -52,6 +54,7 @@ export function useWorkflowSaving({
 		useWorkflowHelpers();
 
 	const autosaveStore = useWorkflowAutosaveStore();
+	const networkStore = useNetworkStore();
 
 	async function promptSaveUnsavedWorkflowChanges(
 		next: NavigationGuardNext,
@@ -231,12 +234,47 @@ export function useWorkflowSaving({
 			// Reset AI Builder edits flag only after successful save
 			builderStore.resetAiBuilderMadeEdits();
 
+			// Reset retry count on successful save
+			autosaveStore.resetRetry();
+
 			onSaved?.(false); // Update of existing workflow
 			return true;
 		} catch (error) {
 			console.error(error);
 
 			uiStore.removeActiveAction('workflowSaving');
+
+			// Handle autosave failures with exponential backoff
+			if (autosaved) {
+				autosaveStore.incrementRetry();
+				autosaveStore.setLastError(error.message);
+
+				// Schedule retry with exponential backoff
+				const retryDelay = autosaveStore.getRetryDelay();
+				autosaveStore.setRetrying(true);
+
+				setTimeout(() => {
+					autosaveStore.setRetrying(false);
+					// Trigger autosave again if workflow is still dirty
+					if (uiStore.stateIsDirty) {
+						scheduleAutoSave();
+					}
+				}, retryDelay);
+
+				toast.showMessage({
+					title: i18n.baseText('workflowHelpers.showMessage.title'),
+					message: i18n.baseText('generic.autosave.retrying', {
+						interpolate: {
+							error: error.message,
+							retryIn: `${Math.ceil(retryDelay / 1000)}s`,
+						},
+					}),
+					type: 'error',
+					duration: retryDelay,
+				});
+
+				return false;
+			}
 
 			if (error.errorCode === 100) {
 				telemetry.track('User attempted to save locked workflow', {
@@ -469,10 +507,10 @@ export function useWorkflowSaving({
 					await saveCurrentWorkflow({}, true, false, true);
 				} finally {
 					if (autosaveStore.autoSaveState === AutoSaveState.InProgress) {
-						autosaveStore.reset();
+						autosaveStore.setAutoSaveState(AutoSaveState.Idle);
 					}
 					// If changes were made during save, reschedule autosave
-					if (uiStore.stateIsDirty) {
+					if (uiStore.stateIsDirty && !autosaveStore.isRetrying) {
 						autosaveStore.setAutoSaveState(AutoSaveState.Scheduled);
 						void autoSaveWorkflowDebounced();
 					}
@@ -491,6 +529,17 @@ export function useWorkflowSaving({
 		if (autosaveStore.autoSaveState === AutoSaveState.InProgress) {
 			return;
 		}
+
+		// Don't schedule if we're waiting for retry backoff to complete
+		if (autosaveStore.isRetrying) {
+			return;
+		}
+
+		// Don't schedule if we're offline
+		if (!networkStore.isOnline) {
+			return;
+		}
+
 		autosaveStore.setAutoSaveState(AutoSaveState.Scheduled);
 		void autoSaveWorkflowDebounced();
 	};
@@ -501,6 +550,18 @@ export function useWorkflowSaving({
 		}
 		autosaveStore.setAutoSaveState(AutoSaveState.Idle);
 	};
+
+	// Watch for network coming back online
+	watch(
+		() => networkStore.isOnline,
+		(isOnline, wasOnline) => {
+			if (isOnline && !wasOnline) {
+				if (uiStore.stateIsDirty) {
+					scheduleAutoSave();
+				}
+			}
+		},
+	);
 
 	return {
 		promptSaveUnsavedWorkflowChanges,
