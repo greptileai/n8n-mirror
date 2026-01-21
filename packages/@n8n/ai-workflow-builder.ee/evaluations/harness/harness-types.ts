@@ -8,6 +8,14 @@ import type { SimpleWorkflow } from '../../src/types/workflow.js';
 export type LlmCallLimiter = ReturnType<typeof pLimit>;
 
 /**
+ * Token usage statistics from workflow generation.
+ */
+export interface TokenUsage {
+	inputTokens: number;
+	outputTokens: number;
+}
+
+/**
  * Shared context passed to all evaluators.
  *
  * Keep this as the single "base" context so callers (CLI/runner) never need casts.
@@ -103,8 +111,8 @@ export type EvaluationSuite = 'llm-judge' | 'pairwise' | 'programmatic' | 'simil
  * Configuration for an evaluation run.
  */
 export interface RunConfigBase {
-	/** Function to generate workflow from prompt. Optional collectors receive metrics. */
-	generateWorkflow: (prompt: string, collectors?: GenerationCollectors) => Promise<SimpleWorkflow>;
+	/** Function to generate workflow from prompt. Optional collectors receive metrics. May return GenerationResult with source code. */
+	generateWorkflow: (prompt: string, collectors?: GenerationCollectors) => Promise<SimpleWorkflow | GenerationResult>;
 	/** Evaluators to run on each generated workflow */
 	evaluators: Array<Evaluator<EvaluationContext>>;
 	/** Global context available to all evaluators */
@@ -207,7 +215,37 @@ export interface ExampleResult {
 	/** Subgraph timing and workflow metrics */
 	subgraphMetrics?: SubgraphMetrics;
 	workflow?: SimpleWorkflow;
+	/** Generated source code (e.g., TypeScript SDK code from one-shot agent) */
+	generatedCode?: string;
+	/** Token usage statistics from the generation */
+	tokenUsage?: TokenUsage;
 	error?: string;
+}
+
+/**
+ * Result from workflow generation that may include source code.
+ * Used by generators that produce code (e.g., one-shot agent).
+ */
+export interface GenerationResult {
+	workflow: SimpleWorkflow;
+	/** Source code that generated the workflow (e.g., TypeScript SDK code) */
+	generatedCode?: string;
+	/** Token usage statistics from the generation */
+	tokenUsage?: TokenUsage;
+}
+
+/**
+ * Type guard to check if a generation result includes source code.
+ */
+export function isGenerationResult(
+	value: SimpleWorkflow | GenerationResult,
+): value is GenerationResult {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'workflow' in value &&
+		typeof (value as GenerationResult).workflow === 'object'
+	);
 }
 
 /**
@@ -228,6 +266,8 @@ export interface RunSummary {
 		datasetId: string;
 		datasetName?: string;
 	};
+	/** Aggregated token usage across all examples */
+	totalTokenUsage?: TokenUsage;
 }
 
 /**

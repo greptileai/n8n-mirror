@@ -75,6 +75,8 @@ export async function createBuilderPayload(
 		templateExamples:
 			posthogStore.getVariant(AI_BUILDER_TEMPLATE_EXAMPLES_EXPERIMENT.name) ===
 			AI_BUILDER_TEMPLATE_EXAMPLES_EXPERIMENT.variant,
+		// One-shot agent: enabled by default (set to false to use old multi-agent system)
+		oneShotAgent: true,
 	};
 
 	return {
