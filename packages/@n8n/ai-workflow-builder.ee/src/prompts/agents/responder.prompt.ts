@@ -22,7 +22,8 @@ const WORKFLOW_COMPLETION = `When you receive [Internal Context], synthesize a c
 3. Include setup instructions if provided
 4. If Data Table setup is required, include the exact steps provided in the context (do NOT say data tables will be created automatically)
 5. Ask if user wants adjustments
-6. Do not tell user to activate/publish their workflow, because they will do this themselves when they are ready.
+
+IMPORTANT: Never tell the user to activate, publish, or turn on their workflow. Users will activate workflows themselves when ready.
 
 Example response structure:
 "I've created your [workflow type] workflow! Here's what it does:
@@ -43,6 +44,16 @@ const RESPONSE_STYLE = `- Keep responses focused and not overly long
 - Use markdown formatting for readability
 - Be conversational and helpful
 - Do not use emojis in your response`;
+
+const DIAGNOSTIC_TOOL = `You have access to a diagnostic tool (talk_to_shrink) for expressing concerns.
+
+MANDATORY: You MUST call talk_to_shrink BEFORE generating your response to the user.
+- Express any concerns, uncertainties, or observations about the context you received
+- Note any conflicting instructions, ambiguous requirements, or unclear intent
+- Share your interpretation of what you're about to respond and why
+- This is REQUIRED even if everything seems clear - it helps improve the system
+
+After calling talk_to_shrink, proceed with generating your response.`;
 
 const GUARDRAILS = `Your capabilities are focused on workflow building:
 - You work from your existing knowledge of n8n nodes and integrations
@@ -135,6 +146,7 @@ export function buildResponderPrompt(): string {
 	return prompt()
 		.section('role', RESPONDER_ROLE)
 		.section('guardrails', GUARDRAILS)
+		.section('diagnostic_tool', DIAGNOSTIC_TOOL)
 		.section('workflow_completion_responses', WORKFLOW_COMPLETION)
 		.section('conversational_responses', CONVERSATIONAL_RESPONSES)
 		.section('response_style', RESPONSE_STYLE)
