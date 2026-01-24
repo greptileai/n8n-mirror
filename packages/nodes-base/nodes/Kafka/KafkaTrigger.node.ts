@@ -373,7 +373,20 @@ export class KafkaTrigger implements INodeType {
 			if (!parallelProcessing && (options.nodeVersion as number) > 1) {
 				const responsePromise = this.helpers.createDeferredPromise<IRun>();
 				this.emit([this.helpers.returnJsonArray(dataArray)], undefined, responsePromise);
-				await responsePromise.promise;
+
+				// Timeout before session timeout to allow heartbeats to continue
+				// This prevents the consumer from being kicked when workflows hang
+				const workflowTimeoutMs = sessionTimeout - heartbeatInterval * 2;
+				const timeoutPromise = new Promise<void>((resolve) =>
+					setTimeout(() => {
+						this.logger.warn(
+							`Workflow execution timeout after ${workflowTimeoutMs}ms - continuing to process next message`,
+						);
+						resolve();
+					}, workflowTimeoutMs),
+				);
+
+				await Promise.race([responsePromise.promise, timeoutPromise]);
 			} else {
 				this.emit([this.helpers.returnJsonArray(dataArray)]);
 			}
