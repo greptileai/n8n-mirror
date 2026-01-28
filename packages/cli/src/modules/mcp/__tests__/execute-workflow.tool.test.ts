@@ -15,6 +15,7 @@ import { WorkflowAccessError } from '../mcp.errors';
 import { createExecuteWorkflowTool, executeWorkflow } from '../tools/execute-workflow.tool';
 
 import { ActiveExecutions } from '@/active-executions';
+import { McpService } from '@/modules/mcp/mcp.service';
 import { Telemetry } from '@/telemetry';
 import { WorkflowRunner } from '@/workflow-runner';
 import { WorkflowFinderService } from '@/workflows/workflow-finder.service';
@@ -27,6 +28,7 @@ describe('execute-workflow MCP tool', () => {
 	let activeExecutions: ActiveExecutions;
 	let workflowRunner: WorkflowRunner;
 	let telemetry: Telemetry;
+	let mcpService: McpService;
 
 	beforeEach(() => {
 		workflowFinderService = mockInstance(WorkflowFinderService);
@@ -35,6 +37,10 @@ describe('execute-workflow MCP tool', () => {
 		workflowRunner = mockInstance(WorkflowRunner);
 		telemetry = mockInstance(Telemetry, {
 			track: jest.fn(),
+		});
+		mcpService = mockInstance(McpService, {
+			isQueueMode: false,
+			hostId: 'test-host-id',
 		});
 	});
 
@@ -47,6 +53,7 @@ describe('execute-workflow MCP tool', () => {
 				activeExecutions,
 				workflowRunner,
 				telemetry,
+				mcpService,
 			);
 
 			expect(tool.name).toBe('execute_workflow');
@@ -74,6 +81,7 @@ describe('execute-workflow MCP tool', () => {
 						workflowRepository,
 						activeExecutions,
 						workflowRunner,
+						mcpService,
 						'missing-workflow',
 						undefined,
 					),
@@ -86,6 +94,7 @@ describe('execute-workflow MCP tool', () => {
 						workflowRepository,
 						activeExecutions,
 						workflowRunner,
+						mcpService,
 						'missing-workflow',
 						undefined,
 					),
@@ -103,6 +112,7 @@ describe('execute-workflow MCP tool', () => {
 						workflowRepository,
 						activeExecutions,
 						workflowRunner,
+						mcpService,
 						'missing-workflow',
 						undefined,
 					),
@@ -122,6 +132,7 @@ describe('execute-workflow MCP tool', () => {
 						workflowRepository,
 						activeExecutions,
 						workflowRunner,
+						mcpService,
 						'no-permission-workflow',
 						undefined,
 					),
@@ -134,6 +145,7 @@ describe('execute-workflow MCP tool', () => {
 						workflowRepository,
 						activeExecutions,
 						workflowRunner,
+						mcpService,
 						'no-permission-workflow',
 						undefined,
 					),
@@ -151,6 +163,7 @@ describe('execute-workflow MCP tool', () => {
 						workflowRepository,
 						activeExecutions,
 						workflowRunner,
+						mcpService,
 						'no-permission-workflow',
 						undefined,
 					),
@@ -171,6 +184,7 @@ describe('execute-workflow MCP tool', () => {
 						workflowRepository,
 						activeExecutions,
 						workflowRunner,
+						mcpService,
 						'archived-workflow',
 						undefined,
 					),
@@ -183,6 +197,7 @@ describe('execute-workflow MCP tool', () => {
 						workflowRepository,
 						activeExecutions,
 						workflowRunner,
+						mcpService,
 						'archived-workflow',
 						undefined,
 					),
@@ -201,6 +216,7 @@ describe('execute-workflow MCP tool', () => {
 						workflowRepository,
 						activeExecutions,
 						workflowRunner,
+						mcpService,
 						'archived-workflow',
 						undefined,
 					),
@@ -224,6 +240,7 @@ describe('execute-workflow MCP tool', () => {
 						workflowRepository,
 						activeExecutions,
 						workflowRunner,
+						mcpService,
 						'unavailable-workflow',
 						undefined,
 					),
@@ -245,6 +262,7 @@ describe('execute-workflow MCP tool', () => {
 						workflowRepository,
 						activeExecutions,
 						workflowRunner,
+						mcpService,
 						'unavailable-workflow',
 						undefined,
 					),
@@ -278,6 +296,7 @@ describe('execute-workflow MCP tool', () => {
 						workflowRepository,
 						activeExecutions,
 						workflowRunner,
+						mcpService,
 						'unsupported-trigger',
 						undefined,
 					),
@@ -290,6 +309,7 @@ describe('execute-workflow MCP tool', () => {
 						workflowRepository,
 						activeExecutions,
 						workflowRunner,
+						mcpService,
 						'unsupported-trigger',
 						undefined,
 					),
@@ -321,6 +341,7 @@ describe('execute-workflow MCP tool', () => {
 						workflowRepository,
 						activeExecutions,
 						workflowRunner,
+						mcpService,
 						'unsupported-trigger',
 						undefined,
 					),
@@ -354,6 +375,7 @@ describe('execute-workflow MCP tool', () => {
 						workflowRepository,
 						activeExecutions,
 						workflowRunner,
+						mcpService,
 						'disabled-trigger',
 						undefined,
 					),
@@ -397,6 +419,7 @@ describe('execute-workflow MCP tool', () => {
 					workflowRepository,
 					activeExecutions,
 					workflowRunner,
+					mcpService,
 					'webhook-workflow',
 					{
 						type: 'webhook',
@@ -463,6 +486,7 @@ describe('execute-workflow MCP tool', () => {
 					workflowRepository,
 					activeExecutions,
 					workflowRunner,
+					mcpService,
 					'webhook-workflow',
 					{
 						type: 'webhook',
@@ -519,6 +543,7 @@ describe('execute-workflow MCP tool', () => {
 					workflowRepository,
 					activeExecutions,
 					workflowRunner,
+					mcpService,
 					'chat-workflow',
 					{
 						type: 'chat',
@@ -578,6 +603,7 @@ describe('execute-workflow MCP tool', () => {
 					workflowRepository,
 					activeExecutions,
 					workflowRunner,
+					mcpService,
 					'form-workflow',
 					{
 						type: 'form',
@@ -649,6 +675,7 @@ describe('execute-workflow MCP tool', () => {
 					workflowRepository,
 					activeExecutions,
 					workflowRunner,
+					mcpService,
 					'success-workflow',
 					undefined,
 				);
@@ -698,6 +725,7 @@ describe('execute-workflow MCP tool', () => {
 					workflowRepository,
 					activeExecutions,
 					workflowRunner,
+					mcpService,
 					'error-workflow',
 					undefined,
 				);
@@ -748,6 +776,7 @@ describe('execute-workflow MCP tool', () => {
 					workflowRepository,
 					activeExecutions,
 					workflowRunner,
+					mcpService,
 					'data-error-workflow',
 					undefined,
 				);
@@ -789,6 +818,7 @@ describe('execute-workflow MCP tool', () => {
 						workflowRepository,
 						activeExecutions,
 						workflowRunner,
+						mcpService,
 						'no-data-workflow',
 						undefined,
 					),
@@ -801,6 +831,7 @@ describe('execute-workflow MCP tool', () => {
 						workflowRepository,
 						activeExecutions,
 						workflowRunner,
+						mcpService,
 						'no-data-workflow',
 						undefined,
 					),
@@ -838,6 +869,7 @@ describe('execute-workflow MCP tool', () => {
 					workflowRepository,
 					activeExecutions,
 					workflowRunner,
+					mcpService,
 					'no-inputs-workflow',
 					undefined,
 				);
@@ -889,6 +921,7 @@ describe('execute-workflow MCP tool', () => {
 					activeExecutions,
 					workflowRunner,
 					telemetry,
+					mcpService,
 				);
 
 				// Call through the tool handler to test telemetry
@@ -927,6 +960,7 @@ describe('execute-workflow MCP tool', () => {
 					activeExecutions,
 					workflowRunner,
 					telemetry,
+					mcpService,
 				);
 
 				// Call through the tool handler to test telemetry
@@ -963,6 +997,7 @@ describe('execute-workflow MCP tool', () => {
 					activeExecutions,
 					workflowRunner,
 					telemetry,
+					mcpService,
 				);
 
 				// Call through the tool handler to test telemetry
@@ -1037,6 +1072,7 @@ describe('execute-workflow MCP tool', () => {
 					workflowRepository,
 					activeExecutions,
 					workflowRunner,
+					mcpService,
 					'multi-trigger-workflow',
 					undefined,
 				);

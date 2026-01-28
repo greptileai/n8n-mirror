@@ -390,6 +390,11 @@ export class WorkflowRunner {
 			pushRef: data.pushRef,
 			streamingEnabled: data.streamingEnabled,
 			restartExecutionId,
+			// MCP-specific fields for queue mode support
+			isMcpExecution: data.isMcpExecution,
+			mcpSessionId: data.mcpSessionId,
+			mcpMessageId: data.mcpMessageId,
+			originMainId: data.originMainId,
 		};
 
 		if (!this.scalingService) {
