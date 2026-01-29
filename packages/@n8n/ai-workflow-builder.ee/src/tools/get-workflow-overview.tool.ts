@@ -7,7 +7,7 @@ import type { SimpleWorkflow } from '../types/workflow';
 import type { BuilderTool, BuilderToolBase } from '../utils/stream-processor';
 import { createProgressReporter } from './helpers/progress';
 import { createSuccessResponse, createErrorResponse } from './helpers/response';
-import { getWorkflowState } from './helpers/state';
+import { getEffectiveWorkflow } from './helpers/state';
 import { mermaidStringify } from './utils/mermaid.utils';
 
 const DISPLAY_TITLE = 'Getting workflow overview';
@@ -24,8 +24,10 @@ const getWorkflowOverviewSchema = z.object({
 	includeParameters: z
 		.boolean()
 		.optional()
-		.default(false)
-		.describe('Include node parameters in the output'),
+		.default(true)
+		.describe(
+			'Include node parameters in the output (recommended to identify configuration issues)',
+		),
 });
 
 /**
@@ -168,9 +170,8 @@ export function createGetWorkflowOverviewTool(logger?: Logger): BuilderTool {
 				// Report tool start
 				reporter.start(validatedInput);
 
-				// Get current state
-				const state = getWorkflowState();
-				const workflow = state.workflowJSON;
+				// Get effective workflow (includes pending operations from this turn)
+				const workflow = getEffectiveWorkflow();
 
 				if (!workflow || workflow.nodes.length === 0) {
 					const output: GetWorkflowOverviewOutput = {
