@@ -29,7 +29,7 @@ import {
 } from '../tools/get-node-examples.tool';
 import { createGetNodeParameterTool } from '../tools/get-node-parameter.tool';
 import { createGetResourceLocatorOptionsTool } from '../tools/get-resource-locator-options.tool';
-import { createGetWorkflowJsonTool } from '../tools/get-workflow-json.tool';
+// Workflow context tools
 import { createGetWorkflowOverviewTool } from '../tools/get-workflow-overview.tool';
 import { createRemoveConnectionTool } from '../tools/remove-connection.tool';
 import { createRemoveNodeTool } from '../tools/remove-node.tool';
@@ -198,7 +198,6 @@ export class BuilderSubgraph extends BaseSubgraph<
 			// Workflow context tools
 			createGetWorkflowOverviewTool(config.logger),
 			createGetNodeContextTool(config.logger),
-			createGetWorkflowJsonTool(config.logger),
 			// Conditionally add resource locator tool if callback is provided
 			...(config.resourceLocatorCallback
 				? [
