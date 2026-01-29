@@ -1002,7 +1002,7 @@ export const useChatStore = defineStore(STORES.CHAT_HUB, () => {
 	 */
 	function handleWebSocketExecutionEnd(data: {
 		sessionId: ChatSessionId;
-		status: 'success' | 'error' | 'cancelled';
+		status: ChatHubMessageStatus;
 	}) {
 		const { sessionId, status } = data;
 
