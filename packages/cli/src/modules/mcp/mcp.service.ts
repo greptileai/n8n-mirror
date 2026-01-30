@@ -3,11 +3,11 @@ import { ExecutionsConfig, GlobalConfig } from '@n8n/config';
 import { User, WorkflowRepository } from '@n8n/db';
 import { Service } from '@n8n/di';
 import { InstanceSettings } from 'n8n-core';
-import type { IRun } from 'n8n-workflow';
 import {
 	createDeferredPromise,
 	ManualExecutionCancelledError,
 	type IDeferredPromise,
+	type IRun,
 } from 'n8n-workflow';
 
 import { createExecuteWorkflowTool } from './tools/execute-workflow.tool';
@@ -44,7 +44,7 @@ export class McpService {
 	constructor(
 		private readonly logger: Logger,
 		private readonly executionsConfig: ExecutionsConfig,
-		private readonly instanceSettings: InstanceSettings,
+		_instanceSettings: InstanceSettings,
 		private readonly workflowFinderService: WorkflowFinderService,
 		private readonly workflowRepository: WorkflowRepository,
 		private readonly workflowService: WorkflowService,
@@ -123,13 +123,6 @@ export class McpService {
 	}
 
 	/**
-	 * Get the host ID of this main instance (for multi-main routing).
-	 */
-	get hostId(): string {
-		return this.instanceSettings.hostId;
-	}
-
-	/**
 	 * Create a pending response for an MCP execution in queue mode.
 	 * Returns a promise that will be resolved when the worker sends the response.
 	 */
@@ -141,7 +134,6 @@ export class McpService {
 			createdAt: new Date(),
 		});
 
-		this.logger.debug('Created pending MCP response', { executionId });
 		return deferred;
 	}
 
@@ -156,7 +148,6 @@ export class McpService {
 			return;
 		}
 
-		this.logger.debug('Resolving pending MCP response', { executionId });
 		pending.promise.resolve(runData);
 		this.pendingResponses.delete(executionId);
 	}
@@ -184,14 +175,11 @@ export class McpService {
 
 		this.logger.debug('Cancelling pending MCP execution', { executionId, reason });
 
-		// Reject the pending promise
 		const cancellationError = new ManualExecutionCancelledError(executionId);
 		pending.promise.reject(cancellationError);
 
-		// Clean up
 		this.pendingResponses.delete(executionId);
 
-		// Attempt to stop the execution if it's still active
 		if (this.activeExecutions.has(executionId)) {
 			this.activeExecutions.stopExecution(executionId, cancellationError);
 		}

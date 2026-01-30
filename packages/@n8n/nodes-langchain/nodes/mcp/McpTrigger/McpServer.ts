@@ -22,13 +22,24 @@ import type { CompressionResponse } from './FlushingTransport';
 
 /**
  * Pending MCP response for queue mode support.
- * Stores the transport reference to send results when worker responds.
+ * Stores the transport reference and resolve function to send results when worker responds.
  */
 interface PendingMcpTriggerResponse {
 	sessionId: string;
 	messageId: string;
 	transport: FlushingSSEServerTransport | FlushingStreamableHTTPTransport;
 	createdAt: Date;
+}
+
+/**
+ * Pending tool call waiting for worker execution in queue mode.
+ * The resolve function receives the tool result from the worker.
+ */
+interface PendingToolCall {
+	toolName: string;
+	arguments: Record<string, unknown>;
+	resolve: (result: unknown) => void;
+	reject: (error: Error) => void;
 }
 
 /**
@@ -65,6 +76,51 @@ function getRequestId(message: unknown): string | undefined {
 }
 
 /**
+ * Tool call info extracted from an MCP message.
+ */
+export interface McpToolCallInfo {
+	toolName: string;
+	arguments: Record<string, unknown>;
+	/** The n8n node name that provides this tool (for worker execution in queue mode) */
+	sourceNodeName?: string;
+}
+
+/**
+ * Extracts tool call info from an MCP message if it's a tool call.
+ * Returns undefined if the message is not a tool call.
+ */
+function extractToolCallInfo(body: string): McpToolCallInfo | undefined {
+	try {
+		const message: unknown = JSON.parse(body);
+		const parsedMessage: JSONRPCMessage = JSONRPCMessageSchema.parse(message);
+		if (
+			'method' in parsedMessage &&
+			'params' in parsedMessage &&
+			parsedMessage.method === CallToolRequestSchema.shape.method.value
+		) {
+			const params = parsedMessage.params;
+			if (
+				typeof params === 'object' &&
+				params !== null &&
+				'name' in params &&
+				typeof params.name === 'string' &&
+				'arguments' in params &&
+				typeof params.arguments === 'object' &&
+				params.arguments !== null
+			) {
+				return {
+					toolName: params.name,
+					arguments: params.arguments as Record<string, unknown>,
+				};
+			}
+		}
+		return undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+/**
  * This singleton is shared across the instance, making sure it is the one
  * keeping account of MCP servers.
  * It needs to stay in memory to keep track of the long-lived connections.
@@ -88,6 +144,18 @@ export class McpServerManager {
 	 * Key is `${sessionId}_${messageId}` (callId).
 	 */
 	private pendingResponses: { [callId: string]: PendingMcpTriggerResponse } = {};
+
+	/**
+	 * Pending tool calls waiting for worker execution in queue mode.
+	 * Key is `${sessionId}_${messageId}` (callId).
+	 */
+	private pendingToolCalls: { [callId: string]: PendingToolCall } = {};
+
+	/**
+	 * Whether the instance is running in queue mode.
+	 * In queue mode, tool executions are delegated to workers.
+	 */
+	private _isQueueMode = false;
 
 	logger: Logger;
 
@@ -203,17 +271,37 @@ export class McpServerManager {
 		}
 	}
 
-	async handlePostMessage(req: express.Request, resp: CompressionResponse, connectedTools: Tool[]) {
+	async handlePostMessage(
+		req: express.Request,
+		resp: CompressionResponse,
+		connectedTools: Tool[],
+	): Promise<{ wasToolCall: boolean; toolCallInfo?: McpToolCallInfo; messageId?: string }> {
 		// Session ID can be passed either as a query parameter (SSE transport)
 		// or in the header (StreamableHTTP transport).
 		const sessionId = this.getSessionId(req);
 		const transport = this.getTransport(sessionId as string);
+		const rawBody = req.rawBody.toString();
+		let toolCallInfo = extractToolCallInfo(rawBody);
+		let messageId: string | undefined;
+
+		// Enhance tool call info with sourceNodeName from the tool's metadata
+		// This is needed for queue mode to identify which node to execute on the worker
+		if (toolCallInfo) {
+			const tool = connectedTools.find((t) => t.name === toolCallInfo!.toolName);
+			if (tool?.metadata?.sourceNodeName && typeof tool.metadata.sourceNodeName === 'string') {
+				toolCallInfo = {
+					...toolCallInfo,
+					sourceNodeName: tool.metadata.sourceNodeName,
+				};
+			}
+		}
+
 		if (sessionId && transport) {
 			// We need to add a promise here because the `handlePostMessage` will send something to the
 			// MCP Server, that will run in a different context. This means that the return will happen
 			// almost immediately, and will lead to marking the sub-node as "running" in the final execution
-			const message = jsonParse(req.rawBody.toString());
-			const messageId = getRequestId(message);
+			const message = jsonParse(rawBody);
+			messageId = getRequestId(message);
 			// Use session & message ID if available, otherwise fall back to sessionId
 			const callId = messageId ? `${sessionId}_${messageId}` : sessionId;
 			this.tools[sessionId] = connectedTools;
@@ -235,7 +323,11 @@ export class McpServerManager {
 			resp.flush();
 		}
 
-		return wasToolCall(req.rawBody.toString());
+		return {
+			wasToolCall: wasToolCall(rawBody),
+			toolCallInfo,
+			messageId,
+		};
 	}
 
 	async handleDeleteRequest(req: express.Request, resp: CompressionResponse) {
@@ -249,7 +341,6 @@ export class McpServerManager {
 		const transport = this.getTransport(sessionId);
 
 		if (transport) {
-			// Clean up any pending responses for this session before deletion
 			this.cleanupSessionPendingResponses(sessionId);
 
 			if (transport instanceof FlushingStreamableHTTPTransport) {
@@ -264,8 +355,6 @@ export class McpServerManager {
 
 		resp.status(404).send('Session not found');
 	}
-
-	// #region Queue Mode Support
 
 	/**
 	 * Get MCP metadata for a request. Used to pass MCP context to job data in queue mode.
@@ -301,35 +390,33 @@ export class McpServerManager {
 			transport,
 			createdAt: new Date(),
 		};
-
-		this.logger.debug('Stored pending MCP response', { callId, sessionId, messageId });
 	}
 
 	/**
 	 * Handle a response from a worker for an MCP Trigger execution.
-	 * Resolves the pending promise to allow the MCP handler to complete.
-	 * Note: The result is passed for future use but currently the MCP SDK
-	 * handles the response internally through the handler's return value.
+	 * In queue mode, the tool executes on the worker and sends back the result.
+	 * This resolves the pending tool call so the handler can return the result to the MCP client.
 	 */
-	handleWorkerResponse(sessionId: string, messageId: string, _result: unknown): void {
+	handleWorkerResponse(sessionId: string, messageId: string, result: unknown): void {
 		const callId = messageId ? `${sessionId}_${messageId}` : sessionId;
 		const pending = this.pendingResponses[callId];
+		const pendingToolCall = this.pendingToolCalls[callId];
 
-		if (!pending) {
-			this.logger.warn('Received MCP Trigger response for unknown call', { callId });
-			return;
+		// Resolve the pending tool call with the worker's result
+		if (pendingToolCall) {
+			this.resolveToolCall(callId, result);
 		}
 
-		this.logger.debug('Handling worker response for MCP Trigger', { callId, sessionId, messageId });
-
-		// Resolve the pending promise if it exists (for cases where both mechanisms are used)
+		// Also resolve the handlePostMessage promise if it exists
 		if (this.resolveFunctions[callId]) {
 			this.resolveFunctions[callId]();
 			delete this.resolveFunctions[callId];
 		}
 
 		// Clean up the pending response
-		delete this.pendingResponses[callId];
+		if (pending) {
+			delete this.pendingResponses[callId];
+		}
 	}
 
 	/**
@@ -339,7 +426,6 @@ export class McpServerManager {
 		const callId = messageId ? `${sessionId}_${messageId}` : sessionId;
 		if (this.pendingResponses[callId]) {
 			delete this.pendingResponses[callId];
-			this.logger.debug('Removed pending MCP response', { callId });
 		}
 	}
 
@@ -365,19 +451,11 @@ export class McpServerManager {
 		}
 
 		for (const callId of keysToDelete) {
-			// Also clean up any associated resolve functions
 			if (this.resolveFunctions[callId]) {
 				this.resolveFunctions[callId]();
 				delete this.resolveFunctions[callId];
 			}
 			delete this.pendingResponses[callId];
-		}
-
-		if (keysToDelete.length > 0) {
-			this.logger.debug('Cleaned up pending MCP responses for session', {
-				sessionId,
-				count: keysToDelete.length,
-			});
 		}
 	}
 
@@ -388,7 +466,71 @@ export class McpServerManager {
 		return Object.keys(this.pendingResponses).length;
 	}
 
-	// #endregion
+	/**
+	 * Get whether the instance is running in queue mode.
+	 */
+	get isQueueMode(): boolean {
+		return this._isQueueMode;
+	}
+
+	/**
+	 * Set whether the instance is running in queue mode.
+	 * Should be called during initialization based on execution config.
+	 */
+	setQueueMode(isQueueMode: boolean): void {
+		this._isQueueMode = isQueueMode;
+	}
+
+	/**
+	 * Store a pending tool call for queue mode.
+	 * Called by the CallToolRequestSchema handler when in queue mode.
+	 */
+	async storePendingToolCall(
+		callId: string,
+		toolName: string,
+		toolArguments: Record<string, unknown>,
+	): Promise<unknown> {
+		return await new Promise((resolve, reject) => {
+			this.pendingToolCalls[callId] = {
+				toolName,
+				arguments: toolArguments,
+				resolve,
+				reject,
+			};
+		});
+	}
+
+	/**
+	 * Get the pending tool call info for a given callId.
+	 * Used by the worker to know which tool to execute.
+	 */
+	getPendingToolCall(callId: string): PendingToolCall | undefined {
+		return this.pendingToolCalls[callId];
+	}
+
+	/**
+	 * Resolve a pending tool call with the result from the worker.
+	 */
+	resolveToolCall(callId: string, result: unknown): void {
+		const pending = this.pendingToolCalls[callId];
+		if (pending) {
+			pending.resolve(result);
+			delete this.pendingToolCalls[callId];
+		} else {
+			this.logger.warn('No pending tool call found to resolve', { callId });
+		}
+	}
+
+	/**
+	 * Reject a pending tool call with an error.
+	 */
+	rejectToolCall(callId: string, error: Error): void {
+		const pending = this.pendingToolCalls[callId];
+		if (pending) {
+			pending.reject(error);
+			delete this.pendingToolCalls[callId];
+		}
+	}
 
 	setUpHandlers(server: Server) {
 		server.setRequestHandler(
@@ -422,23 +564,70 @@ export class McpServerManager {
 				}
 
 				const callId = extra.requestId ? `${extra.sessionId}_${extra.requestId}` : extra.sessionId;
+				const toolName = request.params.name;
+				const toolArguments =
+					typeof request.params.arguments === 'object' && request.params.arguments !== null
+						? request.params.arguments
+						: {};
 
 				const requestedTool: Tool | undefined = this.tools[extra.sessionId].find(
-					(tool) => tool.name === request.params.name,
+					(tool) => tool.name === toolName,
 				);
 				if (!requestedTool) {
 					throw new OperationalError('Tool not found');
 				}
 
 				try {
-					const result = await requestedTool.invoke(request.params.arguments);
+					if (this._isQueueMode) {
+						// Store pending response for tracking
+						this.storePendingResponse(extra.sessionId, extra.requestId?.toString() ?? '');
+						const toolResultPromise = this.storePendingToolCall(callId, toolName, toolArguments);
+
+						// IMPORTANT: Resolve handlePostMessage so webhook can return and enqueue execution.
+						// The async handler keeps running, waiting for worker response.
+						if (this.resolveFunctions[callId]) {
+							this.resolveFunctions[callId]();
+						}
+
+						const WORKER_TIMEOUT_MS = 120000;
+						const timeoutPromise = new Promise<never>((_, reject) => {
+							setTimeout(
+								() => reject(new Error('Worker tool execution timeout')),
+								WORKER_TIMEOUT_MS,
+							);
+						});
+
+						let result: unknown;
+						try {
+							result = await Promise.race([toolResultPromise, timeoutPromise]);
+						} catch (error) {
+							this.logger.error('Queue mode tool execution failed', {
+								callId,
+								toolName,
+								error: error instanceof Error ? error.message : String(error),
+							});
+							this.removePendingResponse(extra.sessionId, extra.requestId?.toString() ?? '');
+							throw error;
+						}
+
+						if (typeof result === 'object') {
+							return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+						}
+						if (typeof result === 'string') {
+							return { content: [{ type: 'text', text: result }] };
+						}
+						return { content: [{ type: 'text', text: String(result) }] };
+					}
+
+					// Non-queue mode: invoke tool directly on main
+					const result = await requestedTool.invoke(toolArguments);
+
+					// Resolve the handlePostMessage promise
 					if (this.resolveFunctions[callId]) {
 						this.resolveFunctions[callId]();
 					} else {
 						this.logger.warn(`No resolve function found for ${callId}`);
 					}
-
-					this.logger.debug(`Got request for ${requestedTool.name}, and executed it.`);
 
 					if (typeof result === 'object') {
 						return { content: [{ type: 'text', text: JSON.stringify(result) }] };
@@ -448,7 +637,7 @@ export class McpServerManager {
 					}
 					return { content: [{ type: 'text', text: String(result) }] };
 				} catch (error) {
-					this.logger.error(`Error while executing Tool ${requestedTool.name}: ${error}`);
+					this.logger.error(`Error while executing Tool ${toolName}: ${error}`);
 					return { isError: true, content: [{ type: 'text', text: `Error: ${error.message}` }] };
 				}
 			},

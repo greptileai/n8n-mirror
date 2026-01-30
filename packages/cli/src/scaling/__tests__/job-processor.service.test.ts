@@ -333,7 +333,7 @@ describe('JobProcessor', () => {
 				mock<IExecutionResponse>({
 					status: 'success',
 					workflowData: { id: 'wf-1', nodes: [], staticData: {} },
-					data: { resultData: {} },
+					data: mock<IRunExecutionData>({ resultData: { runData: {} } }),
 				}),
 			);
 
@@ -355,13 +355,13 @@ describe('JobProcessor', () => {
 
 			const job = mock<Job>();
 			job.data = {
+				workflowId: 'wf-1',
 				executionId: 'exec-mcp-123',
 				loadStaticData: false,
 				isMcpExecution: true,
 				mcpType: 'service',
 				mcpSessionId: 'session-456',
 				mcpMessageId: 'msg-789',
-				originMainId: 'main-host-abc',
 			};
 
 			await jobProcessor.processJob(job);
@@ -375,7 +375,6 @@ describe('JobProcessor', () => {
 					sessionId: 'session-456',
 					messageId: 'msg-789',
 					workerId: 'worker-host-123',
-					targetMainId: 'main-host-abc',
 				}),
 			);
 		});
@@ -395,7 +394,7 @@ describe('JobProcessor', () => {
 				mock<IExecutionResponse>({
 					status: 'success',
 					workflowData: { id: 'wf-1', nodes: [], staticData: {} },
-					data: { resultData: {} },
+					data: mock<IRunExecutionData>({ resultData: { runData: {} } }),
 				}),
 			);
 
@@ -413,17 +412,15 @@ describe('JobProcessor', () => {
 
 			const job = mock<Job>();
 			job.data = {
+				workflowId: 'wf-1',
 				executionId: 'exec-regular-123',
 				loadStaticData: false,
-				// No MCP fields - explicitly undefined
 				isMcpExecution: undefined,
 				mcpSessionId: undefined,
-				originMainId: undefined,
 			};
 
 			await jobProcessor.processJob(job);
 
-			// Should have called progress only with job-finished, not mcp-response
 			const progressCalls = (job.progress as jest.Mock).mock.calls;
 			const mcpResponseCalls = progressCalls.filter(
 				(call: unknown[]) => (call[0] as { kind: string }).kind === 'mcp-response',
@@ -447,11 +444,12 @@ describe('JobProcessor', () => {
 				mock<IExecutionResponse>({
 					status: 'error',
 					workflowData: { id: 'wf-1', nodes: [], staticData: {} },
-					data: {
+					data: mock<IRunExecutionData>({
 						resultData: {
-							error: mock<ExecutionError>({ message: 'Test error' }),
+							runData: {},
+							error: { message: 'Test error' } as ExecutionError,
 						},
-					},
+					}),
 				}),
 			);
 
@@ -473,13 +471,13 @@ describe('JobProcessor', () => {
 
 			const job = mock<Job>();
 			job.data = {
+				workflowId: 'wf-1',
 				executionId: 'exec-mcp-error',
 				loadStaticData: false,
 				isMcpExecution: true,
 				mcpType: 'service',
 				mcpSessionId: 'session-456',
 				mcpMessageId: 'msg-789',
-				originMainId: 'main-host-abc',
 			};
 
 			await jobProcessor.processJob(job);
@@ -490,6 +488,69 @@ describe('JobProcessor', () => {
 					response: expect.objectContaining({
 						success: false,
 					}),
+				}),
+			);
+		});
+
+		it('should send mcp-response for MCP Trigger executions without tool call', async () => {
+			const executionRepository = mock<ExecutionRepository>();
+			executionRepository.findSingleExecution.mockResolvedValueOnce(
+				mock<IExecutionResponse>({
+					mode: 'trigger',
+					workflowData: { id: 'wf-1', nodes: [], staticData: {} },
+					data: mock<IRunExecutionData>({
+						executionData: undefined,
+					}),
+				}),
+			);
+			// Second call for fetching result
+			executionRepository.findSingleExecution.mockResolvedValueOnce(
+				mock<IExecutionResponse>({
+					status: 'success',
+					workflowData: { id: 'wf-1', nodes: [], staticData: {} },
+					data: mock<IRunExecutionData>({ resultData: { runData: {} } }),
+				}),
+			);
+
+			const manualExecutionService = mock<ManualExecutionService>();
+			const mcpInstanceSettings = {
+				hostId: 'worker-host-123',
+			} as unknown as InstanceSettings;
+
+			const jobProcessor = new JobProcessor(
+				logger,
+				executionRepository,
+				mock(), // workflowRepository
+				mock(), // nodeTypes
+				mcpInstanceSettings,
+				manualExecutionService,
+				executionsConfig,
+				mock(), // eventService
+			);
+
+			const job = mock<Job>();
+			job.data = {
+				workflowId: 'wf-1',
+				executionId: 'exec-mcp-trigger',
+				loadStaticData: false,
+				isMcpExecution: true,
+				mcpType: 'trigger', // MCP Trigger type without tool call
+				mcpSessionId: 'session-789',
+				mcpMessageId: 'msg-456',
+				mcpToolCall: undefined, // No tool call
+			};
+
+			await jobProcessor.processJob(job);
+
+			// Should send mcp-response even for trigger type without tool call
+			expect(job.progress).toHaveBeenCalledWith(
+				expect.objectContaining({
+					kind: 'mcp-response',
+					executionId: 'exec-mcp-trigger',
+					mcpType: 'trigger',
+					sessionId: 'session-789',
+					messageId: 'msg-456',
+					workerId: 'worker-host-123',
 				}),
 			);
 		});

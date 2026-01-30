@@ -32,8 +32,13 @@ export type JobData = {
 	mcpSessionId?: string;
 	/** MCP message ID for correlating responses with requests. */
 	mcpMessageId?: string;
-	/** ID of the main instance that enqueued this job (for multi-main routing). */
-	originMainId?: string;
+	/** Tool call info for MCP Trigger executions (tool name, args, source node). */
+	mcpToolCall?: {
+		toolName: string;
+		arguments: Record<string, unknown>;
+		/** The n8n node name that provides this tool. */
+		sourceNodeName?: string;
+	};
 };
 
 export type JobResult = {
@@ -113,7 +118,6 @@ export type McpResponseMessage = {
 	messageId: string;
 	response: unknown;
 	workerId: string;
-	targetMainId: string;
 };
 
 /** Message sent by worker to main to report a job has failed. */

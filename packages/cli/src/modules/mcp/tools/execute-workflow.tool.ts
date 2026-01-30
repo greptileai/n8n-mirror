@@ -266,7 +266,6 @@ export const executeWorkflow = async (
 		mcpType: 'service',
 		mcpSessionId: mcpMessageId, // Using messageId as sessionId for MCP Service (no persistent session)
 		mcpMessageId,
-		originMainId: mcpService.hostId,
 	};
 
 	// Set the trigger node as the start node and pin data for it
@@ -323,8 +322,10 @@ export const executeWorkflow = async (
 			throw new UnexpectedError('Workflow did not return any data');
 		}
 
+		const success = data.status !== 'error' && !data.data.resultData?.error;
+
 		return {
-			success: data.status !== 'error' && !data.data.resultData?.error,
+			success,
 			executionId,
 			result: data.data.resultData,
 			error: data.data.resultData?.error,
@@ -332,12 +333,10 @@ export const executeWorkflow = async (
 	} catch (error) {
 		if (timeoutId) clearTimeout(timeoutId);
 
-		// Clean up pending response in queue mode
 		if (mcpService.isQueueMode) {
 			mcpService.removePendingResponse(executionId);
 		}
 
-		// If we hit the timeout, attempt to stop the execution
 		if (error instanceof McpExecutionTimeoutError) {
 			try {
 				const cancellationError = new TimeoutExecutionCancelledError(error.executionId!);

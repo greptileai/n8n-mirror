@@ -109,7 +109,7 @@ describe('McpServer', () => {
 			);
 
 			// Verify that we check if it was a tool call
-			expect(result).toBe(true);
+			expect(result.wasToolCall).toBe(true);
 
 			// Verify flush was called
 			expect(mockResponse.flush).toHaveBeenCalled();
@@ -144,7 +144,7 @@ describe('McpServer', () => {
 			const firstResult = await mcpServerManager.handlePostMessage(mockRequest, mockResponse, [
 				mockTool,
 			]);
-			expect(firstResult).toBe(true);
+			expect(firstResult.wasToolCall).toBe(true);
 			expect(mockTransport.handleRequest).toHaveBeenCalledWith(
 				mockRequest,
 				mockResponse,
@@ -165,7 +165,7 @@ describe('McpServer', () => {
 			const secondResult = await mcpServerManager.handlePostMessage(mockRequest, mockResponse, [
 				mockTool,
 			]);
-			expect(secondResult).toBe(true);
+			expect(secondResult.wasToolCall).toBe(true);
 
 			// Verify transport's handleRequest was called twice
 			expect(mockTransport.handleRequest).toHaveBeenCalledTimes(2);
@@ -347,7 +347,7 @@ describe('McpServer', () => {
 			);
 
 			// Verify that we check if it was a tool call
-			expect(result).toBe(true);
+			expect(result.wasToolCall).toBe(true);
 
 			// Verify flush was called
 			expect(mockResponse.flush).toHaveBeenCalled();
@@ -527,6 +527,393 @@ describe('McpServer', () => {
 
 			// Verify 405 response (DELETE not supported for SSE)
 			expect(mockDeleteResponse.status).toHaveBeenCalledWith(405);
+		});
+	});
+
+	describe('Queue Mode Support', () => {
+		const queueSessionId = 'queue-session-id';
+		const queueMessageId = 'queue-message-id';
+		const callId = `${queueSessionId}_${queueMessageId}`;
+
+		beforeEach(() => {
+			mcpServerManager.transports = {};
+			mcpServerManager.setQueueMode(false);
+			// Clean up any pending responses from previous tests
+			mcpServerManager.cleanupSessionPendingResponses(queueSessionId);
+			mcpServerManager.cleanupSessionPendingResponses('other-session-id');
+		});
+
+		describe('setQueueMode', () => {
+			it('should set queue mode to true', () => {
+				mcpServerManager.setQueueMode(true);
+
+				expect(mcpServerManager.isQueueMode).toBe(true);
+			});
+
+			it('should set queue mode to false', () => {
+				mcpServerManager.setQueueMode(true);
+				mcpServerManager.setQueueMode(false);
+
+				expect(mcpServerManager.isQueueMode).toBe(false);
+			});
+		});
+
+		describe('storePendingResponse', () => {
+			it('should store a pending response when transport exists', () => {
+				mcpServerManager.transports[queueSessionId] = mockTransport;
+
+				mcpServerManager.storePendingResponse(queueSessionId, queueMessageId);
+
+				expect(mcpServerManager.hasPendingResponse(queueSessionId, queueMessageId)).toBe(true);
+			});
+
+			it('should not store pending response when transport does not exist', () => {
+				mcpServerManager.storePendingResponse(queueSessionId, queueMessageId);
+
+				expect(mcpServerManager.hasPendingResponse(queueSessionId, queueMessageId)).toBe(false);
+			});
+
+			it('should increment pending response count', () => {
+				mcpServerManager.transports[queueSessionId] = mockTransport;
+				const initialCount = mcpServerManager.pendingResponseCount;
+
+				mcpServerManager.storePendingResponse(queueSessionId, queueMessageId);
+
+				expect(mcpServerManager.pendingResponseCount).toBe(initialCount + 1);
+			});
+		});
+
+		describe('removePendingResponse', () => {
+			it('should remove a pending response', () => {
+				mcpServerManager.transports[queueSessionId] = mockTransport;
+				mcpServerManager.storePendingResponse(queueSessionId, queueMessageId);
+
+				mcpServerManager.removePendingResponse(queueSessionId, queueMessageId);
+
+				expect(mcpServerManager.hasPendingResponse(queueSessionId, queueMessageId)).toBe(false);
+			});
+
+			it('should handle removing non-existent response gracefully', () => {
+				expect(() => {
+					mcpServerManager.removePendingResponse('non-existent', 'non-existent');
+				}).not.toThrow();
+			});
+		});
+
+		describe('storePendingToolCall and resolveToolCall', () => {
+			it('should store and resolve a pending tool call', async () => {
+				const toolName = 'testTool';
+				const toolArgs = { param: 'value' };
+				const expectedResult = { result: 'success' };
+
+				const resultPromise = mcpServerManager.storePendingToolCall(callId, toolName, toolArgs);
+
+				// Resolve the tool call
+				mcpServerManager.resolveToolCall(callId, expectedResult);
+
+				const result = await resultPromise;
+				expect(result).toEqual(expectedResult);
+			});
+
+			it('should get pending tool call info', async () => {
+				const toolName = 'testTool';
+				const toolArgs = { param: 'value' };
+
+				// Start storing (this creates the pending tool call)
+				void mcpServerManager.storePendingToolCall(callId, toolName, toolArgs);
+
+				const pendingCall = mcpServerManager.getPendingToolCall(callId);
+
+				expect(pendingCall).toBeDefined();
+				expect(pendingCall?.toolName).toBe(toolName);
+				expect(pendingCall?.arguments).toEqual(toolArgs);
+
+				// Clean up by resolving
+				mcpServerManager.resolveToolCall(callId, {});
+			});
+
+			it('should handle resolving non-existent tool call gracefully', () => {
+				expect(() => {
+					mcpServerManager.resolveToolCall('non-existent-call', { result: 'test' });
+				}).not.toThrow();
+			});
+		});
+
+		describe('rejectToolCall', () => {
+			it('should reject a pending tool call with an error', async () => {
+				const toolName = 'testTool';
+				const toolArgs = { param: 'value' };
+				const expectedError = new Error('Test error');
+
+				const resultPromise = mcpServerManager.storePendingToolCall(callId, toolName, toolArgs);
+
+				// Reject the tool call
+				mcpServerManager.rejectToolCall(callId, expectedError);
+
+				await expect(resultPromise).rejects.toThrow('Test error');
+			});
+
+			it('should handle rejecting non-existent tool call gracefully', () => {
+				expect(() => {
+					mcpServerManager.rejectToolCall('non-existent-call', new Error('Test'));
+				}).not.toThrow();
+			});
+		});
+
+		describe('handleWorkerResponse', () => {
+			it('should resolve pending tool call with worker result', async () => {
+				const toolName = 'testTool';
+				const toolArgs = { param: 'value' };
+				const workerResult = { output: 'worker response' };
+
+				mcpServerManager.transports[queueSessionId] = mockTransport;
+				mcpServerManager.storePendingResponse(queueSessionId, queueMessageId);
+
+				const resultPromise = mcpServerManager.storePendingToolCall(callId, toolName, toolArgs);
+
+				// Simulate worker response
+				mcpServerManager.handleWorkerResponse(queueSessionId, queueMessageId, workerResult);
+
+				const result = await resultPromise;
+				expect(result).toEqual(workerResult);
+			});
+
+			it('should clean up pending response after handling', () => {
+				mcpServerManager.transports[queueSessionId] = mockTransport;
+				mcpServerManager.storePendingResponse(queueSessionId, queueMessageId);
+
+				mcpServerManager.handleWorkerResponse(queueSessionId, queueMessageId, { result: 'test' });
+
+				expect(mcpServerManager.hasPendingResponse(queueSessionId, queueMessageId)).toBe(false);
+			});
+		});
+
+		describe('cleanupSessionPendingResponses', () => {
+			it('should clean up all pending responses for a session', () => {
+				mcpServerManager.transports[queueSessionId] = mockTransport;
+				mcpServerManager.storePendingResponse(queueSessionId, 'msg1');
+				mcpServerManager.storePendingResponse(queueSessionId, 'msg2');
+				mcpServerManager.storePendingResponse(queueSessionId, 'msg3');
+
+				mcpServerManager.cleanupSessionPendingResponses(queueSessionId);
+
+				expect(mcpServerManager.hasPendingResponse(queueSessionId, 'msg1')).toBe(false);
+				expect(mcpServerManager.hasPendingResponse(queueSessionId, 'msg2')).toBe(false);
+				expect(mcpServerManager.hasPendingResponse(queueSessionId, 'msg3')).toBe(false);
+			});
+
+			it('should not affect pending responses from other sessions', () => {
+				const otherSessionId = 'other-session-id';
+
+				mcpServerManager.transports[queueSessionId] = mockTransport;
+				mcpServerManager.transports[otherSessionId] = mockTransport;
+				mcpServerManager.storePendingResponse(queueSessionId, 'msg1');
+				mcpServerManager.storePendingResponse(otherSessionId, 'msg2');
+
+				mcpServerManager.cleanupSessionPendingResponses(queueSessionId);
+
+				expect(mcpServerManager.hasPendingResponse(queueSessionId, 'msg1')).toBe(false);
+				expect(mcpServerManager.hasPendingResponse(otherSessionId, 'msg2')).toBe(true);
+			});
+
+			it('should handle cleaning up session with no pending responses gracefully', () => {
+				expect(() => {
+					mcpServerManager.cleanupSessionPendingResponses('non-existent-session');
+				}).not.toThrow();
+			});
+		});
+
+		describe('getMcpMetadata', () => {
+			it('should return MCP metadata from request', () => {
+				const metadataRequest = mock<Request>({
+					query: { sessionId: queueSessionId },
+				});
+				metadataRequest.rawBody = Buffer.from(
+					JSON.stringify({
+						jsonrpc: '2.0',
+						method: 'tools/call',
+						id: 123,
+						params: { name: 'mockTool' },
+					}),
+				);
+
+				const metadata = mcpServerManager.getMcpMetadata(metadataRequest);
+
+				expect(metadata).toBeDefined();
+				expect(metadata?.sessionId).toBe(queueSessionId);
+				expect(metadata?.messageId).toBe('123');
+			});
+
+			it('should return undefined when no sessionId present', () => {
+				const metadataRequest = mock<Request>();
+				// Explicitly set empty query and headers to ensure getSessionId returns undefined
+				Object.defineProperty(metadataRequest, 'query', { value: {}, writable: true });
+				Object.defineProperty(metadataRequest, 'headers', { value: {}, writable: true });
+				metadataRequest.rawBody = Buffer.from('{}');
+
+				const metadata = mcpServerManager.getMcpMetadata(metadataRequest);
+
+				expect(metadata).toBeUndefined();
+			});
+
+			it('should return empty messageId when message has no id', () => {
+				const metadataRequest = mock<Request>({
+					query: { sessionId: queueSessionId },
+				});
+				metadataRequest.rawBody = Buffer.from(
+					JSON.stringify({
+						jsonrpc: '2.0',
+						method: 'notifications/initialized',
+					}),
+				);
+
+				const metadata = mcpServerManager.getMcpMetadata(metadataRequest);
+
+				expect(metadata).toBeDefined();
+				expect(metadata?.sessionId).toBe(queueSessionId);
+				expect(metadata?.messageId).toBe('');
+			});
+		});
+
+		describe('handleWorkerResponse with resolveFunctions', () => {
+			it('should resolve handlePostMessage promise when resolveFunction exists', () => {
+				const resolveFunction = jest.fn();
+				// @ts-expect-error private property
+				mcpServerManager.resolveFunctions[callId] = resolveFunction;
+
+				mcpServerManager.transports[queueSessionId] = mockTransport;
+				mcpServerManager.storePendingResponse(queueSessionId, queueMessageId);
+
+				mcpServerManager.handleWorkerResponse(queueSessionId, queueMessageId, { result: 'test' });
+
+				expect(resolveFunction).toHaveBeenCalled();
+			});
+
+			it('should handle response with empty messageId using sessionId as callId', () => {
+				mcpServerManager.transports[queueSessionId] = mockTransport;
+				mcpServerManager.storePendingResponse(queueSessionId, '');
+
+				mcpServerManager.handleWorkerResponse(queueSessionId, '', { result: 'test' });
+
+				expect(mcpServerManager.hasPendingResponse(queueSessionId, '')).toBe(false);
+			});
+		});
+
+		describe('storePendingResponse with empty messageId', () => {
+			it('should use sessionId as callId when messageId is empty', () => {
+				mcpServerManager.transports[queueSessionId] = mockTransport;
+
+				mcpServerManager.storePendingResponse(queueSessionId, '');
+
+				expect(mcpServerManager.hasPendingResponse(queueSessionId, '')).toBe(true);
+			});
+		});
+
+		describe('cleanupSessionPendingResponses with resolveFunctions', () => {
+			it('should resolve pending resolveFunctions during cleanup', () => {
+				const resolveFunction = jest.fn();
+				const cleanupCallId = `${queueSessionId}_cleanup-msg`;
+				// @ts-expect-error private property
+				mcpServerManager.resolveFunctions[cleanupCallId] = resolveFunction;
+
+				mcpServerManager.transports[queueSessionId] = mockTransport;
+				mcpServerManager.storePendingResponse(queueSessionId, 'cleanup-msg');
+
+				mcpServerManager.cleanupSessionPendingResponses(queueSessionId);
+
+				expect(resolveFunction).toHaveBeenCalled();
+			});
+		});
+	});
+
+	describe('handlePostMessage tool call info extraction', () => {
+		it('should extract sourceNodeName from tool metadata', async () => {
+			mockTransport.handleRequest.mockImplementation(async () => {
+				// @ts-expect-error private property `resolveFunctions`
+				mcpServerManager.resolveFunctions[`${sessionId}_789`]();
+			});
+
+			mcpServerManager.transports[sessionId] = mockTransport;
+
+			const toolWithMetadata = mock<Tool>({
+				name: 'mockToolWithMeta',
+				metadata: { sourceNodeName: 'MyToolNode' },
+			});
+
+			const mockToolCallRequest = mock<Request>({ query: { sessionId }, path: '/sse' });
+			mockToolCallRequest.rawBody = Buffer.from(
+				JSON.stringify({
+					jsonrpc: '2.0',
+					method: 'tools/call',
+					id: 789,
+					params: { name: 'mockToolWithMeta', arguments: { param: 'value' } },
+				}),
+			);
+
+			const result = await mcpServerManager.handlePostMessage(mockToolCallRequest, mockResponse, [
+				toolWithMetadata,
+			]);
+
+			expect(result.wasToolCall).toBe(true);
+			expect(result.toolCallInfo?.toolName).toBe('mockToolWithMeta');
+			expect(result.toolCallInfo?.sourceNodeName).toBe('MyToolNode');
+		});
+
+		it('should not set sourceNodeName when tool has no metadata', async () => {
+			mockTransport.handleRequest.mockImplementation(async () => {
+				// @ts-expect-error private property `resolveFunctions`
+				mcpServerManager.resolveFunctions[`${sessionId}_101`]();
+			});
+
+			mcpServerManager.transports[sessionId] = mockTransport;
+
+			const toolWithoutMetadata = mock<Tool>({
+				name: 'mockToolNoMeta',
+				metadata: undefined,
+			});
+
+			const mockToolCallRequest = mock<Request>({ query: { sessionId }, path: '/sse' });
+			mockToolCallRequest.rawBody = Buffer.from(
+				JSON.stringify({
+					jsonrpc: '2.0',
+					method: 'tools/call',
+					id: 101,
+					params: { name: 'mockToolNoMeta', arguments: { param: 'value' } },
+				}),
+			);
+
+			const result = await mcpServerManager.handlePostMessage(mockToolCallRequest, mockResponse, [
+				toolWithoutMetadata,
+			]);
+
+			expect(result.wasToolCall).toBe(true);
+			expect(result.toolCallInfo?.toolName).toBe('mockToolNoMeta');
+			expect(result.toolCallInfo?.sourceNodeName).toBeUndefined();
+		});
+
+		it('should return messageId in handlePostMessage result', async () => {
+			mockTransport.handleRequest.mockImplementation(async () => {
+				// @ts-expect-error private property `resolveFunctions`
+				mcpServerManager.resolveFunctions[`${sessionId}_202`]();
+			});
+
+			mcpServerManager.transports[sessionId] = mockTransport;
+
+			const mockToolCallRequest = mock<Request>({ query: { sessionId }, path: '/sse' });
+			mockToolCallRequest.rawBody = Buffer.from(
+				JSON.stringify({
+					jsonrpc: '2.0',
+					method: 'tools/call',
+					id: 202,
+					params: { name: 'mockTool', arguments: {} },
+				}),
+			);
+
+			const result = await mcpServerManager.handlePostMessage(mockToolCallRequest, mockResponse, [
+				mockTool,
+			]);
+
+			expect(result.messageId).toBe('202');
 		});
 	});
 });

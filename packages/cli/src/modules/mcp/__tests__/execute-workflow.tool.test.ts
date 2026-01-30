@@ -40,7 +40,6 @@ describe('execute-workflow MCP tool', () => {
 		});
 		mcpService = mockInstance(McpService, {
 			isQueueMode: false,
-			hostId: 'test-host-id',
 		});
 	});
 
@@ -1092,7 +1091,6 @@ describe('execute-workflow MCP tool', () => {
 			beforeEach(() => {
 				queueModeMcpService = mockInstance(McpService, {
 					isQueueMode: true,
-					hostId: 'main-host-id',
 					createPendingResponse: jest.fn().mockReturnValue({
 						promise: Promise.resolve({
 							status: 'success',
@@ -1178,7 +1176,6 @@ describe('execute-workflow MCP tool', () => {
 				expect(runCall.mcpType).toBe('service');
 				expect(runCall.mcpSessionId).toBeDefined();
 				expect(runCall.mcpMessageId).toBeDefined();
-				expect(runCall.originMainId).toBe('main-host-id');
 			});
 
 			test('sets isMcpExecution to false in regular mode', async () => {

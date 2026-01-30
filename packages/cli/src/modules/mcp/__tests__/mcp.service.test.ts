@@ -1,9 +1,10 @@
+import type { Logger } from '@n8n/backend-common';
 import { mockInstance, mockLogger } from '@n8n/backend-test-utils';
 import { ExecutionsConfig, GlobalConfig } from '@n8n/config';
 import { User, WorkflowRepository } from '@n8n/db';
 import { InstanceSettings } from 'n8n-core';
 import type { IRun } from 'n8n-workflow';
-import { ManualExecutionCancelledError } from 'n8n-workflow';
+import { createEmptyRunExecutionData, ManualExecutionCancelledError } from 'n8n-workflow';
 
 import { McpService } from '../mcp.service';
 
@@ -22,6 +23,7 @@ describe('McpService', () => {
 	let activeExecutions: ActiveExecutions;
 	let executionsConfig: ExecutionsConfig;
 	let instanceSettings: InstanceSettings;
+	let logger: Logger;
 
 	beforeEach(() => {
 		activeExecutions = mockInstance(ActiveExecutions);
@@ -31,9 +33,10 @@ describe('McpService', () => {
 		instanceSettings = mockInstance(InstanceSettings, {
 			hostId: 'test-host-id',
 		});
+		logger = mockLogger();
 
 		mcpService = new McpService(
-			mockLogger(),
+			logger,
 			executionsConfig,
 			instanceSettings,
 			mockInstance(WorkflowFinderService),
@@ -86,12 +89,6 @@ describe('McpService', () => {
 		});
 	});
 
-	describe('Host ID', () => {
-		it('should return the instance host ID', () => {
-			expect(mcpService.hostId).toBe('test-host-id');
-		});
-	});
-
 	describe('Pending Response Management', () => {
 		describe('createPendingResponse', () => {
 			it('should create a pending response with a deferred promise', () => {
@@ -124,7 +121,8 @@ describe('McpService', () => {
 					mode: 'trigger',
 					startedAt: new Date(),
 					finished: true,
-					data: { resultData: { runData: {} } },
+					storedAt: 'db',
+					data: createEmptyRunExecutionData(),
 				};
 
 				mcpService.handleWorkerResponse(executionId, runData);
@@ -145,27 +143,36 @@ describe('McpService', () => {
 				expect(mcpService.pendingExecutionCount).toBe(0);
 			});
 
-			it('should ignore responses for unknown executions', () => {
+			it('should ignore responses for unknown executions and log warning', () => {
 				// Should not throw
 				mcpService.handleWorkerResponse('unknown-exec', undefined);
 				expect(mcpService.pendingExecutionCount).toBe(0);
+				expect(logger.warn).toHaveBeenCalledWith('Received MCP response for unknown execution', {
+					executionId: 'unknown-exec',
+				});
 			});
 		});
 
 		describe('removePendingResponse', () => {
-			it('should remove a pending response', () => {
+			it('should remove a pending response and log debug message', () => {
 				const executionId = 'exec-remove';
 				mcpService.createPendingResponse(executionId);
 				expect(mcpService.pendingExecutionCount).toBe(1);
 
 				mcpService.removePendingResponse(executionId);
 				expect(mcpService.pendingExecutionCount).toBe(0);
+				expect(logger.debug).toHaveBeenCalledWith('Removed pending MCP response', { executionId });
 			});
 
-			it('should handle removing non-existent response gracefully', () => {
+			it('should handle removing non-existent response gracefully without logging', () => {
 				// Should not throw
 				mcpService.removePendingResponse('non-existent');
 				expect(mcpService.pendingExecutionCount).toBe(0);
+				// Should not log debug for non-existent response
+				expect(logger.debug).not.toHaveBeenCalledWith(
+					'Removed pending MCP response',
+					expect.anything(),
+				);
 			});
 		});
 
@@ -241,6 +248,10 @@ describe('McpService', () => {
 			const server = await mcpService.getServer(user);
 
 			expect(server).toBeDefined();
+			// Verify server has expected MCP server methods
+			expect(typeof server.connect).toBe('function');
+			expect(typeof server.close).toBe('function');
+			expect(typeof server.registerTool).toBe('function');
 		});
 	});
 });

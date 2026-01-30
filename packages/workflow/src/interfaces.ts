@@ -2760,8 +2760,12 @@ export interface IWorkflowExecutionDataProcess {
 	mcpSessionId?: string;
 	/** MCP message ID for correlating responses with requests. */
 	mcpMessageId?: string;
-	/** ID of the main instance that started this execution (for multi-main routing). */
-	originMainId?: string;
+	/** Tool call info for MCP Trigger executions in queue mode. */
+	mcpToolCall?: {
+		toolName: string;
+		arguments: Record<string, unknown>;
+		sourceNodeName?: string;
+	};
 }
 
 export interface ExecuteWorkflowOptions {
