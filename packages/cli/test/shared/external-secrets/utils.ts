@@ -142,6 +142,97 @@ export class AnotherDummyProvider extends SecretsProvider {
 	}
 }
 
+/**
+ * Factory function to create a fresh provider class with a custom name.
+ * Each call returns a new class with its own implementation, allowing you to spy on instance methods.
+ *
+ * @param name - The name for the provider (used as the provider's identifier)
+ * @returns A new SecretsProvider class constructor with its own implementation
+ *
+ * @example
+ * // Create a fresh provider class
+ * const TestProvider = createDummyProvider('test_provider');
+ * const provider = new TestProvider();
+ *
+ * // Spy on instance methods
+ * jest.spyOn(provider, 'update');
+ * jest.spyOn(provider, 'getSecret');
+ *
+ * // Use with MockProviders
+ * const mockProviders = new MockProviders();
+ * mockProviders.setProviders({
+ *   provider1: createDummyProvider('provider1'),
+ *   provider2: createDummyProvider('provider2'),
+ * });
+ */
+export function createDummyProvider(name: string): { new (): SecretsProvider } {
+	class FreshProvider extends SecretsProvider {
+		name = name;
+		displayName = name;
+
+		properties: INodeProperties[] = [
+			{
+				name: 'username',
+				displayName: 'Username',
+				type: 'string',
+				default: '',
+				required: true,
+			},
+			{
+				name: 'other',
+				displayName: 'Other',
+				type: 'string',
+				default: '',
+			},
+			{
+				name: 'password',
+				displayName: 'Password',
+				type: 'string',
+				default: '',
+				typeOptions: {
+					password: true,
+				},
+			},
+		];
+
+		secrets: Record<string, string> = {};
+
+		_updateSecrets: Record<string, string> = {
+			test1: 'value1',
+			test2: 'value2',
+		};
+
+		async init(_settings: SecretsProviderSettings<IDataObject>): Promise<void> {}
+
+		protected async doConnect(): Promise<void> {
+			// Connected successfully - base class will set state
+		}
+
+		async disconnect(): Promise<void> {}
+
+		async update(): Promise<void> {
+			this.secrets = this._updateSecrets;
+		}
+
+		async test(): Promise<[boolean] | [boolean, string]> {
+			return [true];
+		}
+
+		getSecret(name: string): IDataObject | undefined {
+			return this.secrets[name] as unknown as IDataObject | undefined;
+		}
+
+		hasSecret(name: string): boolean {
+			return name in this.secrets;
+		}
+
+		getSecretNames(): string[] {
+			return Object.keys(this.secrets);
+		}
+	}
+	return FreshProvider;
+}
+
 export class ErrorProvider extends SecretsProvider {
 	secrets: Record<string, string> = {};
 
