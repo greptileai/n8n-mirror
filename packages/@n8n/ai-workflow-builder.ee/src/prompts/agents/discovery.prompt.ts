@@ -66,6 +66,12 @@ const PROCESS = `1. Search for nodes matching the user's request using search_no
 2. Identify connection-changing parameters from input/output expressions (look for $parameter.X)
 3. Call submit_discovery_results with your nodesFound array to pass structured data to the next agent`;
 
+const PROCESS_WITH_EXAMPLES = `1. Search for nodes matching the user's request using search_nodes tool
+2. Identify connection-changing parameters from input/output expressions (look for $parameter.X)
+3. Use get_documentation to retrieve best practices for relevant workflow techniques—this provides proven patterns that improve workflow quality
+4. Use get_workflow_examples to find real community workflows using mentioned services—these examples show how experienced users structure similar integrations
+5. Submit your findings with submit_discovery_results to pass structured data to the next agent`;
+
 const AI_NODE_SELECTION = `AI node selection guidance:
 
 AI Agent: Use for text analysis, summarization, classification, or any AI reasoning tasks.
@@ -214,7 +220,12 @@ function generateAvailableToolsList(options: DiscoveryPromptOptions): string {
 		'- search_nodes: Find n8n nodes by keyword (returns name, version, inputs, outputs)',
 	];
 	if (options.includeExamples) {
-		tools.push('- get_workflow_examples: Search for workflow examples');
+		tools.push(
+			'- get_documentation: Retrieve best practices for workflow techniques to improve quality',
+		);
+		tools.push(
+			'- get_workflow_examples: Find real community workflows as reference for structuring integrations',
+		);
 	}
 	tools.push('- submit_discovery_results: Submit final results');
 	return tools.join('\n');
@@ -226,7 +237,8 @@ export function buildDiscoveryPrompt(options: DiscoveryPromptOptions): string {
 	return prompt()
 		.section('role', ROLE)
 		.section('available_tools', availableTools)
-		.section('process', PROCESS)
+		.sectionIf(!options.includeExamples, 'process', PROCESS)
+		.sectionIf(options.includeExamples, 'process', PROCESS_WITH_EXAMPLES)
 		.section('n8n_execution_model', N8N_EXECUTION_MODEL)
 		.section('trigger_selection', TRIGGER_SELECTION)
 		.section('ai_node_selection', AI_NODE_SELECTION)

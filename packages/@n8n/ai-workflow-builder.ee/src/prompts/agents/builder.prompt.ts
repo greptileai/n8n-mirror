@@ -9,6 +9,10 @@
 import { prompt } from '../builder';
 import { webhook } from '../shared/node-guidance';
 
+export interface BuilderPromptOptions {
+	includeExamples: boolean;
+}
+
 const ROLE =
 	'You are a Builder Agent that constructs n8n workflows: adding nodes, connecting them, and configuring their parameters.';
 
@@ -33,6 +37,34 @@ Example "Webhook → Set → IF → Slack / Email":
   Round 5: connect(IF→Slack, IF→Email), validate_structure, validate_configuration
 
 Validation: Call validate_structure and validate_configuration once at the end. Once both pass, output your summary and stop—the workflow is complete.
+
+Plan all nodes before starting to avoid backtracking.`;
+
+const EXECUTION_SEQUENCE_WITH_EXAMPLES = `Build incrementally in small batches for progressive canvas updates. Users watch the canvas in real-time, so a clean sequence without backtracking creates the best experience.
+
+Batch flow (3-4 nodes per batch):
+1. add_nodes(batch) → configure(batch) → connect(batch) + add_nodes(next batch)
+2. Repeat: configure → connect + add_nodes → until done
+3. Final: configure(last) → connect(last) → validate_structure, validate_configuration
+
+Before configuring nodes, consider using get_node_configuration_examples to see how community templates configure similar nodes. This is especially valuable for complex nodes where parameter structure isn't obvious from the schema alone.
+
+For nodes with non-standard connection patterns (Switch, IF, splitInBatches), get_node_connection_examples shows how experienced users connect these nodes—preventing mistakes like connecting to the wrong output index.
+
+Interleaving: Combine connect_nodes(current) with add_nodes(next) in the same parallel call so users see smooth progressive building.
+
+Batch size: 3-4 connected nodes per batch.
+- AI patterns: Agent + sub-nodes (Model, Memory) together, Tools in next batch
+- Parallel branches: Group by logical unit
+
+Example "Webhook → Set → IF → Slack / Email":
+  Round 1: add_nodes(Webhook, Set, IF)
+  Round 2: configure(Webhook, Set, IF)
+  Round 3: connect(Webhook→Set→IF) + add_nodes(Slack, Email)  ← parallel
+  Round 4: configure(Slack, Email)
+  Round 5: connect(IF→Slack, IF→Email), validate_structure, validate_configuration
+
+Validation: Use validate_structure and validate_configuration once at the end. Once both pass, output your summary and stop—the workflow is complete.
 
 Plan all nodes before starting to avoid backtracking.`;
 
@@ -421,6 +453,18 @@ n8n instance URL: {instanceUrl}
 Use for webhook and chat trigger URLs.
 </instance_url>`;
 
+// === EXAMPLE TOOLS (conditional) ===
+
+const EXAMPLE_TOOLS = `Use get_node_connection_examples when connecting nodes with non-standard output patterns. This tool shows how experienced users connect these nodes in real workflows, preventing common mistakes:
+- Loop Over Items (splitInBatches): Has TWO outputs with counterintuitive meanings
+- Switch nodes: Multiple outputs require understanding which index maps to which condition
+- IF nodes: True/false branches need correct output index selection
+
+Use get_node_configuration_examples when configuring complex nodes. This tool retrieves proven parameter configurations from community templates, showing proper structure and common patterns:
+- HTTP Request, Gmail, Slack: Complex parameter hierarchies benefit from real examples
+- AI nodes: Model settings and prompt structures vary by use case
+- Any node where you want to see how others have configured similar integrations`;
+
 /** Recovery mode for partially built workflows */
 export function buildRecoveryModeContext(nodeCount: number, nodeNames: string[]): string {
 	return (
@@ -436,11 +480,15 @@ export function buildRecoveryModeContext(nodeCount: number, nodeNames: string[])
 	);
 }
 
-export function buildBuilderPrompt(): string {
+export function buildBuilderPrompt(
+	options: BuilderPromptOptions = { includeExamples: false },
+): string {
 	return (
 		prompt()
 			.section('role', ROLE)
-			.section('execution_sequence', EXECUTION_SEQUENCE)
+			// Execution sequence depends on whether examples are enabled
+			.sectionIf(!options.includeExamples, 'execution_sequence', EXECUTION_SEQUENCE)
+			.sectionIf(options.includeExamples, 'execution_sequence', EXECUTION_SEQUENCE_WITH_EXAMPLES)
 			// Structure
 			.section('node_creation', NODE_CREATION)
 			.section('ai_connections', AI_CONNECTIONS)
@@ -461,6 +509,8 @@ export function buildBuilderPrompt(): string {
 			.section('resource_locator_defaults', RESOURCE_LOCATOR_DEFAULTS)
 			.section('model_configuration', MODEL_CONFIGURATION)
 			.section('node_settings', NODE_SETTINGS)
+			// Example tools reference (conditional)
+			.sectionIf(options.includeExamples, 'example_tools', EXAMPLE_TOOLS)
 			// Output
 			.section('anti_overengineering', ANTI_OVERENGINEERING)
 			.section('response_format', RESPONSE_FORMAT)

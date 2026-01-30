@@ -214,7 +214,7 @@ export class BuilderSubgraph extends BaseSubgraph<
 				[
 					{
 						type: 'text',
-						text: buildBuilderPrompt(),
+						text: buildBuilderPrompt({ includeExamples }),
 					},
 					{
 						type: 'text',

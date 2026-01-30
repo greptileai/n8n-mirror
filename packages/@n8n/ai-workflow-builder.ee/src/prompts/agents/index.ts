@@ -17,6 +17,7 @@ export {
 	buildRecoveryModeContext,
 	INSTANCE_URL_PROMPT,
 } from './builder.prompt';
+export type { BuilderPromptOptions } from './builder.prompt';
 export {
 	buildResponderPrompt,
 	buildRecursionErrorWithWorkflowGuidance,
