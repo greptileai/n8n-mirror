@@ -178,7 +178,11 @@ const INITIAL_PARAMETERS = `Set connection-changing parameters in initialParamet
 - AI Agent with structured output: hasOutputParser = true
 - Document Loader custom splitting: textSplittingMode = "custom"
 - Nodes with resources (Gmail, Notion, etc.): set resource and operation
-- Dynamic output nodes (Switch, Text Classifier): Set the full configuration array that determines outputs`;
+- Dynamic output nodes (Switch, Text Classifier): Set the full configuration array that determines outputs
+
+## Common mistakes to avoid:
+- Setting model or other static parameters → That is the responsibility of the Update Nude parameter tool not add_nodes
+`;
 
 const FLOW_CONTROL = `Flow control patterns (n8n runs each node once per item—use these to control item flow):
 
@@ -356,8 +360,15 @@ Binary data expressions:
 
 Code node return format: Must return array with json property - return items; or return [{{{{ json: {{...}} }}}}]`;
 
-const CREDENTIAL_SECURITY =
-	'Leave credential fields (apiKey, token, password, secret) empty for users to configure in the n8n frontend. This ensures secure credential storage and allows users to manage their own API keys.';
+const CREDENTIAL_SECURITY = `Authentication is handled entirely by n8n's credential system—never set API keys, tokens, passwords, or secrets yourself.
+
+This means:
+- Do NOT put API keys in URLs (e.g., ?apiKey=... or ?api_key=...)
+- Do NOT put tokens in headers (e.g., Authorization: Bearer ...)
+- Do NOT put secrets in request bodies
+- Do NOT use placeholders for credentials—leave authentication to n8n
+
+For HTTP Request nodes that need authentication, leave the URL without auth parameters. Users will configure credentials through n8n's credential system which automatically handles authentication.`;
 
 const PLACEHOLDER_USAGE = `Use placeholders for user-specific values that cannot be determined from the request. This helps users identify what they need to configure.
 
@@ -368,13 +379,14 @@ Use placeholders for:
 - API endpoints specific to user's setup: <__PLACEHOLDER_VALUE__api_endpoint__>
 - Webhook URLs the user needs to register: <__PLACEHOLDER_VALUE__webhook_url__>
 - Resource IDs (sheet IDs, database IDs) when user hasn't specified: <__PLACEHOLDER_VALUE__sheet_id__>
-- Any value that requires user's specific information
+
+NEVER use placeholders for:
+- API keys, tokens, passwords, or any authentication credentials—these are handled by n8n's credential system, not by you
 
 Use these alternatives instead of placeholders:
 - Values derivable from the request → use directly (if user says "send to sales team", use that)
 - Data from previous nodes → use expressions like $json or $('NodeName')
 - ResourceLocator fields → use mode='list' for dropdown selection
-- Credential fields → leave empty (handled by n8n's credential system)
 
 Copy placeholders exactly as shown—the format is parsed by the system to highlight fields requiring user input.`;
 
@@ -389,9 +401,13 @@ mode='list' provides dropdown selection in UI after user connects credentials, w
 
 const MODEL_CONFIGURATION = `Chat model configuration:
 
+CRITICAL - Model Name Rule:
+Your training data has a knowledge cutoff. New models are released constantly. When a user specifies ANY model name, use it EXACTLY as provided—never substitute, "correct", or replace with a different model. Users may also use custom base URLs with model names you've never seen. Trust the user's model specification completely.
+
 OpenAI (lmChatOpenAi):
 - Set model parameter explicitly: model: {{{{ "__rl": true, "mode": "id", "value": "<model-name>" }}}}
-- When user specifies a model name, use that exact name in value
+- ALWAYS use the exact model name the user specifies, verbatim
+- NEVER substitute with a different model—even if you don't recognize the name
 - Explicit model selection ensures predictable behavior and cost control
 
 Temperature settings (affects output variability):
@@ -441,11 +457,15 @@ Plan all nodes before adding any. Users watch the canvas in real-time, so adding
 
 Build the complete workflow in one pass. Keep implementations minimal—the right amount of complexity is the minimum needed for the current task.`;
 
-const RESPONSE_FORMAT = `After validation passes, output a concise summary for the next agent (no emojis, no markdown formatting):
+const RESPONSE_FORMAT = `After validation passes, output a summary describing what you built (no emojis, no markdown formatting).
 
-FORMAT: "Created N nodes: [list node names]. Connections: [count]. Placeholders: [list any __PLACEHOLDER__ fields or 'none']."
+Include:
+- Nodes created and their purpose
+- Key configuration you applied (model names, operations, modes, etc.)
+- Any placeholders requiring user input
 
-This summary is passed to another LLM, not shown to users—keep it minimal and factual.`;
+This summary is passed to another agent who will respond to the user—include enough detail so they can accurately describe what was built.
+`;
 
 /** Instance URL template variable for webhooks */
 export const INSTANCE_URL_PROMPT = `<instance_url>
@@ -453,6 +473,11 @@ n8n instance URL: {instanceUrl}
 Use for webhook and chat trigger URLs.
 </instance_url>`;
 
+const COMMON_MISTAKES = `
+## Common mistakes to avoid:
+- SUBSTITUTING MODEL NAMES: Use the exact model name the user specifies—never substitute with a different model. New models exist beyond your training cutoff, and users may use custom endpoints with arbitrary model names.
+- Ignoring user-specified parameter values: If the user specifies a parameter value, use it exactly even if unfamiliar. Trust the user's knowledge of current systems.
+- PUTTING API KEYS ANYWHERE: Never put API keys, tokens, or secrets in URLs, headers, or body—not even as placeholders. n8n handles authentication through its credential system. For HTTP Request nodes, omit auth parameters from the URL entirely.`;
 // === EXAMPLE TOOLS (conditional) ===
 
 const EXAMPLE_TOOLS = `Use get_node_connection_examples when connecting nodes with non-standard output patterns. This tool shows how experienced users connect these nodes in real workflows, preventing common mistakes:
@@ -514,6 +539,7 @@ export function buildBuilderPrompt(
 			// Output
 			.section('anti_overengineering', ANTI_OVERENGINEERING)
 			.section('response_format', RESPONSE_FORMAT)
+			.section('common_mistakes', COMMON_MISTAKES)
 			.build()
 	);
 }

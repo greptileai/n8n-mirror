@@ -52,6 +52,31 @@ export const anthropicClaudeSonnet45 = async (config: LLMProviderConfig) => {
 
 	return model;
 };
+export const anthropicClaudeSonnet45Think = async (config: LLMProviderConfig) => {
+	const { ChatAnthropic } = await import('@langchain/anthropic');
+	const model = new ChatAnthropic({
+		model: 'claude-sonnet-4-5-20250929',
+		apiKey: config.apiKey,
+		maxTokens: MAX_OUTPUT_TOKENS,
+		anthropicApiUrl: config.baseUrl,
+		thinking: {
+			budget_tokens: 2056,
+			type: 'enabled',
+		},
+		clientOptions: {
+			defaultHeaders: config.headers,
+			fetchOptions: {
+				dispatcher: getProxyAgent(config.baseUrl),
+			},
+		},
+	});
+
+	// Remove Langchain default topP parameter since Sonnet 4.5 doesn't allow setting both temperature and topP
+	delete model.topP;
+	delete model.temperature;
+
+	return model;
+};
 
 export const anthropicHaiku45 = async (config: LLMProviderConfig) => {
 	const { ChatAnthropic } = await import('@langchain/anthropic');
@@ -163,6 +188,7 @@ export type ModelId =
 	// Native models
 	| 'claude-opus-4.5'
 	| 'claude-sonnet-4.5'
+	| 'claude-sonnet-4.5-think'
 	| 'claude-haiku-4.5'
 	| 'gpt-5.2'
 	// OpenRouter models
@@ -182,6 +208,7 @@ export const MODEL_FACTORIES: Record<
 	// Native models
 	'claude-opus-4.5': anthropicClaudeOpus45,
 	'claude-sonnet-4.5': anthropicClaudeSonnet45,
+	'claude-sonnet-4.5-think': anthropicClaudeSonnet45,
 	'claude-haiku-4.5': anthropicHaiku45,
 	'gpt-5.2': gpt52,
 	// OpenRouter models

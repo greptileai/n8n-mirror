@@ -206,6 +206,11 @@ REASONING CONTENT (what to include):
 - What connection-changing parameters exist and how each value affects inputs/outputs
 - Describe capabilities neutrally—the builder decides how to configure the node for this specific workflow
 
+CRITICAL - Model names:
+- If the user specifies a model name (e.g., "gpt-5-mini", "claude-4", any custom model), pass it through EXACTLY in your reasoning
+- Do NOT substitute, "correct", or replace model names—your training data has a knowledge cutoff and newer models exist
+- Users may also use custom endpoints with model names you've never seen
+
 Example reasoning for Vector Store: "Stores and retrieves embeddings. Connection-changing param 'mode': insert (accepts ai_document input), retrieve (standalone retrieval), retrieve-as-tool (connects to AI Agent via ai_tool)."
 
 Guidelines:
