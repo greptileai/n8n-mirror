@@ -524,6 +524,15 @@ export function parseWorkflowCode(code: string): WorkflowJSON {
 		);
 	} catch (error) {
 		if (error instanceof SyntaxError) {
+			// Check for duplicate identifier error (reserved SDK name conflict)
+			const duplicateMatch = error.message.match(/Identifier '(\w+)' has already been declared/);
+			if (duplicateMatch) {
+				const identifier = duplicateMatch[1];
+				throw new SyntaxError(
+					`Failed to parse workflow code: '${identifier}' is a reserved SDK function name and cannot be used as a variable name. ` +
+						`Use a different name like 'my${identifier.charAt(0).toUpperCase() + identifier.slice(1)}' instead.`,
+				);
+			}
 			throw new SyntaxError(
 				`Failed to parse workflow code due to syntax error: ${error.message}. ` +
 					`Common causes include unclosed template literals, missing commas, or unbalanced brackets.`,
@@ -619,6 +628,15 @@ export function parseWorkflowCodeToBuilder(code: string) {
 		);
 	} catch (error) {
 		if (error instanceof SyntaxError) {
+			// Check for duplicate identifier error (reserved SDK name conflict)
+			const duplicateMatch = error.message.match(/Identifier '(\w+)' has already been declared/);
+			if (duplicateMatch) {
+				const identifier = duplicateMatch[1];
+				throw new SyntaxError(
+					`Failed to parse workflow code: '${identifier}' is a reserved SDK function name and cannot be used as a variable name. ` +
+						`Use a different name like 'my${identifier.charAt(0).toUpperCase() + identifier.slice(1)}' instead.`,
+				);
+			}
 			throw new SyntaxError(
 				`Failed to parse workflow code due to syntax error: ${error.message}. ` +
 					`Common causes include unclosed template literals, missing commas, or unbalanced brackets.`,

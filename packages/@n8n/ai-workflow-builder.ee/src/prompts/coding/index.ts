@@ -91,6 +91,12 @@ const WORKFLOW_RULES = `<workflow_rules>
 9. **Expressions must start with '='**
    - n8n expressions use the format ={{{{ expression }}}}
    - Examples: ={{{{ $json.field }}}}, ={{{{ $('Node Name').item.json.key }}}}, ={{{{ $now }}}}
+
+10. **NEVER use SDK function names as variable names**
+   - BAD: const vectorStore = vectorStore({{...}})
+   - GOOD: const myVectorStore = vectorStore({{...}})
+   - BAD: const documentLoader = documentLoader({{...}})
+   - GOOD: const pdfLoader = documentLoader({{...}})
 </workflow_rules>`;
 
 /**
@@ -426,11 +432,6 @@ return workflow('unique-id', 'Workflow Name')
 - NEVER include \`import\` statements at the top of your code
 - All functions (workflow, trigger, node, etc.) are already pre-loaded and available
 - Just use them directly: \`const myTrigger = trigger({{...}})\`
-
-**NO UNDEFINED VARIABLES** - Another common error:
-- Do not reference variables that don't exist (like \`runOnceForAllItems\`)
-- Only use the SDK functions documented in the API reference
-- If you need a specific mode, pass it as a parameter, don't reference it as a variable
 
 ## Important Reminders
 
