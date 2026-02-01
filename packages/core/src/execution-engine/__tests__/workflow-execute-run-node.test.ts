@@ -8,6 +8,7 @@
 
 // Mock all external dependencies first, before any imports
 jest.mock('@n8n/config', () => ({
+	...jest.requireActual('@n8n/config'),
 	GlobalConfig: jest.fn().mockImplementation(() => ({
 		sentry: { backendDsn: '' },
 	})),
@@ -52,6 +53,10 @@ jest.mock('../routing-node', () => ({
 
 jest.mock('@/node-execute-functions', () => ({
 	getExecuteTriggerFunctions: jest.fn(),
+}));
+
+jest.mock('../../utils/convert-binary-data.ts', () => ({
+	convertBinaryData: jest.fn(),
 }));
 
 // Now import the real classes

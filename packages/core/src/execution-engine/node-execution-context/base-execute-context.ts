@@ -1,4 +1,3 @@
-import { Container } from '@n8n/di';
 import get from 'lodash/get';
 import type {
 	Workflow,
@@ -33,13 +32,9 @@ import {
 	createEnvProviderState,
 } from 'n8n-workflow';
 
-import { BinaryDataService } from '@/binary-data/binary-data.service';
-
 import { NodeExecutionContext } from './node-execution-context';
 
 export class BaseExecuteContext extends NodeExecutionContext {
-	protected readonly binaryDataService = Container.get(BinaryDataService);
-
 	constructor(
 		workflow: Workflow,
 		node: INode,
@@ -123,6 +118,7 @@ export class BaseExecuteContext extends NodeExecutionContext {
 		options?: {
 			doNotWaitToFinish?: boolean;
 			parentExecution?: RelatedExecution;
+			executionMode?: WorkflowExecuteMode;
 		},
 	): Promise<ExecuteWorkflowData> {
 		if (options?.parentExecution) {
@@ -154,12 +150,7 @@ export class BaseExecuteContext extends NodeExecutionContext {
 			await this.putExecutionToWait(WAIT_INDEFINITELY);
 		}
 
-		const data = await this.binaryDataService.duplicateBinaryData(
-			this.workflow.id,
-			this.additionalData.executionId!,
-			result.data,
-		);
-		return { ...result, data };
+		return result;
 	}
 
 	async getExecutionDataById(executionId: string): Promise<IRunExecutionData | undefined> {
@@ -273,5 +264,9 @@ export class BaseExecuteContext extends NodeExecutionContext {
 			createEnvProviderState(),
 			this.executeData,
 		);
+	}
+
+	getRunnerStatus(taskType: string): { available: true } | { available: false; reason?: string } {
+		return this.additionalData.getRunnerStatus?.(taskType) ?? { available: true };
 	}
 }

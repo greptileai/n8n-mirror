@@ -89,6 +89,8 @@ const allCredentials = computed<Resource[]>(() =>
 		sharedWithProjects: credential.sharedWithProjects,
 		readOnly: !getResourcePermissions(credential.scopes).credential.update,
 		needsSetup: needsSetup(credential.data),
+		isGlobal: credential.isGlobal,
+		isResolvable: credential.isResolvable,
 		type: credential.type,
 	})),
 );
@@ -192,14 +194,27 @@ const initialize = async () => {
 	const isVarsEnabled =
 		useSettingsStore().isEnterpriseFeatureEnabled[EnterpriseEditionFeature.Variables];
 
+	const isPersonalView =
+		!overview.isSharedSubPage &&
+		overview.isProjectsSubPage &&
+		route?.params?.projectId === projectsStore.personalProject?.id;
+
+	// this ensures that the data for secrets is there when user types secret expressions
+	const externalSecretRequests = [externalSecretsStore.fetchGlobalSecrets()];
+	const shouldFetchProjectSecrets = route?.params?.projectId !== projectsStore.personalProject?.id;
+	if (shouldFetchProjectSecrets && typeof route?.params?.projectId === 'string') {
+		externalSecretRequests.push(externalSecretsStore.fetchProjectSecrets(route.params.projectId));
+	}
+
 	const loadPromises = [
 		credentialsStore.fetchAllCredentials(
 			route?.params?.projectId as string | undefined,
 			true,
 			overview.isSharedSubPage,
+			!isPersonalView, // don't include global credentials if personal
 		),
 		credentialsStore.fetchCredentialTypes(false),
-		externalSecretsStore.fetchAllSecrets(),
+		...externalSecretRequests,
 		nodeTypesStore.loadNodeTypesIfNotLoaded(),
 		isVarsEnabled ? useEnvironmentsStore().fetchAllVariables() : Promise.resolve(), // for expression resolution
 	];
@@ -327,7 +342,7 @@ onMounted(() => {
 			<N8nActionBox
 				v-else
 				data-test-id="empty-resources-list"
-				emoji="👋"
+				:icon="{ type: 'icon', value: 'lock' }"
 				:heading="
 					i18n.baseText(
 						usersStore.currentUser?.firstName

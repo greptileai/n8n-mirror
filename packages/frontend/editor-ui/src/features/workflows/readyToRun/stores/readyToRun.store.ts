@@ -15,10 +15,17 @@ import { VIEWS } from '@/app/constants';
 import { useSettingsStore } from '@/app/stores/settings.store';
 import { useWorkflowsStore } from '@/app/stores/workflows.store';
 import { useCredentialsStore } from '@/features/credentials/credentials.store';
+import { useReadyToRunWorkflowsV2Store } from '@/experiments/readyToRunWorkflowsV2/stores/readyToRunWorkflowsV2.store';
 
 const LOCAL_STORAGE_CREDENTIAL_KEY = 'N8N_READY_TO_RUN_OPENAI_CREDENTIAL_ID';
 
 export const useReadyToRunStore = defineStore(STORES.READY_TO_RUN, () => {
+	const READY_TO_RUN_TEMPLATE_IDS = [
+		'ready-to-run-ai-workflow',
+		'ready-to-run-ai-workflow-v5',
+		'ready-to-run-ai-workflow-v6',
+	];
+
 	const telemetry = useTelemetry();
 	const i18n = useI18n();
 	const toast = useToast();
@@ -27,6 +34,7 @@ export const useReadyToRunStore = defineStore(STORES.READY_TO_RUN, () => {
 	const usersStore = useUsersStore();
 	const settingsStore = useSettingsStore();
 	const workflowsStore = useWorkflowsStore();
+	const readyToRunWorkflowsV2Store = useReadyToRunWorkflowsV2Store();
 
 	const claimedCredentialIdRef = useLocalStorage(LOCAL_STORAGE_CREDENTIAL_KEY, '');
 
@@ -83,6 +91,10 @@ export const useReadyToRunStore = defineStore(STORES.READY_TO_RUN, () => {
 		}
 	};
 
+	const getReadyToRunWorkflowTemplate = () => {
+		return readyToRunWorkflowsV2Store.getWorkflowForVariant() ?? READY_TO_RUN_AI_WORKFLOW;
+	};
+
 	const createAndOpenAiWorkflow = async (source: 'card' | 'button', parentFolderId?: string) => {
 		telemetry.track('User opened ready to run AI workflow', {
 			source,
@@ -90,7 +102,7 @@ export const useReadyToRunStore = defineStore(STORES.READY_TO_RUN, () => {
 
 		try {
 			let workflowToCreate: WorkflowDataCreate = {
-				...READY_TO_RUN_AI_WORKFLOW,
+				...getReadyToRunWorkflowTemplate(),
 				parentFolderId,
 			};
 
@@ -153,6 +165,10 @@ export const useReadyToRunStore = defineStore(STORES.READY_TO_RUN, () => {
 		return isTrulyEmpty(route);
 	};
 
+	const isReadyToRunTemplateId = (templateId: string | undefined): boolean => {
+		return !!templateId && READY_TO_RUN_TEMPLATE_IDS.includes(templateId);
+	};
+
 	return {
 		claimingCredits,
 		userCanClaimOpenAiCredits,
@@ -164,5 +180,6 @@ export const useReadyToRunStore = defineStore(STORES.READY_TO_RUN, () => {
 		getSimplifiedLayoutVisibility,
 		trackExecuteAiWorkflow,
 		trackExecuteAiWorkflowSuccess,
+		isReadyToRunTemplateId,
 	};
 });
