@@ -120,15 +120,14 @@ const preloadIcons = async (entries: AppEntry[]) => {
 		return;
 	}
 
-	const loadPromises = iconUrls.map(
-		(url) =>
-			new Promise<void>((resolve) => {
-				const img = new Image();
-				img.onload = () => resolve();
-				img.onerror = () => resolve();
-				img.src = url;
-			}),
-	);
+	const loadPromises = iconUrls.map(async (url) => {
+		await new Promise<void>((resolve) => {
+			const img = new Image();
+			img.onload = () => resolve();
+			img.onerror = () => resolve();
+			img.src = url;
+		});
+	});
 
 	await Promise.all(loadPromises);
 	iconsLoaded.value = true;
