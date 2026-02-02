@@ -149,7 +149,7 @@ const handleBuilderPromptSubmit = async (prompt: string) => {
 						v-if="canCreateWorkflow"
 						:class="[$style.actionCardsContainer, { [$style.singleCard]: !showReadyToRunCard }]"
 					>
-						<!-- Card 1: Run live demo (conditional) -->
+						<!-- Card 1: Try AI workflow (conditional) -->
 						<N8nCard
 							v-if="showReadyToRunCard"
 							:class="$style.actionCard"
@@ -165,7 +165,7 @@ const handleBuilderPromptSubmit = async (prompt: string) => {
 									:stroke-width="1.5"
 								/>
 								<N8nText size="large" class="mt-xs">
-									{{ i18n.baseText('workflows.empty.readyToRun') }}
+									{{ i18n.baseText('workflows.empty.tryAiWorkflow') }}
 								</N8nText>
 							</div>
 						</N8nCard>
