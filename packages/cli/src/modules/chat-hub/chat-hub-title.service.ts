@@ -30,14 +30,12 @@ import { ChatHubCredentialsService } from './chat-hub-credentials.service';
 import { ChatHubExecutionService } from './chat-hub-execution.service';
 import { ChatHubWorkflowService } from './chat-hub-workflow.service';
 import { NODE_NAMES, PROVIDER_NODE_TYPE_MAP } from './chat-hub.constants';
-import { ChatHubMessageRepository } from './chat-message.repository';
 import { ChatHubSessionRepository } from './chat-session.repository';
 
 @Service()
 export class ChatHubTitleService {
 	constructor(
 		private readonly logger: Logger,
-		private readonly messageRepository: ChatHubMessageRepository,
 		private readonly chatHubWorkflowService: ChatHubWorkflowService,
 		private readonly chatHubCredentialsService: ChatHubCredentialsService,
 		private readonly workflowFinderService: WorkflowFinderService,
@@ -84,7 +82,7 @@ export class ChatHubTitleService {
 		incomingCredentials: INodeCredentials,
 		incomingModel: ChatHubConversationModel,
 	) {
-		return await this.messageRepository.manager.transaction(async (trx) => {
+		return await this.sessionRepository.manager.transaction(async (trx) => {
 			const { resolvedCredentials, resolvedModel, credentialId, projectId } =
 				await this.resolveCredentialsAndModelForTitle(
 					user,
