@@ -1810,7 +1810,7 @@ describe('KafkaTrigger Node', () => {
 			expect(mockResolveOffset).toHaveBeenCalledWith('0');
 		});
 
-		it('should disable auto commit when disableAutoResolveOffset is true', async () => {
+		it('should disable auto commit when resolveOffset is onSuccess', async () => {
 			await testTriggerNode(KafkaTrigger, {
 				mode: 'trigger',
 				node: {
@@ -1819,8 +1819,7 @@ describe('KafkaTrigger Node', () => {
 						topic: 'test-topic',
 						groupId: 'test-group',
 						useSchemaRegistry: false,
-						resolveOffset: 'onCompletion',
-						disableAutoResolveOffset: true,
+						resolveOffset: 'onSuccess',
 					},
 				},
 				credential: {
@@ -1839,7 +1838,7 @@ describe('KafkaTrigger Node', () => {
 			);
 		});
 
-		it('should enable auto commit when disableAutoResolveOffset is false', async () => {
+		it('should enable auto commit when resolveOffset is onCompletion', async () => {
 			await testTriggerNode(KafkaTrigger, {
 				mode: 'trigger',
 				node: {
@@ -1849,7 +1848,6 @@ describe('KafkaTrigger Node', () => {
 						groupId: 'test-group',
 						useSchemaRegistry: false,
 						resolveOffset: 'onCompletion',
-						disableAutoResolveOffset: false,
 					},
 				},
 				credential: {
@@ -1864,6 +1862,35 @@ describe('KafkaTrigger Node', () => {
 				expect.objectContaining({
 					autoCommit: true,
 					eachBatchAutoResolve: true,
+				}),
+			);
+		});
+
+		it('should disable auto commit when resolveOffset is onStatus', async () => {
+			await testTriggerNode(KafkaTrigger, {
+				mode: 'trigger',
+				node: {
+					typeVersion: 1.3,
+					parameters: {
+						topic: 'test-topic',
+						groupId: 'test-group',
+						useSchemaRegistry: false,
+						resolveOffset: 'onStatus',
+						allowedStatuses: ['success'],
+					},
+				},
+				credential: {
+					brokers: 'localhost:9092',
+					clientId: 'n8n-kafka',
+					ssl: false,
+					authentication: false,
+				},
+			});
+
+			expect(mockConsumerRun).toHaveBeenCalledWith(
+				expect.objectContaining({
+					autoCommit: false,
+					eachBatchAutoResolve: false,
 				}),
 			);
 		});

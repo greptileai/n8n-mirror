@@ -385,13 +385,7 @@ export function getAutoCommitSettings(
 
 	if (nodeVersion >= 1.3 && ctx.getMode() !== 'manual') {
 		const resolveOffset = ctx.getNodeParameter('resolveOffset', 'immediately') as ResolveOffsetMode;
-		if (resolveOffset !== 'immediately') {
-			const disableAutoResolveOffset = ctx.getNodeParameter(
-				'disableAutoResolveOffset',
-				false,
-			) as boolean;
-			shouldAutoCommit = !disableAutoResolveOffset;
-		}
+		if (['onStatus', 'onSuccess'].includes(resolveOffset)) shouldAutoCommit = false;
 	}
 
 	const autoCommitInterval = options.autoCommitInterval ?? undefined;

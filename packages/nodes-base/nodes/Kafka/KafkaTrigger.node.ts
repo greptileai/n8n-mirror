@@ -147,23 +147,6 @@ export class KafkaTrigger implements INodeType {
 				},
 			},
 			{
-				displayName: 'Disable Auto Commit',
-				name: 'disableAutoResolveOffset',
-				type: 'boolean',
-				default: false,
-				description:
-					'Whether to disable automatic offset commits by the Kafka consumer. Enable this to rely on manual offset resolution based on execution status and offset resolution setting.',
-				displayOptions: {
-					show: {
-						'@version': [{ _cnd: { gte: 1.3 } }],
-						resolveOffset: ['onCompletion', 'onSuccess', 'onStatus'],
-					},
-					hide: {
-						resolveOffset: ['immediately'],
-					},
-				},
-			},
-			{
 				displayName: 'Use Schema Registry',
 				name: 'useSchemaRegistry',
 				type: 'boolean',
@@ -207,7 +190,7 @@ export class KafkaTrigger implements INodeType {
 							'The consumer will commit offsets after resolving a given number of messages',
 						displayOptions: {
 							hide: {
-								'/disableAutoResolveOffset': [true],
+								'/resolveOffset': ['onStatus', 'onSuccess'],
 							},
 						},
 					},
@@ -221,7 +204,7 @@ export class KafkaTrigger implements INodeType {
 						hint: 'Value in milliseconds',
 						displayOptions: {
 							hide: {
-								'/disableAutoResolveOffset': [true],
+								'/resolveOffset': ['onStatus', 'onSuccess'],
 							},
 						},
 					},

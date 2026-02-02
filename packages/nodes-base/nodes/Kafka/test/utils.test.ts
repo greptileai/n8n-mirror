@@ -98,10 +98,9 @@ describe('Kafka Utils', () => {
 			});
 		});
 
-		it('should return autoCommit true for version 1.3 when resolveOffset is onCompletion and disableAutoResolveOffset is false', () => {
+		it('should return autoCommit true for version 1.3 when resolveOffset is onCompletion', () => {
 			const ctx = createMockContext({
 				resolveOffset: 'onCompletion',
-				disableAutoResolveOffset: false,
 			});
 			const options: KafkaTriggerOptions = {};
 			const result = getAutoCommitSettings(ctx, options, 1.3);
@@ -114,26 +113,9 @@ describe('Kafka Utils', () => {
 			});
 		});
 
-		it('should return autoCommit false for version 1.3 when resolveOffset is onCompletion and disableAutoResolveOffset is true', () => {
-			const ctx = createMockContext({
-				resolveOffset: 'onCompletion',
-				disableAutoResolveOffset: true,
-			});
-			const options: KafkaTriggerOptions = {};
-			const result = getAutoCommitSettings(ctx, options, 1.3);
-
-			expect(result).toEqual({
-				autoCommit: false,
-				eachBatchAutoResolve: false,
-				autoCommitInterval: undefined,
-				autoCommitThreshold: undefined,
-			});
-		});
-
-		it('should return autoCommit false for version 1.3 when resolveOffset is onSuccess and disableAutoResolveOffset is true', () => {
+		it('should return autoCommit false for version 1.3 when resolveOffset is onSuccess', () => {
 			const ctx = createMockContext({
 				resolveOffset: 'onSuccess',
-				disableAutoResolveOffset: true,
 			});
 			const options: KafkaTriggerOptions = {};
 			const result = getAutoCommitSettings(ctx, options, 1.3);
@@ -146,10 +128,9 @@ describe('Kafka Utils', () => {
 			});
 		});
 
-		it('should return autoCommit false for version 1.3 when resolveOffset is onStatus and disableAutoResolveOffset is true', () => {
+		it('should return autoCommit false for version 1.3 when resolveOffset is onStatus', () => {
 			const ctx = createMockContext({
 				resolveOffset: 'onStatus',
-				disableAutoResolveOffset: true,
 			});
 			const options: KafkaTriggerOptions = {};
 			const result = getAutoCommitSettings(ctx, options, 1.3);
@@ -157,6 +138,38 @@ describe('Kafka Utils', () => {
 			expect(result).toEqual({
 				autoCommit: false,
 				eachBatchAutoResolve: false,
+				autoCommitInterval: undefined,
+				autoCommitThreshold: undefined,
+			});
+		});
+
+		it('should return autoCommit true for version 1.3 in manual mode regardless of resolveOffset', () => {
+			const ctx = createMockContext({
+				resolveOffset: 'onSuccess',
+			});
+			ctx.getMode.mockReturnValue('manual');
+			const options: KafkaTriggerOptions = {};
+			const result = getAutoCommitSettings(ctx, options, 1.3);
+
+			expect(result).toEqual({
+				autoCommit: true,
+				eachBatchAutoResolve: true,
+				autoCommitInterval: undefined,
+				autoCommitThreshold: undefined,
+			});
+		});
+
+		it('should return autoCommit true for version 1.3 in manual mode with onStatus resolveOffset', () => {
+			const ctx = createMockContext({
+				resolveOffset: 'onStatus',
+			});
+			ctx.getMode.mockReturnValue('manual');
+			const options: KafkaTriggerOptions = {};
+			const result = getAutoCommitSettings(ctx, options, 1.3);
+
+			expect(result).toEqual({
+				autoCommit: true,
+				eachBatchAutoResolve: true,
 				autoCommitInterval: undefined,
 				autoCommitThreshold: undefined,
 			});
