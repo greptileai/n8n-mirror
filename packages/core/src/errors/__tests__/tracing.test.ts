@@ -1,6 +1,6 @@
 import type { StartSpanOptions } from '@sentry/core';
-import type Sentry from '@sentry/node';
 import { mock } from 'jest-mock-extended';
+import type { INode, Workflow } from 'n8n-workflow';
 
 import { EmptySpan, NoopTracing } from '../noop-tracing';
 import { type Span, Tracing, type Tracer } from '../tracing';
@@ -77,7 +77,7 @@ describe('tracing', () => {
 			tracing.setTracingImplementation(mockTracingImplementation);
 
 			const options: StartSpanOptions = { name: 'async-span' };
-			const callback = jest.fn().mockImplementation(async (_span?: Sentry.Span) => {
+			const callback = jest.fn().mockImplementation(async (_span: Span) => {
 				await new Promise((resolve) => setTimeout(resolve, 10));
 				return 'async-result';
 			});
@@ -114,6 +114,42 @@ describe('tracing', () => {
 			const callback = jest.fn();
 
 			await expect(tracing.startSpan(options, callback)).rejects.toThrow('Implementation error');
+		});
+	});
+
+	describe('pickWorkflowAttributes', () => {
+		it('should pick workflow id and name attributes', () => {
+			const workflow = mock<Workflow>({
+				id: 'workflow-123',
+				name: 'Test Workflow',
+			});
+
+			const attributes = tracing.pickWorkflowAttributes(workflow);
+
+			expect(attributes).toEqual({
+				'n8n.workflow.id': 'workflow-123',
+				'n8n.workflow.name': 'Test Workflow',
+			});
+		});
+	});
+
+	describe('pickNodeAttributes', () => {
+		it('should pick node id, name, type, and typeVersion attributes', () => {
+			const node = mock<INode>({
+				id: 'node-456',
+				name: 'Test Node',
+				type: 'n8n-nodes-base.httpRequest',
+				typeVersion: 2,
+			});
+
+			const attributes = tracing.pickNodeAttributes(node);
+
+			expect(attributes).toEqual({
+				'n8n.node.id': 'node-456',
+				'n8n.node.name': 'Test Node',
+				'n8n.node.type': 'n8n-nodes-base.httpRequest',
+				'n8n.node.type_version': 2,
+			});
 		});
 	});
 });

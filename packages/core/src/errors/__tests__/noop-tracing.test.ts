@@ -1,7 +1,5 @@
-import type { StartSpanOptions } from '@sentry/core';
-import type Sentry from '@sentry/node';
-
-import { NoopTracing } from '../noop-tracing';
+import { EmptySpan, NoopTracing } from '../noop-tracing';
+import type { Span, StartSpanOpts } from '../tracing';
 
 describe('NoopTracing', () => {
 	let noopTracing: NoopTracing;
@@ -11,17 +9,17 @@ describe('NoopTracing', () => {
 	});
 
 	describe('startSpan', () => {
-		it('should call the callback with undefined span', async () => {
-			const options: StartSpanOptions = { name: 'test-span' };
+		it('should call the callback with EmptySpan', async () => {
+			const options: StartSpanOpts = { name: 'test-span' };
 			const callback = jest.fn().mockResolvedValue('result');
 
 			await noopTracing.startSpan(options, callback);
 
-			expect(callback).toHaveBeenCalledWith(undefined);
+			expect(callback).toHaveBeenCalledWith(expect.any(EmptySpan));
 		});
 
 		it('should return the result from the callback', async () => {
-			const options: StartSpanOptions = { name: 'test-span' };
+			const options: StartSpanOpts = { name: 'test-span' };
 			const expectedResult = { data: 'test-data' };
 			const callback = jest.fn().mockResolvedValue(expectedResult);
 
@@ -31,7 +29,7 @@ describe('NoopTracing', () => {
 		});
 
 		it('should propagate errors from the callback', async () => {
-			const options: StartSpanOptions = { name: 'error-span' };
+			const options: StartSpanOpts = { name: 'error-span' };
 			const error = new Error('Callback error');
 			const callback = jest.fn().mockRejectedValue(error);
 
@@ -39,8 +37,8 @@ describe('NoopTracing', () => {
 		});
 
 		it('should handle async operations in callback', async () => {
-			const options: StartSpanOptions = { name: 'async-span' };
-			const callback = jest.fn().mockImplementation(async (_span?: Sentry.Span) => {
+			const options: StartSpanOpts = { name: 'async-span' };
+			const callback = jest.fn().mockImplementation(async (_span: Span) => {
 				await new Promise((resolve) => setTimeout(resolve, 10));
 				return 'async-result';
 			});
@@ -48,17 +46,17 @@ describe('NoopTracing', () => {
 			const result = await noopTracing.startSpan(options, callback);
 
 			expect(result).toBe('async-result');
-			expect(callback).toHaveBeenCalledWith(undefined);
+			expect(callback).toHaveBeenCalledWith(expect.any(EmptySpan));
 		});
 
 		it('should handle nested calls', async () => {
-			const outerOptions: StartSpanOptions = { name: 'outer-span' };
-			const innerOptions: StartSpanOptions = { name: 'inner-span' };
+			const outerOptions: StartSpanOpts = { name: 'outer-span' };
+			const innerOptions: StartSpanOpts = { name: 'inner-span' };
 
-			const outerCallback = jest.fn().mockImplementation(async (_span?: Sentry.Span) => {
-				expect(_span).toBeUndefined();
-				const innerCallback = jest.fn().mockImplementation(async (innerSpan?: Sentry.Span) => {
-					expect(innerSpan).toBeUndefined();
+			const outerCallback = jest.fn().mockImplementation(async (_span: Span) => {
+				expect(_span).toBeInstanceOf(EmptySpan);
+				const innerCallback = jest.fn().mockImplementation(async (innerSpan: Span) => {
+					expect(innerSpan).toBeInstanceOf(EmptySpan);
 					return 'inner-result';
 				});
 				return await noopTracing.startSpan(innerOptions, innerCallback);
@@ -67,11 +65,11 @@ describe('NoopTracing', () => {
 			const result = await noopTracing.startSpan(outerOptions, outerCallback);
 
 			expect(result).toBe('inner-result');
-			expect(outerCallback).toHaveBeenCalledWith(undefined);
+			expect(outerCallback).toHaveBeenCalledWith(expect.any(EmptySpan));
 		});
 
 		it('should call callback exactly once', async () => {
-			const options: StartSpanOptions = { name: 'test-span' };
+			const options: StartSpanOpts = { name: 'test-span' };
 			const callback = jest.fn().mockResolvedValue('result');
 
 			await noopTracing.startSpan(options, callback);
