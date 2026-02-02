@@ -111,6 +111,8 @@ export interface RunConfigBase {
 	context?: GlobalRunContext;
 	/** Directory for JSON output files */
 	outputDir?: string;
+	/** CSV file path for evaluation results */
+	outputCsv?: string;
 	/** Threshold for pass/fail classification of an example score (0-1). */
 	passThreshold?: number;
 	/** Timeout for generation/evaluator operations (ms). */

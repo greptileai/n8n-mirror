@@ -213,6 +213,7 @@ export async function runV2Evaluation(): Promise<void> {
 		lifecycle,
 		logger,
 		outputDir: args.outputDir,
+		outputCsv: args.outputCsv,
 		timeoutMs: args.timeoutMs,
 		context: { llmCallLimiter },
 	};

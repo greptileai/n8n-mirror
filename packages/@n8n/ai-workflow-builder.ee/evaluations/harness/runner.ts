@@ -635,6 +635,7 @@ async function runLocal(config: LocalRunConfig): Promise<RunSummary> {
 		timeoutMs,
 		lifecycle,
 		outputDir,
+		outputCsv,
 		logger,
 	} = config;
 
@@ -668,6 +669,13 @@ async function runLocal(config: LocalRunConfig): Promise<RunSummary> {
 
 	// Save summary to disk if outputDir is provided
 	artifactSaver?.saveSummary(summary, results);
+
+	// Write CSV if requested
+	if (outputCsv) {
+		const { writeResultsCsv } = await import('./csv-writer.js');
+		writeResultsCsv(results, outputCsv);
+		logger.info(`Results written to: ${outputCsv}`);
+	}
 
 	lifecycle?.onEnd?.(summary);
 
@@ -888,6 +896,7 @@ async function runLangsmith(config: LangsmithRunConfig): Promise<RunSummary> {
 		evaluators,
 		context: globalContext,
 		outputDir,
+		outputCsv,
 		passThreshold = DEFAULT_PASS_THRESHOLD,
 		timeoutMs,
 		langsmithOptions,
@@ -1124,6 +1133,13 @@ async function runLangsmith(config: LangsmithRunConfig): Promise<RunSummary> {
 
 	if (artifactSaver) {
 		artifactSaver.saveSummary(summary, capturedResults);
+	}
+
+	// Write CSV if requested
+	if (outputCsv) {
+		const { writeResultsCsv } = await import('./csv-writer.js');
+		writeResultsCsv(capturedResults, outputCsv);
+		logger.info(`Results written to: ${outputCsv}`);
 	}
 
 	lifecycle?.onEnd?.(summary);
