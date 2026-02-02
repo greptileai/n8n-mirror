@@ -202,7 +202,7 @@ export interface ExampleResult {
 	/** Time spent running evaluators, when known. */
 	evaluationDurationMs?: number;
 	workflow?: SimpleWorkflow;
-	/** Generated source code (e.g., TypeScript SDK code from one-shot agent) */
+	/** Generated source code (e.g., TypeScript SDK code from coding agent) */
 	generatedCode?: string;
 	/** Token usage statistics from the generation */
 	tokenUsage?: TokenUsage;
@@ -235,7 +235,7 @@ export interface GenerationError {
 
 /**
  * Result from workflow generation that may include source code.
- * Used by generators that produce code (e.g., one-shot agent).
+ * Used by generators that produce code (e.g., coding agent).
  */
 export interface GenerationResult {
 	workflow: SimpleWorkflow;
@@ -276,7 +276,7 @@ export interface RunSummary {
 	averageScore: number;
 	totalDurationMs: number;
 	evaluatorAverages?: Record<string, number>;
-/** Aggregated token usage across all examples */
+	/** Aggregated token usage across all examples */
 	totalTokenUsage?: TokenUsage;
 	/** LangSmith IDs for constructing comparison URLs (only available in langsmith mode) */
 	langsmith?: {
