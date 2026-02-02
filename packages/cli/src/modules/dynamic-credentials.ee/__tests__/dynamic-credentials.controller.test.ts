@@ -216,7 +216,7 @@ describe('DynamicCredentialsController', () => {
 			enterpriseCredentialsService.getOne.mockResolvedValue(mockCredential);
 			resolverRepository.findOneBy.mockResolvedValue(mockResolverEntity);
 			resolverRegistry.getResolverByTypename.mockReturnValue(mockResolver);
-			oauthService.generateAOuth1AuthUri.mockResolvedValueOnce(
+			oauthService.generateAOauth1AuthUri.mockResolvedValueOnce(
 				'https://example.domain/oauth/authorize?oauth_token=random-token',
 			);
 
@@ -228,7 +228,7 @@ describe('DynamicCredentialsController', () => {
 			expect(resolverRegistry.getResolverByTypename).toHaveBeenCalledWith(
 				'oauth2-introspection-identifier',
 			);
-			expect(oauthService.generateAOuth1AuthUri).toHaveBeenCalledWith(mockCredential, {
+			expect(oauthService.generateAOauth1AuthUri).toHaveBeenCalledWith(mockCredential, {
 				cid: '1',
 				origin: 'dynamic-credential',
 				authorizationHeader: 'Bearer token123',

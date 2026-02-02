@@ -438,7 +438,7 @@ export class OauthService {
 		return returnUri.toString();
 	}
 
-	async generateAOuth1AuthUri(
+	async generateAOauth1AuthUri(
 		credential: CredentialsEntity,
 		csrfData: CreateCsrfStateData,
 	): Promise<string> {

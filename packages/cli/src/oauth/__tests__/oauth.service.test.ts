@@ -1576,7 +1576,7 @@ describe('OauthService', () => {
 		});
 	});
 
-	describe('generateAOuth1AuthUri', () => {
+	describe('generateAOauth1AuthUri', () => {
 		it('should generate auth URI for OAuth1 credential', async () => {
 			const axios = require('axios');
 			const credential = mock<CredentialsEntity>({ id: '1', type: 'twitterOAuth1Api' });
@@ -1595,7 +1595,7 @@ describe('OauthService', () => {
 			});
 			jest.spyOn(service, 'encryptAndSaveData').mockResolvedValue(undefined);
 
-			const authUri = await service.generateAOuth1AuthUri(credential, {
+			const authUri = await service.generateAOauth1AuthUri(credential, {
 				cid: credential.id,
 				origin: 'static-credential',
 				userId: 'user-id',
@@ -1623,7 +1623,7 @@ describe('OauthService', () => {
 
 			jest.spyOn(service, 'getOAuthCredentials').mockResolvedValue(oauthCredentials);
 
-			const promise = service.generateAOuth1AuthUri(credential, {
+			const promise = service.generateAOauth1AuthUri(credential, {
 				cid: credential.id,
 				origin: 'static-credential',
 				userId: 'user-id',
@@ -1650,7 +1650,7 @@ describe('OauthService', () => {
 			});
 			jest.spyOn(service, 'encryptAndSaveData').mockResolvedValue(undefined);
 
-			const authUri = await service.generateAOuth1AuthUri(credential, {
+			const authUri = await service.generateAOauth1AuthUri(credential, {
 				cid: credential.id,
 				origin: 'static-credential',
 				userId: 'user-id',
@@ -1676,7 +1676,7 @@ describe('OauthService', () => {
 			jest.mocked(axios.request).mockRejectedValue(new Error('Request token failed'));
 
 			await expect(
-				service.generateAOuth1AuthUri(credential, {
+				service.generateAOauth1AuthUri(credential, {
 					cid: credential.id,
 					origin: 'static-credential',
 					userId: 'user-id',
