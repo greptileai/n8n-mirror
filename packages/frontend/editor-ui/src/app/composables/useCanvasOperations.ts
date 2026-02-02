@@ -1420,12 +1420,9 @@ export function useCanvasOperations() {
 						lastInteractedWithNode.position[1] + yOffset,
 					];
 
-					// When inserting via edge plus button, adjust Y to fit within overlapping sticky notes
+					// When inserting via edge plus button, keep Y aligned to preserve vertical line
 					if (lastInteractedWithNodeConnection) {
-						const adjustedY = getYPositionForStickyOverlap(position, nodeSize);
-						if (adjustedY !== null) {
-							position = [position[0], adjustedY];
-						}
+						position = [position[0], lastInteractedWithNode.position[1]];
 					}
 				}
 			}
@@ -1521,36 +1518,119 @@ export function useCanvasOperations() {
 	}
 
 	/**
-	 * Gets all nodes that should be shifted when inserting a node.
+	 * Determines which nodes and sticky notes need to be moved or stretched when inserting a new node.
+	 *
 	 * Algorithm:
-	 * 1. Find nodes that overlap with or are to the right of insertion area (similar Y)
-	 * 2. Add nodes connected to them (downstream)
-	 * 3. Filter to only include nodes that need to move
+	 * 1. Find regular nodes that overlap with or are to the right of insertion area
+	 * 2. Add downstream connected nodes
+	 * 3. Classify sticky notes based on:
+	 *    - Whether they contain the source node (anchored = stretch only)
+	 *    - Whether they contain nodes that will move
+	 *    - Their position relative to insertion point
+	 *
+	 * @returns Classification of nodes and stickies with their associated nodes for stretching
 	 */
 	function getNodesToShift(
 		insertPosition: XYPosition,
 		sourceNodeName: string,
-	): { nodesToMove: INodeUi[]; stickiesToStretch: INodeUi[] } {
+		nodeSize: [number, number] = DEFAULT_NODE_SIZE,
+	): {
+		nodesToMove: INodeUi[];
+		stickiesToStretch: INodeUi[];
+		stickiesToMoveAndStretch: INodeUi[];
+		stickyAssociatedNodes: Map<string, INodeUi[]>;
+	} {
 		const allNodes = Object.values(workflowsStore.nodesByName);
 		const insertX = insertPosition[0];
 		const insertY = insertPosition[1];
 		const yTolerance = DEFAULT_NODE_SIZE[1] * 2; // Nodes within ~2 node heights are considered "similar Y"
+
+		const getNodeCenter = (node: INodeUi) => ({
+			x: node.position[0] + DEFAULT_NODE_SIZE[0] / 2,
+			y: node.position[1] + DEFAULT_NODE_SIZE[1] / 2,
+		});
+
+		const isSimilarY = (node: INodeUi) => Math.abs(node.position[1] - insertY) <= yTolerance;
+
+		const overlapsInsertX = (node: INodeUi) => {
+			const nodeRightEdge = node.position[0] + DEFAULT_NODE_SIZE[0];
+			return nodeRightEdge > insertX || node.position[0] >= insertX;
+		};
+
+		/** Checks if a node is fully contained within a sticky note's bounds */
+		const isNodeInsideSticky = (
+			node: INodeUi,
+			sticky: INodeUi,
+			stickyRect: ReturnType<typeof getNodeRect>,
+		) => {
+			return (
+				node.position[0] >= sticky.position[0] &&
+				node.position[0] + DEFAULT_NODE_SIZE[0] <= sticky.position[0] + stickyRect.width &&
+				node.position[1] >= sticky.position[1] &&
+				node.position[1] + DEFAULT_NODE_SIZE[1] <= sticky.position[1] + stickyRect.height
+			);
+		};
+
+		/** Checks if two centers are within threshold distance (used for node-sticky association) */
+		const areCentersClose = (
+			nodeCenter: { x: number; y: number },
+			stickyCenter: { x: number; y: number },
+			threshold: { x: number; y: number },
+		) => {
+			return (
+				Math.abs(nodeCenter.x - stickyCenter.x) <= threshold.x &&
+				Math.abs(nodeCenter.y - stickyCenter.y) <= threshold.y
+			);
+		};
+
+		/** Determines if a node is associated with a sticky (inside it or centers are close) */
+		const isNodeAssociatedWithSticky = (
+			node: INodeUi,
+			sticky: INodeUi,
+			stickyRect: ReturnType<typeof getNodeRect>,
+			stickyCenter: { x: number; y: number },
+			threshold: { x: number; y: number },
+		) => {
+			return (
+				isNodeInsideSticky(node, sticky, stickyRect) ||
+				areCentersClose(getNodeCenter(node), stickyCenter, threshold)
+			);
+		};
+
+		/** Returns all nodes from the given list that are associated with the sticky */
+		const getAssociatedNodes = (
+			sticky: INodeUi,
+			stickyRect: ReturnType<typeof getNodeRect>,
+			stickyCenter: { x: number; y: number },
+			threshold: { x: number; y: number },
+			nodesToCheck: INodeUi[],
+		) => {
+			return nodesToCheck.filter((node) =>
+				isNodeAssociatedWithSticky(node, sticky, stickyRect, stickyCenter, threshold),
+			);
+		};
+
+		const insertRect = {
+			x: insertX,
+			y: insertY,
+			width: nodeSize[0],
+			height: nodeSize[1],
+		};
+		const insertCenter = {
+			x: insertX + nodeSize[0] / 2,
+			y: insertY + nodeSize[1] / 2,
+		};
 
 		// Step 1: Find initial candidates - nodes that overlap with or are to the right of insertion
 		// A node overlaps if its right edge extends into the insertion area
 		const initialCandidates = allNodes.filter((node) => {
 			if (node.type === STICKY_NODE_TYPE) return false;
 			if (node.name === sourceNodeName) return false;
-			const isSimilarY = Math.abs(node.position[1] - insertY) <= yTolerance;
-			// Node overlaps or is to the right if its right edge is past the insertion X
-			// or its left edge is at/past the insertion X
-			const nodeRightEdge = node.position[0] + DEFAULT_NODE_SIZE[0];
-			const overlapsOrIsToTheRight = nodeRightEdge > insertX || node.position[0] >= insertX;
-			return isSimilarY && overlapsOrIsToTheRight;
+			return isSimilarY(node) && overlapsInsertX(node);
 		});
 
 		// Step 2: Add all downstream connected nodes from initial candidates
-		const candidateNames = new Set(initialCandidates.map((n) => n.name));
+		const candidateNames = new Set(initialCandidates.map((node) => node.name));
 		for (const candidate of initialCandidates) {
 			const downstream = workflowHelpers.getConnectedNodes(
 				'downstream',
@@ -1564,13 +1644,9 @@ export function useCanvasOperations() {
 					if (!node) {
 						return false;
 					}
-					const nodeRightEdge = node.position[0] + DEFAULT_NODE_SIZE[0];
-
 					// Check if the current node visually overlaps with, or is entirely to the right of,
 					// the new insertion point (insertX).
-					const overlapsOrIsToTheRight = nodeRightEdge > insertX || node.position[0] >= insertX;
-
-					return overlapsOrIsToTheRight;
+					return overlapsInsertX(node);
 				})
 				.forEach((name) => candidateNames.add(name));
 		}
@@ -1581,18 +1657,29 @@ export function useCanvasOperations() {
 			return candidateNames.has(node.name);
 		});
 
-		// Step 4: Find sticky notes that need moving or stretching
+		// Step 4: Classify sticky notes behavior
+		// Stickies can: move (shift right), stretch (expand width), or both
+		// Special case: stickies containing the source node are anchored (stretch only)
 		const stickiesToStretch: INodeUi[] = [];
 		const stickiesToMove: INodeUi[] = [];
+		const stickiesToMoveAndStretch: INodeUi[] = [];
+		const stickyAssociatedNodes = new Map<string, INodeUi[]>();
 		const stickyNodes = allNodes.filter((node) => node.type === STICKY_NODE_TYPE);
 
-		// Calculate the vertical area that will be affected (insertion point + nodes being moved)
+		// Calculate the vertical area affected by insertion
 		const affectedMinY = Math.min(insertY, ...regularNodesToMove.map((n) => n.position[1]));
 		const affectedMaxY = Math.max(
-			insertY + DEFAULT_NODE_SIZE[1],
+			insertY + nodeSize[1],
 			...regularNodesToMove.map((n) => n.position[1] + DEFAULT_NODE_SIZE[1]),
 		);
 
+		const sourceNode = workflowsStore.nodesByName[sourceNodeName];
+		const nodeCenterThreshold = {
+			x: nodeSize[0] / 2,
+			y: nodeSize[1] / 2,
+		};
+
+		// Process each sticky to determine its behavior
 		for (const sticky of stickyNodes) {
 			const stickyRect = getNodeRect(sticky);
 			const stickyLeftEdge = sticky.position[0];
@@ -1601,107 +1688,149 @@ export function useCanvasOperations() {
 			const stickyBottom = stickyTop + stickyRect.height;
 			const overlapsVertically = !(stickyBottom <= affectedMinY || stickyTop >= affectedMaxY);
 
-			// Sticky should be moved if its left edge is at or past the insertion position
-			if (stickyLeftEdge >= insertX && overlapsVertically) {
-				stickiesToMove.push(sticky);
-			}
-			// Sticky should be stretched if:
-			// 1. Its left edge is before the insertion position
-			// 2. Its right edge extends into or past the insertion position
-			// 3. It overlaps vertically with the affected area
-			else if (stickyLeftEdge < insertX && stickyRightEdge >= insertX && overlapsVertically) {
+			const stickyCenter = {
+				x: sticky.position[0] + stickyRect.width / 2,
+				y: sticky.position[1] + stickyRect.height / 2,
+			};
+
+			// Priority 1: Stickies containing the source node are anchored (stretch only)
+			const sourceNodeInsideSticky =
+				sourceNode &&
+				isNodeAssociatedWithSticky(
+					sourceNode,
+					sticky,
+					stickyRect,
+					stickyCenter,
+					nodeCenterThreshold,
+				);
+
+			if (sourceNodeInsideSticky) {
+				const associatedNodes = getAssociatedNodes(
+					sticky,
+					stickyRect,
+					stickyCenter,
+					nodeCenterThreshold,
+					regularNodesToMove,
+				);
+				stickyAssociatedNodes.set(sticky.id, associatedNodes);
 				stickiesToStretch.push(sticky);
+				continue;
+			}
+
+			// For non-anchored stickies, determine behavior based on position and associations
+			const insertCenterInsideSticky =
+				insertCenter.x >= sticky.position[0] &&
+				insertCenter.x <= sticky.position[0] + stickyRect.width &&
+				insertCenter.y >= sticky.position[1] &&
+				insertCenter.y <= sticky.position[1] + stickyRect.height;
+
+			const associatedNodes = getAssociatedNodes(
+				sticky,
+				stickyRect,
+				stickyCenter,
+				nodeCenterThreshold,
+				regularNodesToMove,
+			);
+
+			if (associatedNodes.length > 0) {
+				stickyAssociatedNodes.set(sticky.id, associatedNodes);
+			}
+
+			const associatedWithMovedNode = associatedNodes.length > 0;
+			const insertCenterNearStickyCenter = areCentersClose(
+				insertCenter,
+				stickyCenter,
+				nodeCenterThreshold,
+			);
+			const insertRectOverlapsSticky = doRectsOverlap(insertRect, stickyRect);
+
+			// Classify behavior based on sticky's relationship to insertion point and nodes
+			if (associatedWithMovedNode && overlapsVertically) {
+				// Sticky has nodes that will move - check if insertion point will be inside after movement
+				const stickyLeftAfterMove = stickyLeftEdge + PUSH_NODES_OFFSET;
+				const stickyRightAfterMove = stickyRightEdge + PUSH_NODES_OFFSET;
+				const insertWillBeInsideStickyAfterMove =
+					insertX >= stickyLeftAfterMove && insertX <= stickyRightAfterMove;
+
+				if (
+					insertCenterInsideSticky &&
+					insertCenterNearStickyCenter &&
+					insertWillBeInsideStickyAfterMove
+				) {
+					// Insertion is between contained nodes - move AND stretch
+					stickiesToMoveAndStretch.push(sticky);
+				} else {
+					// Insertion is outside sticky bounds after move - just move
+					stickiesToMove.push(sticky);
+				}
+			} else if (
+				(insertRectOverlapsSticky || (insertCenterInsideSticky && insertCenterNearStickyCenter)) &&
+				!associatedWithMovedNode
+			) {
+				// Sticky overlaps insertion but has no moving nodes - just stretch
+				stickiesToStretch.push(sticky);
+			} else if (stickyLeftEdge >= insertX && overlapsVertically) {
+				// Sticky is entirely to the right - move it
+				stickiesToMove.push(sticky);
 			}
 		}
 
 		// Combine regular nodes and stickies to move
-		const nodesToMove = [...regularNodesToMove, ...stickiesToMove];
+		const nodesToMove = [...regularNodesToMove, ...stickiesToMove, ...stickiesToMoveAndStretch];
 
-		return { nodesToMove, stickiesToStretch };
+		return { nodesToMove, stickiesToStretch, stickiesToMoveAndStretch, stickyAssociatedNodes };
 	}
 
 	/**
-	 * Checks if the insertion position overlaps with a sticky note and returns
-	 * an adjusted Y position that fits within the sticky's content area.
-	 * Only adjusts Y if there's enough space for insertion (no downstream nodes blocking).
-	 * Returns null if no adjustment is needed.
-	 */
-	function getYPositionForStickyOverlap(
-		insertPosition: XYPosition,
-		nodeSize: [number, number],
-	): number | null {
-		const allNodes = Object.values(workflowsStore.nodesByName);
-		const stickyNodes = allNodes.filter((node) => node.type === STICKY_NODE_TYPE);
-		const regularNodes = allNodes.filter((node) => node.type !== STICKY_NODE_TYPE);
-
-		// Add a small margin to detect nodes that are touching (edge-to-edge)
-		const margin = GRID_SIZE;
-		const insertRect = {
-			x: insertPosition[0],
-			y: insertPosition[1],
-			width: nodeSize[0] + margin,
-			height: nodeSize[1],
-		};
-
-		// First check if there are any regular nodes blocking the insertion position
-		// If so, downstream nodes will be shifted and we should keep the original Y
-		for (const node of regularNodes) {
-			const nodeRect = getNodeRect(node);
-			if (doRectsOverlap(insertRect, nodeRect)) {
-				// There's a regular node blocking - don't adjust Y, let shift logic handle it
-				return null;
-			}
-		}
-
-		// No regular nodes blocking - check if we need to adjust Y for sticky overlap
-		for (const sticky of stickyNodes) {
-			const stickyRect = getNodeRect(sticky);
-
-			// Check if insertion position overlaps with this sticky
-			if (doRectsOverlap(insertRect, stickyRect)) {
-				// Sticky header takes up approximately 40px (title area)
-				const STICKY_HEADER_HEIGHT = 40;
-				const stickyContentTop = sticky.position[1] + STICKY_HEADER_HEIGHT;
-				const stickyContentBottom = sticky.position[1] + stickyRect.height - GRID_SIZE;
-
-				// Calculate the ideal Y position centered in the sticky's content area
-				const contentHeight = stickyContentBottom - stickyContentTop;
-				const centeredY = stickyContentTop + (contentHeight - nodeSize[1]) / 2;
-
-				// Ensure the position is grid-aligned
-				return Math.round(centeredY / GRID_SIZE) * GRID_SIZE;
-			}
-		}
-
-		return null;
-	}
-
-	/**
-	 * Stretches a sticky note by increasing its width
+	 * Stretches a sticky note horizontally to ensure it surrounds the inserted node
+	 * and all associated nodes with padding.
 	 */
 	function stretchStickyNote(
 		sticky: INodeUi,
-		stretchAmount: number,
+		insertPosition: XYPosition,
+		nodeSize: [number, number],
+		associatedNodes: INodeUi[],
 		{ trackHistory = false }: { trackHistory?: boolean },
 	) {
-		const currentWidth = (sticky.parameters.width as number) || DEFAULT_NODE_SIZE[0];
-		const newWidth = currentWidth + stretchAmount;
+		const padding = 10;
+		const stickyRect = getNodeRect(sticky);
+		const currentLeft = sticky.position[0];
+		const currentRight = currentLeft + stickyRect.width;
 
-		const newParameters = {
-			...sticky.parameters,
-			width: newWidth,
-		};
+		// Start with insertion bounds
+		let targetLeft = insertPosition[0] - padding;
+		let targetRight = insertPosition[0] + nodeSize[0] + padding;
 
-		replaceNodeParameters(sticky.id, sticky.parameters as INodeParameters, newParameters, {
+		// Expand to include all associated nodes (get fresh positions from store as they may have moved)
+		for (const node of associatedNodes) {
+			const updatedNode = workflowsStore.getNodeById(node.id);
+			if (!updatedNode) continue;
+			const nodeLeft = updatedNode.position[0] - padding;
+			const nodeRight = updatedNode.position[0] + DEFAULT_NODE_SIZE[0] + padding;
+			targetLeft = Math.min(targetLeft, nodeLeft);
+			targetRight = Math.max(targetRight, nodeRight);
+		}
+
+		const newLeft = Math.min(currentLeft, targetLeft);
+		const newRight = Math.max(currentRight, targetRight);
+		const newWidth = newRight - newLeft;
+
+		const newParameters: INodeParameters = { ...sticky.parameters, width: newWidth };
+		replaceNodeParameters(sticky.id, sticky.parameters, newParameters, {
 			trackHistory,
 			trackBulk: false,
 		});
+
+		if (newLeft !== currentLeft) {
+			updateNodePosition(sticky.id, { x: newLeft, y: sticky.position[1] }, { trackHistory });
+		}
 	}
 
 	/**
 	 * Moves downstream nodes when inserting a node between existing nodes.
 	 * Only moves nodes if there isn't enough space for the new node.
 	 * Sticky notes that overlap the insertion area are stretched instead of moved.
+	 * Stickies at the insertion point are repositioned behind the new node.
 	 */
 	function shiftDownstreamNodesPosition(
 		sourceNodeName: string,
@@ -1732,9 +1861,10 @@ export function useCanvasOperations() {
 		}
 
 		// Get nodes to shift and stickies to stretch
-		const { nodesToMove, stickiesToStretch } = getNodesToShift(insertPosition, sourceNodeName);
+		const { nodesToMove, stickiesToStretch, stickiesToMoveAndStretch, stickyAssociatedNodes } =
+			getNodesToShift(insertPosition, sourceNodeName, nodeSize);
 
-		// Move regular nodes to the right
+		// Move regular nodes and stickies to the right
 		for (const node of nodesToMove) {
 			updateNodePosition(
 				node.id,
@@ -1746,9 +1876,18 @@ export function useCanvasOperations() {
 			);
 		}
 
-		// Stretch sticky notes instead of moving them
+		// Stretch stickies that moved and also need to encompass the new node
+		for (const sticky of stickiesToMoveAndStretch) {
+			const updatedSticky = workflowsStore.getNodeById(sticky.id);
+			if (!updatedSticky) continue;
+			const associatedNodes = stickyAssociatedNodes.get(sticky.id) ?? [];
+			stretchStickyNote(updatedSticky, insertPosition, nodeSize, associatedNodes, { trackHistory });
+		}
+
+		// Stretch sticky notes that span the insertion area
 		for (const sticky of stickiesToStretch) {
-			stretchStickyNote(sticky, margin, { trackHistory });
+			const associatedNodes = stickyAssociatedNodes.get(sticky.id) ?? [];
+			stretchStickyNote(sticky, insertPosition, nodeSize, associatedNodes, { trackHistory });
 		}
 	}
 
