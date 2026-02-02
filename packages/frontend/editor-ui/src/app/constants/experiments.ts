@@ -67,6 +67,8 @@ export const RESOURCE_CENTER_EXPERIMENT = createExperiment('063_resource_center_
 	variantInspiration: 'variant-inspiration',
 });
 
+export const DYNAMIC_TEMPLATES_EXPERIMENT = createExperiment('068_dynamic_templates');
+
 export const RECOMMENDED_TEMPLATES_EXPERIMENT = createExperiment('069_recommended_templates');
 
 export const EXPERIMENTS_TO_TRACK = [
@@ -82,5 +84,6 @@ export const EXPERIMENTS_TO_TRACK = [
 	COLLECTION_OVERHAUL_EXPERIMENT.name,
 	TAMPER_PROOF_INVITE_LINKS.name,
 	EMPTY_STATE_BUILDER_PROMPT_EXPERIMENT.name,
+	DYNAMIC_TEMPLATES_EXPERIMENT.name,
 	RECOMMENDED_TEMPLATES_EXPERIMENT.name,
 ];
