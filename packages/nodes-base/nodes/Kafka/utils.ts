@@ -374,8 +374,6 @@ export function configureDataEmitter(
 
 			const run = await Promise.race([responsePromise.promise, timeoutPromise]);
 
-			if (timeoutId) clearTimeout(timeoutId);
-
 			if (resolveOffsetMode !== 'onCompletion' && !allowedStatuses.includes(run.status)) {
 				throw new NodeOperationError(
 					ctx.getNode(),
@@ -385,11 +383,12 @@ export function configureDataEmitter(
 
 			return { success: true };
 		} catch (e) {
-			if (timeoutId) clearTimeout(timeoutId);
 			await sleep(errorRetryDelay);
 			const error = ensureError(e);
 			ctx.logger.error(error.message, { error });
 			return { success: false };
+		} finally {
+			if (timeoutId) clearTimeout(timeoutId);
 		}
 	};
 }
