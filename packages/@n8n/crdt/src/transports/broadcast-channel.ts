@@ -117,6 +117,13 @@ export class BroadcastChannelTransport implements SyncTransport {
 			}
 		};
 
+		this.channel.onmessageerror = (event: MessageEvent) => {
+			const error = new Error(`BroadcastChannel message error: ${String(event.data)}`);
+			for (const handler of this.errorHandlers) {
+				handler(error);
+			}
+		};
+
 		this._connected = true;
 		for (const handler of this.connectionChangeHandlers) {
 			handler(true);

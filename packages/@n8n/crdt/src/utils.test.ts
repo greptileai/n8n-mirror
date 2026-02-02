@@ -345,13 +345,11 @@ describe('Utils', () => {
 
 		it('should handle CRDTArray indices', () => {
 			const root = doc.getMap('test');
-			const arr = doc.createArray<string>();
-			arr.push('first', 'second', 'third');
-			root.set('items', arr);
+			const items = doc.createArray<string>();
+			items.push('first', 'second', 'third');
+			root.set('items', items);
 
-			// getNestedValue works with CRDTMap, need to traverse through root
-			const items = root.get('items') as CRDTArray<string>;
-			expect(items.get(1)).toBe('second');
+			expect(getNestedValue(root, ['items', '1'])).toBe('second');
 		});
 	});
 
