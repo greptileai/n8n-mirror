@@ -1,6 +1,7 @@
 import {
 	ChatHubConversationModel,
 	ChatSessionId,
+	PROVIDER_CREDENTIAL_TYPE_MAP,
 	type ChatHubBaseLLMModel,
 	type ChatHubInputModality,
 	type ChatModelMetadataDto,
@@ -10,16 +11,17 @@ import { Logger } from '@n8n/backend-common';
 import {
 	SharedWorkflow,
 	SharedWorkflowRepository,
+	User,
 	withTransaction,
 	WorkflowEntity,
 	WorkflowRepository,
-	ExecutionRepository,
-	type User,
 } from '@n8n/db';
 import { Service } from '@n8n/di';
 import { EntityManager } from '@n8n/typeorm';
 import { DateTime } from 'luxon';
+import { Cipher } from 'n8n-core';
 import {
+	CHAT_NODE_TYPE,
 	AGENT_LANGCHAIN_NODE_TYPE,
 	CHAT_TRIGGER_NODE_TYPE,
 	createRunExecutionData,
@@ -30,7 +32,6 @@ import {
 	INodeCredentials,
 	IRunExecutionData,
 	IWorkflowBase,
-	ManualExecutionCancelledError,
 	MEMORY_BUFFER_WINDOW_NODE_TYPE,
 	MEMORY_MANAGER_NODE_TYPE,
 	MERGE_NODE_TYPE,
@@ -43,31 +44,36 @@ import {
 } from 'n8n-workflow';
 import { v4 as uuidv4 } from 'uuid';
 
+import { BadRequestError } from '@/errors/response-errors/bad-request.error';
+import { WorkflowFinderService } from '@/workflows/workflow-finder.service';
+
+import { ChatHubCredentialsService } from './chat-hub-credentials.service';
+import { CHATHUB_EXTRACTOR_NAME, ChatHubAuthenticationMetadata } from './chat-hub-extractor';
 import { ChatHubMessage } from './chat-hub-message.entity';
 import { ChatHubAttachmentService } from './chat-hub.attachment.service';
 import {
+	CHAT_TRIGGER_NODE_MIN_VERSION,
 	EMBEDDINGS_NODE_TYPE_MAP,
-	EXECUTION_FINISHED_STATUSES,
-	EXECUTION_POLL_INTERVAL,
 	getModelMetadata,
 	NODE_NAMES,
 	PROVIDER_NODE_TYPE_MAP,
+	SUPPORTED_RESPONSE_MODES,
+	TOOLS_AGENT_NODE_MIN_VERSION,
 } from './chat-hub.constants';
+import { ChatHubSettingsService } from './chat-hub.settings.service';
 import {
+	chatTriggerParamsShape,
 	MessageRecord,
+	PreparedChatWorkflow,
 	type ContentBlock,
 	type ChatTriggerResponseMode,
 	type VectorStoreSearchOptions,
 	type ChatInput,
+	type ProviderAndCredentialId,
 } from './chat-hub.types';
 import { getMaxContextWindowTokens } from './context-limits';
 import { inE2ETests } from '../../constants';
-import { ExecutionNotFoundError } from '@/errors/execution-not-found-error';
-import { ActiveExecutions } from '@/active-executions';
-import { Cipher, InstanceSettings } from 'n8n-core';
-import { BadRequestError } from '@/errors/response-errors/bad-request.error';
-import { PROVIDER_CREDENTIAL_TYPE_MAP } from '@n8n/api-types';
-import { CHATHUB_EXTRACTOR_NAME, ChatHubAuthenticationMetadata } from './chat-hub-extractor';
+import type { ChatHubAgent } from './chat-hub-agent.entity';
 
 @Service()
 export class ChatHubWorkflowService {
@@ -76,11 +82,17 @@ export class ChatHubWorkflowService {
 		private readonly workflowRepository: WorkflowRepository,
 		private readonly sharedWorkflowRepository: SharedWorkflowRepository,
 		private readonly chatHubAttachmentService: ChatHubAttachmentService,
-		private readonly activeExecutions: ActiveExecutions,
-		private readonly instanceSettings: InstanceSettings,
-		private readonly executionRepository: ExecutionRepository,
+		private readonly chatHubSettingsService: ChatHubSettingsService,
+		private readonly chatHubCredentialsService: ChatHubCredentialsService,
+		private readonly workflowFinderService: WorkflowFinderService,
 		private readonly cipher: Cipher,
-	) {}
+	) {
+		this.logger = this.logger.scoped('chat-hub');
+	}
+
+	async deleteChatWorkflow(workflowId: string): Promise<void> {
+		await this.workflowRepository.delete(workflowId);
+	}
 
 	async createChatWorkflow(
 		userId: string,
@@ -210,54 +222,6 @@ export class ChatHubWorkflowService {
 				executionData,
 			};
 		});
-	}
-
-	prepareExecutionData(
-		triggerNode: INode,
-		sessionId: string,
-		{ message, attachments }: ChatInput,
-		executionMetadata: ChatHubAuthenticationMetadata,
-	): IExecuteData[] {
-		const encryptedMetadata = this.cipher.encrypt(executionMetadata);
-		// Attachments are already processed (id field populated) by the caller
-		return [
-			{
-				node: {
-					...triggerNode,
-					parameters: {
-						...triggerNode.parameters,
-						executionsHooksVersion: 1,
-						contextEstablishmentHooks: {
-							hooks: [
-								{
-									hookName: CHATHUB_EXTRACTOR_NAME,
-									isAllowedToFail: true,
-								},
-							],
-						},
-					},
-				},
-				data: {
-					main: [
-						[
-							{
-								encryptedMetadata,
-								json: {
-									sessionId,
-									action: 'sendMessage',
-									chatInput: message,
-									files: attachments.map(({ data, ...metadata }) => metadata),
-								},
-								binary: Object.fromEntries(
-									attachments.map((attachment, index) => [`data${index}`, attachment]),
-								),
-							},
-						],
-					],
-				},
-				source: null,
-			},
-		];
 	}
 
 	/**
@@ -1092,6 +1056,321 @@ Respond the title only:`,
 		return 'file';
 	}
 
+	prepareExecutionData(
+		triggerNode: INode,
+		sessionId: string,
+		{ message, attachments }: ChatInput,
+		executionMetadata: ChatHubAuthenticationMetadata,
+	): IExecuteData[] {
+		const encryptedMetadata = this.cipher.encrypt(executionMetadata);
+		// Attachments are already processed (id field populated) by the caller
+		return [
+			{
+				node: {
+					...triggerNode,
+					parameters: {
+						...triggerNode.parameters,
+						executionsHooksVersion: 1,
+						contextEstablishmentHooks: {
+							hooks: [
+								{
+									hookName: CHATHUB_EXTRACTOR_NAME,
+									isAllowedToFail: true,
+								},
+							],
+						},
+					},
+				},
+				data: {
+					main: [
+						[
+							{
+								encryptedMetadata,
+								json: {
+									sessionId,
+									action: 'sendMessage',
+									chatInput: message,
+									files: attachments.map(({ data, ...metadata }) => metadata),
+								},
+								binary: Object.fromEntries(
+									attachments.map((attachment, index) => [`data${index}`, attachment]),
+								),
+							},
+						],
+					],
+				},
+				source: null,
+			},
+		];
+	}
+
+	async prepareReplyWorkflow(
+		user: User,
+		sessionId: ChatSessionId,
+		credentials: INodeCredentials,
+		model: ChatHubConversationModel,
+		agent: ChatHubAgent | null,
+		history: ChatHubMessage[],
+		input: ChatInput,
+		tools: INode[],
+		timeZone: string,
+		trx: EntityManager,
+		executionMetadata: ChatHubAuthenticationMetadata,
+		embeddingModel: ProviderAndCredentialId | null,
+		memoryKey: string | null,
+	): Promise<PreparedChatWorkflow> {
+		if (model.provider === 'n8n') {
+			return await this.prepareWorkflowAgentWorkflow(
+				user,
+				sessionId,
+				model.workflowId,
+				input,
+				trx,
+				executionMetadata,
+			);
+		}
+
+		if (model.provider === 'custom-agent') {
+			if (!agent || !memoryKey) {
+				throw new BadRequestError('Agent not found');
+			}
+
+			return await this.prepareChatAgentWorkflow(
+				agent,
+				user,
+				sessionId,
+				history,
+				input,
+				trx,
+				executionMetadata,
+				timeZone,
+				embeddingModel,
+				memoryKey,
+			);
+		}
+
+		return await this.prepareBaseChatWorkflow(
+			user,
+			sessionId,
+			credentials,
+			model,
+			await this.buildMessageValuesWithAttachments(history, model, []),
+			input,
+			this.getBaseSystemMessage(timeZone),
+			tools,
+			null,
+			trx,
+			executionMetadata,
+		);
+	}
+
+	private async prepareBaseChatWorkflow(
+		user: User,
+		sessionId: ChatSessionId,
+		credentials: INodeCredentials,
+		model: ChatHubBaseLLMModel,
+		history: MessageRecord[],
+		input: ChatInput,
+		systemMessage: string,
+		tools: INode[],
+		vectorStoreSearch: VectorStoreSearchOptions | null,
+		trx: EntityManager,
+		executionMetadata: ChatHubAuthenticationMetadata,
+	) {
+		await this.chatHubSettingsService.ensureModelIsAllowed(model);
+		this.chatHubCredentialsService.findProviderCredential(model.provider, credentials);
+		const { id: projectId } = await this.chatHubCredentialsService.findPersonalProject(user, trx);
+
+		return await this.createChatWorkflow(
+			user.id,
+			sessionId,
+			projectId,
+			history,
+			input,
+			credentials,
+			model,
+			systemMessage,
+			tools,
+			vectorStoreSearch,
+			executionMetadata,
+			trx,
+		);
+	}
+
+	private async prepareChatAgentWorkflow(
+		agent: ChatHubAgent,
+		user: User,
+		sessionId: ChatSessionId,
+		history: ChatHubMessage[],
+		input: ChatInput,
+		trx: EntityManager,
+		executionMetadata: ChatHubAuthenticationMetadata,
+		timeZone: string,
+		embeddingModel: ProviderAndCredentialId | null,
+		memoryKey: string,
+	) {
+		if (!agent.provider || !agent.model) {
+			throw new BadRequestError('Provider or model not set for agent');
+		}
+
+		const credentialId = agent.credentialId;
+		if (!credentialId) {
+			throw new BadRequestError('Credentials not set for agent');
+		}
+
+		const systemMessage = agent.systemPrompt + '\n\n' + this.getSystemMessageMetadata(timeZone);
+
+		const model: ChatHubBaseLLMModel = {
+			provider: agent.provider,
+			model: agent.model,
+		};
+
+		const credentials: INodeCredentials = {
+			[PROVIDER_CREDENTIAL_TYPE_MAP[agent.provider]]: {
+				id: credentialId,
+				name: '',
+			},
+		};
+
+		const { tools } = agent;
+
+		const knowledgeItems = agent.files.filter((f) => f.type === 'embedding');
+
+		for (const item of knowledgeItems) {
+			if (item.provider !== embeddingModel?.provider) {
+				throw new BadRequestError(
+					`Credential for processing agent's file knowledge is missing. Configure credential for ${item.provider} or remove '${item.fileName}' from agent.`,
+				);
+			}
+		}
+
+		return await this.prepareBaseChatWorkflow(
+			user,
+			sessionId,
+			credentials,
+			model,
+			await this.buildMessageValuesWithAttachments(history, model, agent.files),
+			input,
+			systemMessage,
+			tools,
+			knowledgeItems.length > 0 && embeddingModel
+				? {
+						embeddingModel,
+						memoryKey,
+					}
+				: null,
+			trx,
+			executionMetadata,
+		);
+	}
+
+	private async prepareWorkflowAgentWorkflow(
+		user: User,
+		sessionId: ChatSessionId,
+		workflowId: string,
+		input: ChatInput,
+		trx: EntityManager,
+		executionMetadata: ChatHubAuthenticationMetadata,
+	) {
+		const workflow = await this.workflowFinderService.findWorkflowForUser(
+			workflowId,
+			user,
+			['workflow:execute-chat'],
+			{ includeTags: false, includeParentFolder: false, includeActiveVersion: true, em: trx },
+		);
+
+		if (!workflow?.activeVersion) {
+			throw new BadRequestError('Workflow not found');
+		}
+
+		const chatTriggers = workflow.activeVersion.nodes.filter(
+			(node) => node.type === CHAT_TRIGGER_NODE_TYPE,
+		);
+
+		if (chatTriggers.length !== 1) {
+			throw new BadRequestError('Workflow must have exactly one chat trigger');
+		}
+
+		const chatTrigger = chatTriggers[0];
+
+		if (chatTrigger.typeVersion < CHAT_TRIGGER_NODE_MIN_VERSION) {
+			throw new BadRequestError(
+				'Chat Trigger node version is too old to support Chat. Please update the node.',
+			);
+		}
+
+		const chatTriggerParams = chatTriggerParamsShape.safeParse(chatTrigger.parameters).data;
+		if (!chatTriggerParams) {
+			throw new BadRequestError('Chat Trigger node has invalid parameters');
+		}
+
+		if (!chatTriggerParams.availableInChat) {
+			throw new BadRequestError('Chat Trigger node must be made available in Chat');
+		}
+
+		const responseMode = chatTriggerParams.options?.responseMode ?? 'streaming';
+		if (!SUPPORTED_RESPONSE_MODES.includes(responseMode)) {
+			throw new BadRequestError(
+				'Chat Trigger node response mode must be set to "When Last Node Finishes", "Using Response Nodes" or "Streaming" to use the workflow on Chat',
+			);
+		}
+
+		const chatResponseNodes = workflow.activeVersion.nodes.filter(
+			(node) => node.type === CHAT_NODE_TYPE,
+		);
+
+		if (chatResponseNodes.length > 0 && responseMode !== 'responseNodes') {
+			throw new BadRequestError(
+				'Chat nodes are not supported with the selected response mode. Please set the response mode to "Using Response Nodes" or remove the nodes from the workflow.',
+			);
+		}
+
+		const agentNodes = workflow.activeVersion.nodes?.filter(
+			(node) => node.type === AGENT_LANGCHAIN_NODE_TYPE,
+		);
+
+		// Agents older than this can't do streaming
+		if (agentNodes.some((node) => node.typeVersion < TOOLS_AGENT_NODE_MIN_VERSION)) {
+			throw new BadRequestError(
+				'Agent node version is too old to support streaming responses. Please update the node.',
+			);
+		}
+
+		const nodeExecutionStack = this.prepareExecutionData(
+			chatTrigger,
+			sessionId,
+			input,
+			executionMetadata,
+		);
+
+		const executionData = createRunExecutionData({
+			executionData: {
+				nodeExecutionStack,
+			},
+			manualData: {
+				userId: user.id,
+			},
+		});
+
+		const workflowData: IWorkflowBase = {
+			...workflow,
+			nodes: workflow.activeVersion.nodes,
+			connections: workflow.activeVersion.connections,
+			// Force saving data on successful executions for custom agent workflows
+			// to be able to read the results after execution.
+			settings: {
+				...workflow.settings,
+				saveDataSuccessExecution: 'all',
+			},
+		};
+
+		return {
+			workflowData,
+			executionData,
+			responseMode,
+		};
+	}
+
 	private buildVectorStoreNodes(options: VectorStoreSearchOptions): INode[] {
 		const embeddingsModelNode = this.buildEmbeddingsModelNode(options);
 		const vectorStoreNode = this.buildVectorStoreNode(options.memoryKey);
@@ -1333,101 +1612,5 @@ Respond the title only:`,
 				}),
 			};
 		});
-	}
-
-	async deleteWorkflow(workflowId: string): Promise<void> {
-		await this.workflowRepository.delete(workflowId);
-	}
-
-	async waitForExecutionCompletion(executionId: string): Promise<void> {
-		if (this.instanceSettings.isMultiMain) {
-			return await this.waitForExecutionPoller(executionId);
-		} else {
-			return await this.waitForExecutionPromise(executionId);
-		}
-	}
-
-	async ensureWasSuccessfulOrThrow(executionId: string) {
-		const executionEntity = await this.executionRepository.findSingleExecution(executionId, {
-			includeData: true,
-			unflattenData: true,
-		});
-
-		if (!executionEntity) {
-			throw new BadRequestError('Execution not found');
-		}
-
-		if (executionEntity.status !== 'success') {
-			const errorMessage = executionEntity.data.resultData.error?.message ?? 'Unknown error';
-
-			throw new BadRequestError(errorMessage);
-		}
-	}
-
-	private async waitForExecutionPoller(executionId: string): Promise<void> {
-		return await new Promise<void>((resolve, reject) => {
-			const poller = setInterval(async () => {
-				try {
-					const execution = await this.executionRepository.findSingleExecution(executionId, {
-						includeData: false,
-						unflattenData: false,
-					});
-
-					// Stop polling when execution is done (or missing if instance doesn't save executions)
-					if (!execution || EXECUTION_FINISHED_STATUSES.includes(execution.status)) {
-						this.logger.debug(
-							`Execution ${executionId} finished with status ${execution?.status ?? 'missing'}`,
-						);
-						clearInterval(poller);
-
-						if (execution?.status === 'canceled') {
-							reject(new ManualExecutionCancelledError(executionId));
-						} else {
-							resolve();
-						}
-					}
-				} catch (error) {
-					this.logger.error(`Stopping polling for execution ${executionId} due to error.`);
-					clearInterval(poller);
-
-					if (error instanceof Error) {
-						this.logger.error(`Error while polling execution ${executionId}: ${error.message}`, {
-							error,
-						});
-					} else {
-						this.logger.error(`Unknown error while polling execution ${executionId}`, { error });
-					}
-
-					if (error instanceof Error) {
-						reject(error);
-					} else {
-						reject(new Error('Unknown error while polling execution status'));
-					}
-				}
-			}, EXECUTION_POLL_INTERVAL);
-		});
-	}
-
-	private async waitForExecutionPromise(executionId: string): Promise<void> {
-		try {
-			// Wait until the execution finishes (or errors) so that we don't delete the workflow too early
-			const result = await this.activeExecutions.getPostExecutePromise(executionId);
-			if (!result) {
-				throw new OperationalError('There was a problem executing the chat workflow.');
-			}
-		} catch (error: unknown) {
-			if (error instanceof ExecutionNotFoundError) {
-				return;
-			}
-
-			if (error instanceof ManualExecutionCancelledError) {
-				throw error;
-			}
-
-			if (error instanceof Error) {
-				this.logger.error(`Error during chat workflow execution: ${error}`);
-			}
-			throw error;
-		}
 	}
 }

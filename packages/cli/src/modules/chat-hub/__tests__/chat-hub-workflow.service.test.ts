@@ -1,13 +1,20 @@
 import type { WorkflowRepository, SharedWorkflowRepository, ExecutionRepository } from '@n8n/db';
 import type { Logger } from '@n8n/backend-common';
+import type { WorkflowRepository, SharedWorkflowRepository } from '@n8n/db';
 import { mock } from 'jest-mock-extended';
 import type { Cipher, BinaryDataService, InstanceSettings } from 'n8n-core';
 import type { IBinaryData } from 'n8n-workflow';
 
-import { ChatHubWorkflowService } from '../chat-hub-workflow.service';
+import type { WorkflowFinderService } from '@/workflows/workflow-finder.service';
+
+import type { ChatHubAgentService } from '../chat-hub-agent.service';
+import type { ChatHubCredentialsService } from '../chat-hub-credentials.service';
+import type { ChatHubAuthenticationMetadata } from '../chat-hub-extractor';
 import { ChatHubMessage } from '../chat-hub-message.entity';
 import { ChatHubSession } from '../chat-hub-session.entity';
+import { ChatHubWorkflowService } from '../chat-hub-workflow.service';
 import { ChatHubAttachmentService } from '../chat-hub.attachment.service';
+import type { ChatHubSettingsService } from '../chat-hub.settings.service';
 import type { ChatHubMessageRepository } from '../chat-message.repository';
 import type { ActiveExecutions } from '@/active-executions';
 import type { ChatHubAgentRepository } from '../chat-hub-agent.repository';
@@ -20,6 +27,11 @@ describe('ChatHubWorkflowService', () => {
 	const binaryDataService = mock<BinaryDataService>();
 	const messageRepository = mock<ChatHubMessageRepository>();
 	const agentRepository = mock<ChatHubAgentRepository>();
+	const chatHubAgentService = mock<ChatHubAgentService>();
+	const chatHubSettingsService = mock<ChatHubSettingsService>();
+	const chatHubCredentialsService = mock<ChatHubCredentialsService>();
+	const workflowFinderService = mock<WorkflowFinderService>();
+
 	const mockCipher = mock<Cipher>();
 
 	let chatHubAttachmentService: ChatHubAttachmentService;
@@ -34,6 +46,8 @@ describe('ChatHubWorkflowService', () => {
 
 	beforeEach(() => {
 		jest.resetAllMocks();
+
+		logger.scoped.mockReturnValue(logger);
 
 		// Mock cipher encrypt to return a simple string
 		mockCipher.encrypt.mockReturnValue('encrypted-metadata');
@@ -57,6 +71,10 @@ describe('ChatHubWorkflowService', () => {
 			activeExecutions,
 			instanceSettings,
 			executionRepository,
+			chatHubAgentService,
+			chatHubSettingsService,
+			chatHubCredentialsService,
+			workflowFinderService,
 			mockCipher,
 		);
 

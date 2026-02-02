@@ -12,8 +12,6 @@ import type { EntityManager, User } from '@n8n/db';
 import { Service } from '@n8n/di';
 import { v4 as uuidv4 } from 'uuid';
 
-import { NotFoundError } from '@/errors/response-errors/not-found.error';
-
 import type { ChatHubAgent, IChatHubAgent } from './chat-hub-agent.entity';
 import { ChatHubAgentRepository } from './chat-hub-agent.repository';
 import { ChatHubCredentialsService } from './chat-hub-credentials.service';
@@ -27,6 +25,9 @@ import { ChatHubSettingsService } from './chat-hub.settings.service';
 import type { ProviderAndCredentialId } from './chat-hub.types';
 import { VectorStoreDataRepository } from '../vector-store/vector-store-data.repository';
 
+import { NotFoundError } from '@/errors/response-errors/not-found.error';
+import { ChatHubExecutionService } from './chat-hub-execution.service';
+
 @Service()
 export class ChatHubAgentService {
 	constructor(
@@ -35,10 +36,13 @@ export class ChatHubAgentService {
 		private readonly chatHubCredentialsService: ChatHubCredentialsService,
 		private readonly chatHubAttachmentService: ChatHubAttachmentService,
 		private readonly chatHubWorkflowService: ChatHubWorkflowService,
+		private readonly chatHubExecutionService: ChatHubExecutionService,
 		private readonly workflowExecutionService: WorkflowExecutionService,
 		private readonly vectorStoreRepository: VectorStoreDataRepository,
 		private readonly chatHubSettingsService: ChatHubSettingsService,
-	) {}
+	) {
+		this.logger = this.logger.scoped('chat-hub');
+	}
 
 	async getAgentsByUserIdAsModels(userId: string): Promise<ChatModelDto[]> {
 		const agents = await this.getAgentsByUserId(userId);
@@ -126,7 +130,7 @@ export class ChatHubAgentService {
 		return await this.chatAgentRepository.getManyByUserId(userId);
 	}
 
-	async getAgentById(id: string, userId: string, trx?: EntityManager): Promise<ChatHubAgent> {
+	async getAgentById(userId: string, id: string, trx?: EntityManager): Promise<ChatHubAgent> {
 		const agent = await this.chatAgentRepository.getOneById(id, userId, trx);
 		if (!agent) {
 			throw new NotFoundError('Chat agent not found');
@@ -263,8 +267,8 @@ export class ChatHubAgentService {
 		);
 
 		try {
-			await this.chatHubWorkflowService.waitForExecutionCompletion(execution.executionId);
-			await this.chatHubWorkflowService.ensureWasSuccessfulOrThrow(execution.executionId);
+			await this.chatHubExecutionService.waitForExecutionCompletion(execution.executionId);
+			await this.chatHubExecutionService.ensureWasSuccessfulOrThrow(execution.executionId);
 		} finally {
 			//await this.chatHubWorkflowService.deleteWorkflow(workflowData.id);
 		}
