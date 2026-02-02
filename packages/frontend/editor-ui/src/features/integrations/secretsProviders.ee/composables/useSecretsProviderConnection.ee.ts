@@ -22,13 +22,13 @@ export function useSecretsProviderConnection() {
 	const isTesting = ref(false);
 
 	// API operations
-	async function testConnection(connectionId: string): Promise<SecretProviderConnection['state']> {
+	async function testConnection(providerKey: string): Promise<SecretProviderConnection['state']> {
 		// POST /rest/secret-providers/connections/:connectionId/test
 		isTesting.value = true;
 		try {
 			const { testState } = await testSecretProviderConnection(
 				rootStore.restApiContext,
-				connectionId,
+				providerKey,
 			);
 
 			connectionState.value = testState === 'tested' ? 'connected' : testState;
