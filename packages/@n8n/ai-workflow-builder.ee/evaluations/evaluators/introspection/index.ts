@@ -30,11 +30,12 @@ export function createIntrospectionEvaluator(): Evaluator<EvaluationContext> {
 			}
 
 			// Summary feedback
+			// Score is 1 if any events exist (presence indicator), count stored in comment
 			const feedback: Feedback[] = [
 				{
 					evaluator: 'introspection',
 					metric: 'event_count',
-					score: events.length,
+					score: 1,
 					kind: 'metric',
 					comment: `${events.length} introspection event(s)`,
 				},

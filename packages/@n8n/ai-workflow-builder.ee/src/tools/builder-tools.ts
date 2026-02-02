@@ -51,8 +51,12 @@ export function getBuilderToolsForDisplay({
 		GET_NODE_PARAMETER_TOOL,
 		VALIDATE_STRUCTURE_TOOL,
 		VALIDATE_CONFIGURATION_TOOL,
-		INTROSPECT_TOOL,
 	);
+
+	// Conditionally add introspection tool based on feature flag
+	if (featureFlags?.enableIntrospection === true) {
+		tools.push(INTROSPECT_TOOL);
+	}
 
 	return tools;
 }

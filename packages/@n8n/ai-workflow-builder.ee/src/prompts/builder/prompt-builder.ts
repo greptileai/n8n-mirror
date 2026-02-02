@@ -238,11 +238,14 @@ export class PromptBuilder {
 		const format = formatter ?? defaultExampleFormatter;
 		const examplesContent = examples.map(format).join('\n\n');
 
-		// Format examples block using the builder's format setting
+		// Format examples block using the section's format (or builder default)
+		const sectionFormat = lastSection.options.format ?? this.format;
 		const examplesBlock =
-			this.format === 'markdown'
-				? `## Examples\n${examplesContent}`
-				: `<examples>\n${examplesContent}\n</examples>`;
+			sectionFormat === 'plain'
+				? examplesContent
+				: sectionFormat === 'markdown'
+					? `## Examples\n${examplesContent}`
+					: `<examples>\n${examplesContent}\n</examples>`;
 
 		// Wrap original content to append examples
 		const originalContent = lastSection.content;

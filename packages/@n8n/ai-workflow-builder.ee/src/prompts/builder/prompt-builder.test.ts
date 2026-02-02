@@ -496,6 +496,30 @@ describe('PromptBuilder', () => {
 			expect(bSection).toContain('example for B');
 		});
 
+		it('should respect section format override for plain format', () => {
+			const result = prompt()
+				.section('TEST', 'content', { format: 'plain' })
+				.withExamples(['example 1', 'example 2'])
+				.build();
+
+			// Plain format should not wrap examples in tags
+			expect(result).toContain('content');
+			expect(result).toContain('example 1');
+			expect(result).toContain('example 2');
+			expect(result).not.toContain('<examples>');
+			expect(result).not.toContain('## Examples');
+		});
+
+		it('should respect section format override for markdown format', () => {
+			const result = prompt()
+				.section('TEST', 'content', { format: 'markdown' })
+				.withExamples(['example'])
+				.build();
+
+			expect(result).toContain('## Examples');
+			expect(result).not.toContain('<examples>');
+		});
+
 		it('should throw error for objects without content property when no formatter provided', () => {
 			const invalidExamples = [{ name: 'test' }];
 
