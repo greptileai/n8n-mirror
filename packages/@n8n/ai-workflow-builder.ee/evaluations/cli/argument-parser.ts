@@ -57,11 +57,9 @@ export interface EvaluationArgs {
 	responderModel?: ModelId;
 	/** Model for discovery stage */
 	discoveryModel?: ModelId;
-	/** Model for builder stage */
+	/** Model for builder stage (structure and configuration) */
 	builderModel?: ModelId;
-	/** Model for configurator stage */
-	configuratorModel?: ModelId;
-	/** Model for parameter updater (within configurator) */
+	/** Model for parameter updater (within builder) */
 	parameterUpdaterModel?: ModelId;
 }
 
@@ -119,7 +117,6 @@ const cliSchema = z
 		responderModel: modelIdSchema.optional(),
 		discoveryModel: modelIdSchema.optional(),
 		builderModel: modelIdSchema.optional(),
-		configuratorModel: modelIdSchema.optional(),
 		parameterUpdaterModel: modelIdSchema.optional(),
 	})
 	.strict();
@@ -288,13 +285,7 @@ const FLAG_DEFS: Record<string, FlagDef> = {
 		key: 'builderModel',
 		kind: 'string',
 		group: 'model',
-		desc: 'Model for builder stage',
-	},
-	'--configurator-model': {
-		key: 'configuratorModel',
-		kind: 'string',
-		group: 'model',
-		desc: 'Model for configurator stage',
+		desc: 'Model for builder stage (structure and configuration)',
 	},
 	'--parameter-updater-model': {
 		key: 'parameterUpdaterModel',
@@ -566,7 +557,6 @@ export function parseEvaluationArgs(argv: string[] = process.argv.slice(2)): Eva
 		responderModel: parsed.responderModel,
 		discoveryModel: parsed.discoveryModel,
 		builderModel: parsed.builderModel,
-		configuratorModel: parsed.configuratorModel,
 		parameterUpdaterModel: parsed.parameterUpdaterModel,
 	};
 }
@@ -581,7 +571,6 @@ export function argsToStageModels(args: EvaluationArgs): StageModels {
 		responder: args.responderModel,
 		discovery: args.discoveryModel,
 		builder: args.builderModel,
-		configurator: args.configuratorModel,
 		parameterUpdater: args.parameterUpdaterModel,
 		judge: args.judgeModel,
 	};

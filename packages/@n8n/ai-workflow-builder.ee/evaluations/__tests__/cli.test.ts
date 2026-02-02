@@ -130,7 +130,6 @@ function createMockEnvironment() {
 			responder: mockLlm,
 			discovery: mockLlm,
 			builder: mockLlm,
-			configurator: mockLlm,
 			parameterUpdater: mockLlm,
 			judge: mockLlm,
 		},

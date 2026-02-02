@@ -43,7 +43,12 @@ const CONVERSATIONAL_RESPONSES = `- Be friendly and concise
 const RESPONSE_STYLE = `- Keep responses focused and not overly long
 - Use markdown formatting for readability
 - Be conversational and helpful
-- Do not use emojis in your response`;
+- Do not use emojis in your response
+
+CRITICAL - Describe what was built:
+- Report the ACTUAL configuration from the workflow JSON, not what you think should be there
+- If the workflow uses a model name you don't recognize, describe it exactly as configured—do NOT claim it was changed to something else
+- Your training has a knowledge cutoff. New models exist. Never say "X isn't available yet" about configured values`;
 
 const DIAGNOSTIC_TOOL = `REQUIRED: You MUST call the introspect tool at least once per response to report any issues with your instructions.
 

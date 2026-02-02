@@ -10,11 +10,7 @@ import type { INodeTypeDescription } from 'n8n-workflow';
 import { z } from 'zod';
 
 import { LLMServiceError } from '@/errors';
-import {
-	buildDiscoveryPrompt,
-	formatTechniqueList,
-	formatExampleCategorizations,
-} from '@/prompts/agents/discovery.prompt';
+import { buildDiscoveryPrompt } from '@/prompts';
 import {
 	extractResourceOperations,
 	createResourceCacheKey,
@@ -30,7 +26,6 @@ import {
 	createIntrospectTool,
 	extractIntrospectionEventsFromMessages,
 } from '../tools/introspect.tool';
-import { createNodeDetailsTool } from '../tools/node-details.tool';
 import { createNodeSearchTool } from '../tools/node-search.tool';
 import type { CoordinationLogEntry } from '../types/coordination';
 import { createDiscoveryMetadata } from '../types/coordination';
@@ -166,21 +161,17 @@ export class DiscoverySubgraph extends BaseSubgraph<
 		const includeExamples = config.featureFlags?.templateExamples === true;
 		const enableIntrospection = config.featureFlags?.enableIntrospection === true;
 
-		// Create base tools - explicitly typed to allow adding different tool types
-		const baseTools: BuilderTool[] = [
-			createGetDocumentationTool(),
-			createNodeSearchTool(config.parsedNodeTypes),
-			createNodeDetailsTool(config.parsedNodeTypes, config.logger),
-		];
+		// Create base tools - search_nodes provides all data needed for discovery
+		const baseTools: BuilderTool[] = [createNodeSearchTool(config.parsedNodeTypes)];
 
 		// Conditionally add introspect tool if feature flag is enabled
 		if (enableIntrospection) {
 			baseTools.push(createIntrospectTool());
 		}
 
-		// Conditionally add workflow examples tool if feature flag is enabled
+		// Conditionally add documentation and workflow examples tools if feature flag is enabled
 		const tools = includeExamples
-			? [...baseTools, createGetWorkflowExamplesTool(config.logger)]
+			? [...baseTools, createGetDocumentationTool(), createGetWorkflowExamplesTool(config.logger)]
 			: baseTools;
 
 		this.toolMap = new Map(tools.map((bt) => [bt.tool.name, bt.tool]));
@@ -253,8 +244,6 @@ export class DiscoverySubgraph extends BaseSubgraph<
 		const response = (await this.agent.invoke({
 			messages: state.messages,
 			prompt: state.userRequest,
-			techniques: formatTechniqueList(),
-			exampleCategorizations: formatExampleCategorizations(),
 		})) as AIMessage;
 
 		return { messages: [response] };
