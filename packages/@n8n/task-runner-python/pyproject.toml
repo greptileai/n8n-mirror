@@ -34,6 +34,6 @@ addopts = "-v"
 requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools]
-packages = ["src", "src.config", "src.errors", "src.message_types"]
-
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
