@@ -737,10 +737,8 @@ describe('UndoManager - provider-specific tests', () => {
 			// Track all changes
 			const changes: DeepChange[] = [];
 			doc.onTransactionBatch(['nodes'], (batch) => {
-				// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
 				for (const [, mapChanges] of batch.changes) {
 					for (const change of mapChanges) {
-						// eslint-disable-next-line @typescript-eslint/no-unsafe-argument
 						changes.push(change);
 					}
 				}

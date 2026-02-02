@@ -60,20 +60,6 @@ export interface ArrayChangeEvent {
 export type DeepChange = ArrayChangeEvent | DeepChangeEvent;
 
 /**
- * Origin constants for identifying the source of CRDT changes.
- */
-export const ChangeOrigin = {
-	/** Change originated from local user action */
-	local: 'local',
-	/** Change originated from remote peer (network sync) */
-	remote: 'remote',
-	/** Change originated from local undo/redo operation */
-	undoRedo: 'undoRedo',
-} as const;
-
-export type ChangeOrigin = (typeof ChangeOrigin)[keyof typeof ChangeOrigin];
-
-/**
  * Batched changes from a single CRDT transaction.
  * Contains all changes grouped by their source root map name.
  *
@@ -86,6 +72,20 @@ export interface TransactionBatch {
 	/** Origin of the transaction */
 	origin: ChangeOrigin;
 }
+
+/**
+ * Origin constants for identifying the source of CRDT changes.
+ */
+export const ChangeOrigin = {
+	/** Change originated from local user action */
+	local: 'local',
+	/** Change originated from remote peer (network sync) */
+	remote: 'remote',
+	/** Change originated from local undo/redo operation */
+	undoRedo: 'undoRedo',
+} as const;
+
+export type ChangeOrigin = (typeof ChangeOrigin)[keyof typeof ChangeOrigin];
 
 /**
  * Type guard to check if a DeepChange is a DeepChangeEvent (map change).
