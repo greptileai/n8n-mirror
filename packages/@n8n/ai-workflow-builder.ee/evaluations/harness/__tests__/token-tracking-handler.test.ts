@@ -96,6 +96,50 @@ describe('TokenUsageTrackingHandler', () => {
 				outputTokens: 0,
 			});
 		});
+
+		it('should accumulate tokens from OpenAI format (prompt_tokens/completion_tokens)', async () => {
+			const result: LLMResult = {
+				generations: [[]],
+				llmOutput: {
+					usage: {
+						prompt_tokens: 150,
+						completion_tokens: 75,
+					},
+				},
+			};
+
+			await handler.handleLLMEnd(result);
+
+			expect(handler.getUsage()).toEqual({
+				inputTokens: 150,
+				outputTokens: 75,
+			});
+		});
+
+		it('should accumulate tokens from OpenAI format in generationInfo', async () => {
+			const result: LLMResult = {
+				generations: [
+					[
+						{
+							text: 'response',
+							generationInfo: {
+								usage: {
+									prompt_tokens: 80,
+									completion_tokens: 40,
+								},
+							},
+						},
+					],
+				],
+			};
+
+			await handler.handleLLMEnd(result);
+
+			expect(handler.getUsage()).toEqual({
+				inputTokens: 80,
+				outputTokens: 40,
+			});
+		});
 	});
 
 	describe('reset', () => {

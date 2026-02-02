@@ -10,15 +10,52 @@ export interface AccumulatedTokenUsage {
 }
 
 /**
+ * Type guard to check if a value is a record (plain object).
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Extract input tokens from a usage object.
+ * Supports both Anthropic (input_tokens) and OpenAI (prompt_tokens) formats.
+ */
+function extractInputTokens(usage: Record<string, unknown>): number {
+	// Anthropic format
+	if (typeof usage.input_tokens === 'number') {
+		return usage.input_tokens;
+	}
+	// OpenAI format
+	if (typeof usage.prompt_tokens === 'number') {
+		return usage.prompt_tokens;
+	}
+	return 0;
+}
+
+/**
+ * Extract output tokens from a usage object.
+ * Supports both Anthropic (output_tokens) and OpenAI (completion_tokens) formats.
+ */
+function extractOutputTokens(usage: Record<string, unknown>): number {
+	// Anthropic format
+	if (typeof usage.output_tokens === 'number') {
+		return usage.output_tokens;
+	}
+	// OpenAI format
+	if (typeof usage.completion_tokens === 'number') {
+		return usage.completion_tokens;
+	}
+	return 0;
+}
+
+/**
  * Callback handler that tracks token usage from all LLM calls.
  * Used during evaluation to capture total generation costs across all agents
  * (supervisor, discovery, builder, responder).
  *
- * Token usage is extracted from LLM response metadata, which includes:
- * - input_tokens: tokens in the prompt
- * - output_tokens: tokens in the completion
- * - cache_read_input_tokens: cached prompt tokens (optional)
- * - cache_creation_input_tokens: tokens added to cache (optional)
+ * Token usage is extracted from LLM response metadata, supporting:
+ * - Anthropic: input_tokens, output_tokens
+ * - OpenAI: prompt_tokens, completion_tokens
  */
 export class TokenUsageTrackingHandler extends BaseCallbackHandler {
 	name = 'TokenUsageTrackingHandler';
@@ -32,30 +69,18 @@ export class TokenUsageTrackingHandler extends BaseCallbackHandler {
 	 */
 	async handleLLMEnd(output: LLMResult): Promise<void> {
 		// Token usage can be in different locations depending on the provider
-		// Check llmOutput first (common for Anthropic)
-		const llmOutput = output.llmOutput as Record<string, unknown> | undefined;
-		if (llmOutput?.usage && typeof llmOutput.usage === 'object') {
-			const usage = llmOutput.usage as Record<string, number>;
-			if (typeof usage.input_tokens === 'number') {
-				this.totalInputTokens += usage.input_tokens;
-			}
-			if (typeof usage.output_tokens === 'number') {
-				this.totalOutputTokens += usage.output_tokens;
-			}
+		// Check llmOutput first (common for Anthropic and OpenAI)
+		if (isRecord(output.llmOutput) && isRecord(output.llmOutput.usage)) {
+			this.totalInputTokens += extractInputTokens(output.llmOutput.usage);
+			this.totalOutputTokens += extractOutputTokens(output.llmOutput.usage);
 			return;
 		}
 
 		// Also check generations for token usage in response_metadata
 		for (const generation of output.generations.flat()) {
-			const genInfo = generation.generationInfo as Record<string, unknown> | undefined;
-			if (genInfo?.usage && typeof genInfo.usage === 'object') {
-				const usage = genInfo.usage as Record<string, number>;
-				if (typeof usage.input_tokens === 'number') {
-					this.totalInputTokens += usage.input_tokens;
-				}
-				if (typeof usage.output_tokens === 'number') {
-					this.totalOutputTokens += usage.output_tokens;
-				}
+			if (isRecord(generation.generationInfo) && isRecord(generation.generationInfo.usage)) {
+				this.totalInputTokens += extractInputTokens(generation.generationInfo.usage);
+				this.totalOutputTokens += extractOutputTokens(generation.generationInfo.usage);
 			}
 		}
 	}
