@@ -24,7 +24,7 @@ export class OAuth1CredentialController {
 	async getAuthUri(req: OAuthRequest.OAuth1Credential.Auth): Promise<string> {
 		const credential = await this.oauthService.getCredential(req);
 
-		const uri = await this.oauthService.generateAOauth1AuthUri(credential, {
+		const uri = await this.oauthService.generateAOuth1AuthUri(credential, {
 			cid: credential.id,
 			origin: 'static-credential',
 			userId: skipAuthOnOAuthCallback ? undefined : req.user.id,

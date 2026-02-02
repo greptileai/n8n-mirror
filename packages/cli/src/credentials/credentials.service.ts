@@ -50,6 +50,8 @@ import { OwnershipService } from '@/services/ownership.service';
 import { ProjectService } from '@/services/project.service.ee';
 import { RoleService } from '@/services/role.service';
 
+import { validateOAuthUrl } from '@/oauth/validate-oauth-url';
+
 import { CredentialsFinderService } from './credentials-finder.service';
 
 export type CredentialsGetSharedOptions =
@@ -471,6 +473,11 @@ export class CredentialsService {
 			// @ts-ignore
 			updateData.data.oauthTokenData = decryptedData.oauthTokenData;
 		}
+
+		this.checkCredentialData(
+			updateData.type,
+			updateData.data as unknown as ICredentialDataDecryptedObject,
+		);
 		return updateData;
 	}
 
@@ -887,7 +894,43 @@ export class CredentialsService {
 			}
 		}
 
-		// TODO: add further validation if needed
+		const needsOauthUrlValidation =
+			type === 'oAuth2Api' ||
+			type === 'oAuth1Api' ||
+			(this.credentialTypes.getParentTypes(type) ?? []).includes('oAuth2Api') ||
+			(this.credentialTypes.getParentTypes(type) ?? []).includes('oAuth1Api');
+
+		if (needsOauthUrlValidation) {
+			this.validateOAuthCredentialUrls(type, data);
+		}
+	}
+
+	/**
+	 * Validates that OAuth credential URL fields (authUrl, accessTokenUrl, etc.) use http/https only.
+	 * No-op if the credential type is not OAuth1 or OAuth2.
+	 */
+	private validateOAuthCredentialUrls(
+		type: 'oAuth2Api' | 'oAuth1Api',
+		data: ICredentialDataDecryptedObject,
+	) {
+		if (type === 'oAuth2Api') {
+			const oauthUrlFields = ['authUrl', 'accessTokenUrl', 'serverUrl'] as const;
+			for (const field of oauthUrlFields) {
+				const value = data[field];
+				if (typeof value === 'string' && value.trim() !== '') {
+					validateOAuthUrl(value);
+				}
+			}
+		}
+		if (type === 'oAuth1Api') {
+			const oauthUrlFields = ['authUrl', 'requestTokenUrl', 'accessTokenUrl'] as const;
+			for (const field of oauthUrlFields) {
+				const value = data[field];
+				if (typeof value === 'string' && value.trim() !== '') {
+					validateOAuthUrl(value);
+				}
+			}
+		}
 	}
 
 	/**

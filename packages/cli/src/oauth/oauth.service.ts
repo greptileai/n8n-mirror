@@ -19,6 +19,7 @@ import { AuthError } from '@/errors/response-errors/auth.error';
 import { BadRequestError } from '@/errors/response-errors/bad-request.error';
 import { NotFoundError } from '@/errors/response-errors/not-found.error';
 import type { OAuthRequest } from '@/requests';
+import { validateOAuthUrl } from '@/oauth/validate-oauth-url';
 import { UrlService } from '@/services/url.service';
 import * as WorkflowExecuteAdditionalData from '@/workflow-execute-additional-data';
 import {
@@ -75,25 +76,12 @@ export class OauthService {
 		private readonly dynamicCredentialsProxy: DynamicCredentialsProxy,
 	) {}
 
-	private static readonly ALLOWED_OAUTH_URL_PROTOCOLS = ['http:', 'https:'];
-
-	private validateOAuthUrl(url: string): void {
-		const trimmed = url?.trim();
-		if (!trimmed) return;
-		let parsed: URL;
-
+	private validateOAuthUrlOrThrow(url: string): void {
 		try {
-			parsed = new URL(trimmed);
+			validateOAuthUrl(url);
 		} catch (e) {
 			this.logger.error('Invalid OAuth URL', { url, error: e });
-			throw new BadRequestError(`OAuth url is not a valid URL.`);
-		}
-
-		if (!OauthService.ALLOWED_OAUTH_URL_PROTOCOLS.includes(parsed.protocol)) {
-			this.logger.error('Invalid OAuth URL protocol', { url, protocol: parsed.protocol });
-			throw new BadRequestError(
-				`OAuth url must use HTTP or HTTPS protocol. Invalid protocol: ${parsed.protocol}`,
-			);
+			throw e;
 		}
 	}
 
@@ -409,8 +397,8 @@ export class OauthService {
 			}
 		}
 
-		this.validateOAuthUrl(oauthCredentials.authUrl ?? '');
-		this.validateOAuthUrl(oauthCredentials.accessTokenUrl ?? '');
+		this.validateOAuthUrlOrThrow(oauthCredentials.authUrl ?? '');
+		this.validateOAuthUrlOrThrow(oauthCredentials.accessTokenUrl ?? '');
 
 		// Generate a CSRF prevention token and send it as an OAuth2 state string
 		const [csrfSecret, state] = this.createCsrfState(csrfData);
@@ -457,9 +445,9 @@ export class OauthService {
 		const oauthCredentials: OAuth1CredentialData =
 			await this.getOAuthCredentials<OAuth1CredentialData>(credential);
 
-		this.validateOAuthUrl(oauthCredentials.authUrl ?? '');
-		this.validateOAuthUrl(oauthCredentials.requestTokenUrl ?? '');
-		this.validateOAuthUrl(oauthCredentials.accessTokenUrl ?? '');
+		this.validateOAuthUrlOrThrow(oauthCredentials.authUrl ?? '');
+		this.validateOAuthUrlOrThrow(oauthCredentials.requestTokenUrl ?? '');
+		this.validateOAuthUrlOrThrow(oauthCredentials.accessTokenUrl ?? '');
 
 		const [csrfSecret, state] = this.createCsrfState(csrfData);
 

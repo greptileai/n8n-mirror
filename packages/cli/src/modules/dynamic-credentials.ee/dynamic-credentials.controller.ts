@@ -150,7 +150,7 @@ export class DynamicCredentialsController {
 		}
 
 		if (credential.type.toLowerCase().includes('oauth1')) {
-			return await this.oauthService.generateAOauth1AuthUri(...callerData);
+			return await this.oauthService.generateAOuth1AuthUri(...callerData);
 		}
 
 		throw new BadRequestError('Credential type not supported');
