@@ -114,12 +114,26 @@ const createContext = (queryRunner: QueryRunner, migration: Migration): Migratio
 	},
 	runQuery: async <T>(sql: string, namedParameters?: ObjectLiteral) => {
 		if (namedParameters) {
-			const [query, parameters] = queryRunner.connection.driver.escapeQueryWithParameters(
-				sql,
-				namedParameters,
-				{},
-			);
-			return await (queryRunner.query(query, parameters) as Promise<T>);
+			if (isPostgres) {
+				// For PostgreSQL, convert named parameters to positional ($1, $2, etc.)
+				// This handles JSON columns properly which don't work well with TypeORM's escapeQueryWithParameters
+				// Use negative lookbehind to avoid matching PostgreSQL's :: cast operator
+				let paramIndex = 1;
+				const paramValues: unknown[] = [];
+				const convertedSql = sql.replace(/(?<!:):(\w+)/g, (_, paramName) => {
+					paramValues.push(namedParameters[paramName]);
+					return `$${paramIndex++}`;
+				});
+				return await (queryRunner.query(convertedSql, paramValues) as Promise<T>);
+			} else {
+				// For MySQL/SQLite, use TypeORM's escapeQueryWithParameters
+				const [query, parameters] = queryRunner.connection.driver.escapeQueryWithParameters(
+					sql,
+					namedParameters,
+					{},
+				);
+				return await (queryRunner.query(query, parameters) as Promise<T>);
+			}
 		} else {
 			return await (queryRunner.query(sql) as Promise<T>);
 		}
