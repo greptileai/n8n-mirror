@@ -13,9 +13,7 @@
  *   pnpm generate-types
  *
  * Output:
- *   src/types/generated/index.ts
- *   src/types/generated/nodes/n8n-nodes-base/*.ts
- *   src/types/generated/nodes/n8n-nodes-langchain/*.ts
+ *   ~/.n8n/generated-types/
  *
  * @generated - This file generates code, but is itself manually maintained.
  */
