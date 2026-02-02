@@ -6,7 +6,11 @@ export type FormInputsToFormValues<T extends IFormInput[], V> = {
 	[K in T[number]['name']]: V;
 };
 
-export type FormFieldValueUpdate = { name: string; value: FormFieldValue };
+export type FormFieldValueUpdate<Metadata = Record<string, unknown>> = {
+	name: string;
+	value: FormFieldValue;
+	metadata?: Metadata;
+};
 
 export type Rule = { name: string; config?: unknown };
 
@@ -33,9 +37,13 @@ export type FormState = {
 	hasBlutted: boolean;
 };
 
-export type IFormInput = {
+export type IFormInput<Metadata = Record<string, unknown>> = {
 	name: string;
 	initialValue?: string | number | boolean | null;
+	/**
+	 * Optional key-value pairs metadata that is passed with updates to the form.
+	 */
+	metadata?: Metadata;
 	properties: {
 		label?: string;
 		type?:
@@ -95,5 +103,6 @@ export type InputAutocompletePropType =
 	| 'current-password'
 	| 'given-name'
 	| 'family-name'
+	| 'one-time-code'
 	| 'email'; // https://developer.mozilla.org/en-US/docs/Web/HTML/Attributes/autocomplete
 export type ElementPlusSizePropType = '' | 'small' | 'large' | 'default' | undefined;

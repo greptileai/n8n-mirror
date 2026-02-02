@@ -1,5 +1,6 @@
 import type { RunningJobSummary } from '@n8n/api-types';
 import { Logger } from '@n8n/backend-common';
+import { ExecutionsConfig } from '@n8n/config';
 import { ExecutionRepository, WorkflowRepository } from '@n8n/db';
 import { Service } from '@n8n/di';
 import { WorkflowHasIssuesError, InstanceSettings, WorkflowExecute } from 'n8n-core';
@@ -10,11 +11,12 @@ import type {
 	IWorkflowExecutionDataProcess,
 	StructuredChunk,
 } from 'n8n-workflow';
-import { BINARY_ENCODING, Workflow, UnexpectedError } from 'n8n-workflow';
+import { BINARY_ENCODING, Workflow, UnexpectedError, createRunExecutionData } from 'n8n-workflow';
 import type PCancelable from 'p-cancelable';
 
-import config from '@/config';
+import { EventService } from '@/events/event.service';
 import { getLifecycleHooksForScalingWorker } from '@/execution-lifecycle/execution-lifecycle-hooks';
+import { getWorkflowActiveStatusFromWorkflowData } from '@/executions/execution.utils';
 import { ManualExecutionService } from '@/manual-execution.service';
 import { NodeTypes } from '@/node-types';
 import * as WorkflowExecuteAdditionalData from '@/workflow-execute-additional-data';
@@ -22,6 +24,7 @@ import * as WorkflowExecuteAdditionalData from '@/workflow-execute-additional-da
 import type {
 	Job,
 	JobFinishedMessage,
+	JobFinishedProps,
 	JobId,
 	JobResult,
 	RespondToWebhookMessage,
@@ -43,6 +46,8 @@ export class JobProcessor {
 		private readonly nodeTypes: NodeTypes,
 		private readonly instanceSettings: InstanceSettings,
 		private readonly manualExecutionService: ManualExecutionService,
+		private readonly executionsConfig: ExecutionsConfig,
+		private readonly eventService: EventService,
 	) {
 		this.logger = this.logger.scoped('scaling');
 	}
@@ -97,12 +102,12 @@ export class JobProcessor {
 
 		const workflowSettings = execution.workflowData.settings ?? {};
 
-		let workflowTimeout = workflowSettings.executionTimeout ?? config.getEnv('executions.timeout');
+		let workflowTimeout = workflowSettings.executionTimeout ?? this.executionsConfig.timeout;
 
 		let executionTimeoutTimestamp: number | undefined;
 
 		if (workflowTimeout > 0) {
-			workflowTimeout = Math.min(workflowTimeout, config.getEnv('executions.maxTimeout'));
+			workflowTimeout = Math.min(workflowTimeout, this.executionsConfig.maxTimeout);
 			executionTimeoutTimestamp = Date.now() + workflowTimeout * 1000;
 		}
 
@@ -111,17 +116,17 @@ export class JobProcessor {
 			name: execution.workflowData.name,
 			nodes: execution.workflowData.nodes,
 			connections: execution.workflowData.connections,
-			active: execution.workflowData.active,
+			active: getWorkflowActiveStatusFromWorkflowData(execution.workflowData),
 			nodeTypes: this.nodeTypes,
 			staticData,
 			settings: execution.workflowData.settings,
 		});
 
-		const additionalData = await WorkflowExecuteAdditionalData.getBase(
-			undefined,
-			undefined,
+		const additionalData = await WorkflowExecuteAdditionalData.getBase({
+			workflowId,
 			executionTimeoutTimestamp,
-		);
+			workflowSettings: execution.workflowData.settings,
+		});
 		additionalData.streamingEnabled = job.data.streamingEnabled;
 
 		const { pushRef } = job.data;
@@ -194,7 +199,6 @@ export class JobProcessor {
 				startNodes: startData?.startNodes,
 				runData: resultData.runData,
 				pinData: resultData.pinData,
-				partialExecutionVersion: manualData?.partialExecutionVersion,
 				dirtyNodeNames: manualData?.dirtyNodeNames,
 				triggerToStartFrom: manualData?.triggerToStartFrom,
 				userId: manualData?.userId,
@@ -219,7 +223,8 @@ export class JobProcessor {
 						finished: false,
 						startedAt: now,
 						stoppedAt: now,
-						data: { resultData: { error, runData: {} } },
+						data: createRunExecutionData({ resultData: { error, runData: {} } }),
+						storedAt: execution.storedAt,
 					};
 
 					await lifecycleHooks.runHook('workflowExecuteAfter', [runData]);
@@ -242,20 +247,27 @@ export class JobProcessor {
 
 		this.runningJobs[job.id] = runningJob;
 
-		await workflowRun;
+		const run = await workflowRun;
 
 		delete this.runningJobs[job.id];
+
+		const props = process.env.N8N_MINIMIZE_EXECUTION_DATA_FETCHING
+			? this.deriveJobFinishedProps(run, startedAt)
+			: await this.fetchJobFinishedResult(executionId);
 
 		this.logger.info(`Worker finished execution ${executionId} (job ${job.id})`, {
 			executionId,
 			workflowId,
 			jobId: job.id,
+			success: props.success,
 		});
 
 		const msg: JobFinishedMessage = {
 			kind: 'job-finished',
+			version: 2,
 			executionId,
 			workerId: this.instanceSettings.hostId,
+			...props,
 		};
 
 		await job.progress(msg);
@@ -268,8 +280,56 @@ export class JobProcessor {
 		return { success: true };
 	}
 
+	private deriveJobFinishedProps(run: IRun, startedAt: Date): JobFinishedProps {
+		return {
+			success: run.status !== 'error' && run.data.resultData.error === undefined,
+			status: run.status,
+			error: run.data.resultData.error,
+			startedAt,
+			stoppedAt: run.stoppedAt!,
+			lastNodeExecuted: run.data.resultData.lastNodeExecuted,
+			usedDynamicCredentials: !!run.data.executionData?.runtimeData?.credentials,
+			metadata: run.data.resultData.metadata,
+		};
+	}
+
+	private async fetchJobFinishedResult(executionId: string): Promise<JobFinishedProps> {
+		const execution = await this.executionRepository.findSingleExecution(executionId, {
+			includeData: true,
+			unflattenData: true,
+		});
+
+		if (!execution) {
+			throw new UnexpectedError(
+				`Worker failed to find execution ${executionId} immediately after workflow completed`,
+			);
+		}
+
+		return {
+			success: execution.status !== 'error' && execution.data?.resultData?.error === undefined,
+			status: execution.status,
+			error: execution.data?.resultData?.error,
+			startedAt: execution.startedAt,
+			stoppedAt: execution.stoppedAt!,
+			lastNodeExecuted: execution.data?.resultData?.lastNodeExecuted,
+			usedDynamicCredentials: !!execution.data?.executionData?.runtimeData?.credentials,
+			metadata: execution.data?.resultData?.metadata,
+		};
+	}
+
 	stopJob(jobId: JobId) {
-		this.runningJobs[jobId]?.run.cancel();
+		const runningJob = this.runningJobs[jobId];
+		if (!runningJob) return;
+
+		const { executionId, workflowId, workflowName } = runningJob;
+		this.eventService.emit('execution-cancelled', {
+			executionId,
+			workflowId,
+			workflowName,
+			reason: 'manual', // Job stops via scaling service are always user-initiated
+		});
+
+		runningJob.run.cancel();
 		delete this.runningJobs[jobId];
 	}
 
