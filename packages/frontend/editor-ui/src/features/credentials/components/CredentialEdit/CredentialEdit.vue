@@ -25,11 +25,7 @@ import { useMessage } from '@/app/composables/useMessage';
 import { useNodeHelpers } from '@/app/composables/useNodeHelpers';
 import { useToast } from '@/app/composables/useToast';
 import { CREDENTIAL_EDIT_MODAL_KEY } from '../../credentials.constants';
-import {
-	EnterpriseEditionFeature,
-	MODAL_CONFIRM,
-	PLACEHOLDER_EMPTY_WORKFLOW_ID,
-} from '@/app/constants';
+import { EnterpriseEditionFeature, MODAL_CONFIRM } from '@/app/constants';
 import { useCredentialsStore } from '../../credentials.store';
 import { useNDVStore } from '@/features/ndv/shared/ndv.store';
 import { useNodeTypesStore } from '@/app/stores/nodeTypes.store';
@@ -69,6 +65,7 @@ import {
 import { injectWorkflowState } from '@/app/composables/useWorkflowState';
 import { setParameterValue } from '@/app/utils/parameterUtils';
 import get from 'lodash/get';
+import { useEnvFeatureFlag } from '@/features/shared/envFeatureFlag/useEnvFeatureFlag';
 
 type Props = {
 	modalName: string;
@@ -95,6 +92,7 @@ const i18n = useI18n();
 const telemetry = useTelemetry();
 const router = useRouter();
 const rootStore = useRootStore();
+const { check: checkEnvFeatureFlag } = useEnvFeatureFlag();
 
 const activeTab = ref('connection');
 const authError = ref('');
@@ -118,6 +116,7 @@ const isSharedWithChanged = ref(false);
 const requiredCredentials = ref(false); // Are credentials required or optional for the node
 const contentRef = ref<HTMLDivElement>();
 const isSharedGlobally = ref(false);
+const isResolvable = ref(false);
 
 const activeNodeType = computed(() => {
 	const activeNode = ndvStore.activeNode;
@@ -353,6 +352,12 @@ const homeProject = computed(() => {
 	return currentProject ?? personalProject;
 });
 
+const isDynamicCredentialsEnabled = computed<boolean>(() => {
+	return checkEnvFeatureFlag.value('DYNAMIC_CREDENTIALS');
+});
+
+const isNewCredential = computed(() => props.mode === 'new' && !credentialId.value);
+
 onMounted(async () => {
 	requiredCredentials.value =
 		isCredentialModalState(uiStore.modalsById[CREDENTIAL_EDIT_MODAL_KEY]) &&
@@ -548,6 +553,10 @@ async function loadCurrentCredential() {
 			'isGlobal' in currentCredentials && typeof currentCredentials.isGlobal === 'boolean'
 				? currentCredentials.isGlobal
 				: false;
+		isResolvable.value =
+			'isResolvable' in currentCredentials && typeof currentCredentials.isResolvable === 'boolean'
+				? currentCredentials.isResolvable
+				: false;
 	} catch (error) {
 		toast.showError(
 			error,
@@ -585,6 +594,11 @@ function onChangeSharedWith(sharedWithProjects: ProjectSharingData[]) {
 
 function onShareWithAllUsersUpdate(shareWithAllUsers: boolean) {
 	isSharedGlobally.value = shareWithAllUsers;
+	hasUnsavedChanges.value = true;
+}
+
+function onResolvableChange(value: boolean) {
+	isResolvable.value = value;
 	hasUnsavedChanges.value = true;
 }
 
@@ -717,6 +731,7 @@ async function saveCredential(): Promise<ICredentialsResponse | null> {
 		type: credentialTypeName.value,
 		data: data as unknown as ICredentialDataDecryptedObject,
 		isGlobal: isSharedGlobally.value,
+		isResolvable: isResolvable.value,
 	};
 
 	if (
@@ -904,10 +919,7 @@ async function createCredential(
 	telemetry.track('User created credentials', {
 		credential_type: credentialDetails.type,
 		credential_id: credential.id,
-		workflow_id:
-			workflowsStore.workflowId === PLACEHOLDER_EMPTY_WORKFLOW_ID
-				? null
-				: workflowsStore.workflowId,
+		workflow_id: workflowsStore.workflowId,
 	});
 
 	return credential;
@@ -1060,10 +1072,7 @@ async function oAuthCredentialAuthorize() {
 
 		const trackProperties: ITelemetryTrackProperties = {
 			credential_type: credentialTypeName.value,
-			workflow_id:
-				workflowsStore.workflowId === PLACEHOLDER_EMPTY_WORKFLOW_ID
-					? null
-					: workflowsStore.workflowId,
+			workflow_id: workflowsStore.workflowId || null,
 			credential_id: credentialId.value,
 			is_complete: !!requiredPropertiesFilled.value,
 			is_new: props.mode === 'new' && !credentialId.value,
@@ -1144,10 +1153,6 @@ function resetCredentialData(): void {
 
 const credNameRef = useTemplateRef('credNameRef');
 const { width } = useElementSize(credNameRef);
-
-const isResolvable = computed<boolean>(() => {
-	return Boolean(credentialData.value.isResolvable);
-});
 </script>
 
 <template>
@@ -1264,11 +1269,15 @@ const isResolvable = computed<boolean>(() => {
 						:mode="mode"
 						:selected-credential="selectedCredential"
 						:show-auth-type-selector="requiredCredentials"
+						:is-dynamic-credentials-enabled="isDynamicCredentialsEnabled"
+						:is-resolvable="isResolvable"
+						:is-new-credential="isNewCredential"
 						@update="onDataChange"
 						@oauth="oAuthCredentialAuthorize"
 						@retest="retestCredential"
 						@scroll-to-top="scrollToTop"
 						@auth-type-changed="onAuthTypeChanged"
+						@update:is-resolvable="onResolvableChange"
 					/>
 				</div>
 				<div v-else-if="showSharingContent" :class="$style.mainContent">
@@ -1277,7 +1286,7 @@ const isResolvable = computed<boolean>(() => {
 						:credential-data="credentialData"
 						:credential-id="credentialId"
 						:credential-permissions="credentialPermissions"
-						:isSharedGlobally="isSharedGlobally"
+						:is-shared-globally="isSharedGlobally"
 						:modal-bus="modalBus"
 						@update:model-value="onChangeSharedWith"
 						@update:share-with-all-users="onShareWithAllUsersUpdate"

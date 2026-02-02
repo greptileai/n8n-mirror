@@ -42,6 +42,15 @@ export function useSettingsItems() {
 				route: { to: { name: VIEWS.USERS_SETTINGS } },
 			},
 			{
+				id: 'settings-ai',
+				icon: 'sparkles',
+				label: i18n.baseText('settings.ai'),
+				position: 'top',
+				available:
+					settingsStore.isAiAssistantEnabled && canUserAccessRouteByName(VIEWS.AI_SETTINGS),
+				route: { to: { name: VIEWS.AI_SETTINGS } },
+			},
+			{
 				id: 'settings-project-roles',
 				icon: 'user-round',
 				label: i18n.baseText('settings.projectRoles'),
@@ -64,6 +73,14 @@ export function useSettingsItems() {
 				position: 'top',
 				available: canUserAccessRouteByName(VIEWS.EXTERNAL_SECRETS_SETTINGS),
 				route: { to: { name: VIEWS.EXTERNAL_SECRETS_SETTINGS } },
+			},
+			{
+				id: 'settings-credential-resolvers',
+				icon: 'key-round',
+				label: i18n.baseText('credentialResolver.view.title'),
+				position: 'top',
+				available: canUserAccessRouteByName(VIEWS.RESOLVERS),
+				route: { to: { name: VIEWS.RESOLVERS } },
 			},
 			{
 				id: 'settings-source-control',
