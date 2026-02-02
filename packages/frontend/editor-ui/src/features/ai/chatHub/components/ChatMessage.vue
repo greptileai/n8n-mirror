@@ -23,7 +23,7 @@ import { useDeviceSupport } from '@n8n/composables/useDeviceSupport';
 import { useI18n } from '@n8n/i18n';
 import ChatMarkdownChunk from '@/features/ai/chatHub/components/ChatMarkdownChunk.vue';
 import CopyButton from '@/features/ai/chatHub/components/CopyButton.vue';
-import { reconstructDocument } from '../chat-document';
+import { reconstructDocument, stripDocumentCommands } from '../chat-document';
 
 interface MergedAttachment {
 	isNew: boolean;
@@ -100,16 +100,17 @@ const activeCodeBlockTeleport = computed<{
 	return null;
 });
 
+const text = computed(() => stripDocumentCommands(message.content));
 const messageChunks = computed(() => {
 	// Handle error case with no content
-	if (message.status === 'error' && !message.content) {
+	if (message.status === 'error' && !text.value) {
 		return [i18n.baseText('chatHub.message.error.unknown')];
 	}
 
-	return splitMarkdownIntoChunks(message.content).filter((chunk) => chunk.trim() !== '');
+	return splitMarkdownIntoChunks(text.value).filter((chunk) => chunk.trim() !== '');
 });
 
-const speech = useSpeechSynthesis(message.content, {
+const speech = useSpeechSynthesis(text.value, {
 	pitch: 1,
 	rate: 1,
 	volume: 1,
@@ -145,7 +146,7 @@ const mergedAttachments = computed(() => [
 ]);
 
 const hideMessage = computed(() => {
-	return message.status === 'success' && message.content === '';
+	return message.status === 'success' && text.value === '';
 });
 
 const hasIncompleteCommand = computed(() => {
@@ -258,7 +259,7 @@ function handleSwitchAlternative(messageId: ChatMessageId) {
 watch(
 	() => isEditing,
 	(editing) => {
-		editedText.value = editing ? message.content : '';
+		editedText.value = editing ? text.value : '';
 		newFiles.value = [];
 		removedExistingIndices.value = new Set();
 	},
@@ -371,7 +372,7 @@ onBeforeMount(() => {
 						/>
 					</div>
 					<div v-if="message.type === 'human'">
-						{{ message.content }}
+						{{ text }}
 					</div>
 					<div v-else :class="$style.markdownContent">
 						<ChatMarkdownChunk

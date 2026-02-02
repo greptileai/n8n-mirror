@@ -108,7 +108,7 @@ const activeCodeBlockTeleport = computed<{
 
 .content {
 	flex: 1;
-	overflow: auto;
+	overflow: hidden;
 }
 
 .iframe {
