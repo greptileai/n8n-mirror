@@ -1,4 +1,4 @@
-import { ALPHABET } from 'n8n-workflow';
+import { NANOID_ALPHABET } from '@n8n/constants';
 import { customAlphabet } from 'nanoid';
 
 /**
@@ -21,4 +21,4 @@ import { customAlphabet } from 'nanoid';
  * // => 'aBcDeFgHiJkLmNoP' (16 characters)
  * ```
  */
-export const generateNanoId = customAlphabet(ALPHABET, 16);
+export const generateNanoId = customAlphabet(NANOID_ALPHABET, 16);

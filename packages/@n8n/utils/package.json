@@ -39,8 +39,8 @@
     "format:check": "biome ci . && prettier --check . --ignore-path ../../../.prettierignore"
   },
   "dependencies": {
-    "nanoid": "catalog:",
-    "n8n-workflow": "workspace:*"
+    "@n8n/constants": "workspace:*",
+    "nanoid": "catalog:"
   },
   "devDependencies": {
     "@n8n/eslint-config": "workspace:*",
