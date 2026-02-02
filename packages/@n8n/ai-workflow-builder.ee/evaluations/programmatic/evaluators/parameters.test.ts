@@ -321,5 +321,311 @@ describe('validateParameters', () => {
 
 			expect(validateParameters(workflow, [nodeType])).toHaveLength(0);
 		});
+
+		it('should respect displayOptions for mode parameter (e.g., Vector Store nodes)', () => {
+			const nodeType = createNodeType('n8n-nodes-langchain.vectorStore', [
+				{
+					displayName: 'Mode',
+					name: 'mode',
+					type: 'options',
+					default: 'retrieve',
+					options: [
+						{ name: 'Retrieve', value: 'retrieve' },
+						{ name: 'Insert', value: 'insert' },
+						{ name: 'Retrieve as Tool', value: 'retrieve-as-tool' },
+					],
+				},
+				{
+					displayName: 'Description',
+					name: 'toolDescription',
+					type: 'string',
+					default: '',
+					required: true,
+					displayOptions: { show: { mode: ['retrieve-as-tool'] } },
+				},
+			]);
+
+			// Mode is 'retrieve', so toolDescription should NOT be required
+			const workflowRetrieve = createWorkflow([
+				createNode('n8n-nodes-langchain.vectorStore', { mode: 'retrieve' }),
+			]);
+			expect(validateParameters(workflowRetrieve, [nodeType])).toHaveLength(0);
+
+			// Mode is 'retrieve-as-tool', so toolDescription IS required
+			const workflowTool = createWorkflow([
+				createNode('n8n-nodes-langchain.vectorStore', { mode: 'retrieve-as-tool' }),
+			]);
+			expect(validateParameters(workflowTool, [nodeType])).toContainEqual(
+				expect.objectContaining({
+					name: 'node-missing-required-parameter',
+					metadata: expect.objectContaining({ parameterName: 'toolDescription' }),
+				}),
+			);
+		});
+
+		it('should respect displayOptions for authentication parameter', () => {
+			const nodeType = createNodeType('n8n-nodes-base.discord', [
+				{
+					displayName: 'Authentication',
+					name: 'authentication',
+					type: 'options',
+					default: 'botToken',
+					options: [
+						{ name: 'Bot Token', value: 'botToken' },
+						{ name: 'Webhook', value: 'webhook' },
+					],
+				},
+				// Bot token operation (includes send, getAll)
+				{
+					displayName: 'Operation',
+					name: 'operation',
+					type: 'options',
+					default: 'send',
+					displayOptions: { show: { authentication: ['botToken'] } },
+					options: [
+						{ name: 'Send', value: 'send' },
+						{ name: 'Get All', value: 'getAll' },
+					],
+				},
+				// Webhook operation (only sendLegacy)
+				{
+					displayName: 'Operation',
+					name: 'operation',
+					type: 'options',
+					default: 'sendLegacy',
+					displayOptions: { show: { authentication: ['webhook'] } },
+					options: [{ name: 'Send', value: 'sendLegacy' }],
+				},
+			]);
+
+			// Using botToken auth with 'send' operation - should be valid
+			const workflowBotSend = createWorkflow([
+				createNode('n8n-nodes-base.discord', { authentication: 'botToken', operation: 'send' }),
+			]);
+			expect(validateParameters(workflowBotSend, [nodeType])).toHaveLength(0);
+
+			// Using botToken auth with 'getAll' operation - should be valid
+			const workflowBotGetAll = createWorkflow([
+				createNode('n8n-nodes-base.discord', { authentication: 'botToken', operation: 'getAll' }),
+			]);
+			expect(validateParameters(workflowBotGetAll, [nodeType])).toHaveLength(0);
+
+			// Using webhook auth with 'sendLegacy' operation - should be valid
+			const workflowWebhook = createWorkflow([
+				createNode('n8n-nodes-base.discord', {
+					authentication: 'webhook',
+					operation: 'sendLegacy',
+				}),
+			]);
+			expect(validateParameters(workflowWebhook, [nodeType])).toHaveLength(0);
+
+			// Using webhook auth with 'send' operation - should be invalid
+			// (send is only valid for botToken, not webhook)
+			const workflowWebhookInvalid = createWorkflow([
+				createNode('n8n-nodes-base.discord', { authentication: 'webhook', operation: 'send' }),
+			]);
+			expect(validateParameters(workflowWebhookInvalid, [nodeType])).toContainEqual(
+				expect.objectContaining({
+					name: 'node-invalid-options-value',
+					metadata: expect.objectContaining({ parameterName: 'operation', invalidValue: 'send' }),
+				}),
+			);
+		});
+	});
+
+	describe('real-world workflow scenarios', () => {
+		it('should validate Discord nodes from Eco chatbot workflow (botToken + send/getAll)', () => {
+			// Simulates the Discord node structure with multiple operation properties
+			// for different authentication methods
+			const discordNodeType = createNodeType(
+				'n8n-nodes-base.discord',
+				[
+					{
+						displayName: 'Authentication',
+						name: 'authentication',
+						type: 'options',
+						default: 'botToken',
+						options: [
+							{ name: 'Bot Token', value: 'botToken' },
+							{ name: 'OAuth2', value: 'oAuth2' },
+							{ name: 'Webhook', value: 'webhook' },
+						],
+					},
+					{
+						displayName: 'Resource',
+						name: 'resource',
+						type: 'options',
+						default: 'message',
+						displayOptions: { show: { authentication: ['botToken', 'oAuth2'] } },
+						options: [
+							{ name: 'Message', value: 'message' },
+							{ name: 'Channel', value: 'channel' },
+						],
+					},
+					// Message operations for botToken/oAuth2
+					{
+						displayName: 'Operation',
+						name: 'operation',
+						type: 'options',
+						default: 'send',
+						displayOptions: {
+							show: { resource: ['message'], authentication: ['botToken', 'oAuth2'] },
+						},
+						options: [
+							{ name: 'Send', value: 'send' },
+							{ name: 'Get All', value: 'getAll' },
+							{ name: 'Delete', value: 'deleteMessage' },
+						],
+					},
+					// Webhook operation (different options)
+					{
+						displayName: 'Operation',
+						name: 'operation',
+						type: 'options',
+						default: 'sendLegacy',
+						displayOptions: { show: { authentication: ['webhook'] } },
+						options: [{ name: 'Send', value: 'sendLegacy' }],
+					},
+				],
+				[1, 2], // Include version 2 to match node's typeVersion
+			);
+
+			const getMessagesWorkflow = createWorkflow([
+				createNode(
+					'n8n-nodes-base.discord',
+					{ authentication: 'botToken', resource: 'message', operation: 'getAll' },
+					{ name: 'Get Discord Messages', typeVersion: 2 },
+				),
+			]);
+			expect(validateParameters(getMessagesWorkflow, [discordNodeType])).toHaveLength(0);
+
+			// "Send Discord Response" node from workflow
+			const sendResponseWorkflow = createWorkflow([
+				createNode(
+					'n8n-nodes-base.discord',
+					{ authentication: 'botToken', resource: 'message', operation: 'send' },
+					{ name: 'Send Discord Response', typeVersion: 2 },
+				),
+			]);
+			expect(validateParameters(sendResponseWorkflow, [discordNodeType])).toHaveLength(0);
+		});
+
+		it('should validate Vector Store nodes from Eco chatbot workflow', () => {
+			// Simulates the Vector Store In Memory node structure
+			const vectorStoreNodeType = createNodeType(
+				'@n8n/n8n-nodes-langchain.vectorStoreInMemory',
+				[
+					{
+						displayName: 'Operation Mode',
+						name: 'mode',
+						type: 'options',
+						default: 'retrieve',
+						options: [
+							{ name: 'Get Many', value: 'load' },
+							{ name: 'Insert Documents', value: 'insert' },
+							{ name: 'Retrieve Documents (As Vector Store)', value: 'retrieve' },
+							{ name: 'Retrieve Documents (As Tool)', value: 'retrieve-as-tool' },
+							{ name: 'Update Documents', value: 'update' },
+						],
+					},
+					{
+						displayName: 'Description',
+						name: 'toolDescription',
+						type: 'string',
+						default: '',
+						required: true,
+						displayOptions: { show: { mode: ['retrieve-as-tool'] } },
+					},
+					{
+						displayName: 'Prompt',
+						name: 'prompt',
+						type: 'string',
+						default: '',
+						required: true,
+						displayOptions: { show: { mode: ['load'] } },
+					},
+					{
+						displayName: 'ID',
+						name: 'id',
+						type: 'string',
+						default: '',
+						required: true,
+						displayOptions: { show: { mode: ['update'] } },
+					},
+				],
+				[1, 1.1, 1.2, 1.3], // Include version 1.3 to match node's typeVersion
+			);
+
+			// "Vector Store - Load Rules" node (mode: insert) - no toolDescription required
+			const loadRulesWorkflow = createWorkflow([
+				createNode(
+					'@n8n/n8n-nodes-langchain.vectorStoreInMemory',
+					{ mode: 'insert', clearStore: false },
+					{ name: 'Vector Store - Load Rules', typeVersion: 1.3 },
+				),
+			]);
+			expect(validateParameters(loadRulesWorkflow, [vectorStoreNodeType])).toHaveLength(0);
+
+			// "Vector Store - Query Tool" node (mode: retrieve-as-tool) with toolDescription provided
+			const queryToolWorkflow = createWorkflow([
+				createNode(
+					'@n8n/n8n-nodes-langchain.vectorStoreInMemory',
+					{
+						mode: 'retrieve-as-tool',
+						toolDescription:
+							'Search the Eco community ruleset documents to find relevant rules and regulations.',
+						topK: 5,
+					},
+					{ name: 'Vector Store - Query Tool', typeVersion: 1.3 },
+				),
+			]);
+			expect(validateParameters(queryToolWorkflow, [vectorStoreNodeType])).toHaveLength(0);
+
+			// Vector Store in 'retrieve-as-tool' mode WITHOUT toolDescription - should fail
+			const missingDescriptionWorkflow = createWorkflow([
+				createNode(
+					'@n8n/n8n-nodes-langchain.vectorStoreInMemory',
+					{ mode: 'retrieve-as-tool', topK: 5 },
+					{ name: 'Vector Store Missing Description', typeVersion: 1.3 },
+				),
+			]);
+			expect(validateParameters(missingDescriptionWorkflow, [vectorStoreNodeType])).toContainEqual(
+				expect.objectContaining({
+					name: 'node-missing-required-parameter',
+					metadata: expect.objectContaining({
+						nodeName: 'Vector Store Missing Description',
+						parameterName: 'toolDescription',
+					}),
+				}),
+			);
+
+			// Vector Store in 'load' mode WITHOUT prompt - should fail
+			const missingPromptWorkflow = createWorkflow([
+				createNode(
+					'@n8n/n8n-nodes-langchain.vectorStoreInMemory',
+					{ mode: 'load' },
+					{ name: 'Vector Store Missing Prompt', typeVersion: 1.3 },
+				),
+			]);
+			expect(validateParameters(missingPromptWorkflow, [vectorStoreNodeType])).toContainEqual(
+				expect.objectContaining({
+					name: 'node-missing-required-parameter',
+					metadata: expect.objectContaining({
+						nodeName: 'Vector Store Missing Prompt',
+						parameterName: 'prompt',
+					}),
+				}),
+			);
+
+			// Vector Store in 'retrieve' mode - no extra required params
+			const retrieveWorkflow = createWorkflow([
+				createNode(
+					'@n8n/n8n-nodes-langchain.vectorStoreInMemory',
+					{ mode: 'retrieve' },
+					{ name: 'Vector Store Retrieve', typeVersion: 1.3 },
+				),
+			]);
+			expect(validateParameters(retrieveWorkflow, [vectorStoreNodeType])).toHaveLength(0);
+		});
 	});
 });

@@ -48,8 +48,8 @@ function isHiddenByCondition(
 }
 
 /**
- * Check if a property should be hidden based on @version, resource, operation conditions.
- * We only evaluate these conditions to avoid false positives from other complex conditions.
+ * Check if a property should be hidden based on displayOptions conditions.
+ * Evaluates all conditions in displayOptions.show and displayOptions.hide.
  */
 function isPropertyHiddenForContext(
 	displayOptions: INodeProperties['displayOptions'],
@@ -58,19 +58,40 @@ function isPropertyHiddenForContext(
 ): boolean {
 	if (!displayOptions) return false;
 
+	// Always check @version first
 	if (isHiddenByCondition(displayOptions, '@version', nodeVersion)) return true;
 
-	const resource = currentValues.resource;
-	if (typeof resource === 'string' && isHiddenByCondition(displayOptions, 'resource', resource)) {
-		return true;
+	// Check all 'show' conditions - if ANY specified condition doesn't match, hide it
+	if (displayOptions.show) {
+		for (const [conditionKey, _conditionValue] of Object.entries(displayOptions.show)) {
+			if (conditionKey === '@version') continue; // Already checked above
+
+			const paramValue = currentValues[conditionKey];
+			// Only check if we have a value for this parameter
+			if (typeof paramValue === 'string' || typeof paramValue === 'number') {
+				if (isHiddenByCondition(displayOptions, conditionKey, paramValue)) {
+					return true;
+				}
+			} else if (paramValue === undefined) {
+				// If the parameter value is undefined but there's a show condition for it,
+				// we can't determine visibility - skip this property to avoid false positives
+				return true;
+			}
+		}
 	}
 
-	const operation = currentValues.operation;
-	if (
-		typeof operation === 'string' &&
-		isHiddenByCondition(displayOptions, 'operation', operation)
-	) {
-		return true;
+	// Check all 'hide' conditions - if ANY specified condition matches, hide it
+	if (displayOptions.hide) {
+		for (const [conditionKey, _conditionValue] of Object.entries(displayOptions.hide)) {
+			if (conditionKey === '@version') continue; // Already checked above
+
+			const paramValue = currentValues[conditionKey];
+			if (typeof paramValue === 'string' || typeof paramValue === 'number') {
+				if (isHiddenByCondition(displayOptions, conditionKey, paramValue)) {
+					return true;
+				}
+			}
+		}
 	}
 
 	return false;
