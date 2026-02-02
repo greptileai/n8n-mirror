@@ -16,10 +16,16 @@ import { AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
 import type { StructuredToolInterface } from '@langchain/core/tools';
 import type { Logger } from '@n8n/backend-common';
 import type { INodeTypeDescription } from 'n8n-workflow';
-import { parseWorkflowCodeToBuilder, validateWorkflow } from '@n8n/workflow-sdk';
+import {
+	parseWorkflowCodeToBuilder,
+	validateWorkflow,
+	generateWorkflowCode,
+} from '@n8n/workflow-sdk';
 import type { WorkflowJSON } from '@n8n/workflow-sdk';
 
 import { extractWorkflowCode } from './utils/extract-code';
+import { TextEditorHandler } from './tools/text-editor-handler';
+import type { TextEditorCommand } from './types/text-editor';
 import { NodeTypeParser } from './utils/node-type-parser';
 import { buildCodeBuilderPrompt, type HistoryContext } from './prompts/code-builder';
 import { createCodeBuilderSearchTool } from './tools/code-builder-search.tool';
@@ -37,6 +43,15 @@ import type { EvaluationLogger } from './utils/evaluation-logger';
 
 /** Maximum iterations for the agentic loop to prevent infinite loops */
 const MAX_AGENT_ITERATIONS = 25;
+
+/** Maximum finalize attempts before giving up in text editor mode */
+const MAX_FINALIZE_ATTEMPTS = 3;
+
+/** Native Anthropic text editor tool configuration */
+const TEXT_EDITOR_TOOL = {
+	type: 'text_editor_20250728' as const,
+	name: 'str_replace_based_edit_tool' as const,
+};
 
 /** Claude Sonnet 4.5 pricing per million tokens (USD) */
 const SONNET_4_5_PRICING = {
@@ -101,6 +116,11 @@ export interface CodeBuilderAgentConfig {
 	generatedTypesDir?: string;
 	/** Optional evaluation logger for capturing debug info during evals */
 	evalLogger?: EvaluationLogger;
+	/**
+	 * Enable the text editor tool for targeted code edits.
+	 * If not specified, auto-enabled for Claude 4.x models.
+	 */
+	enableTextEditor?: boolean;
 }
 
 /**
@@ -119,6 +139,7 @@ export class CodeBuilderAgent {
 	private evalLogger?: EvaluationLogger;
 	private tools: StructuredToolInterface[];
 	private toolsMap: Map<string, StructuredToolInterface>;
+	private enableTextEditorConfig?: boolean;
 
 	constructor(config: CodeBuilderAgentConfig) {
 		this.debugLog('CONSTRUCTOR', 'Initializing CodeBuilderAgent...', {
@@ -129,6 +150,7 @@ export class CodeBuilderAgent {
 		this.nodeTypeParser = new NodeTypeParser(config.nodeTypes);
 		this.logger = config.logger;
 		this.evalLogger = config.evalLogger;
+		this.enableTextEditorConfig = config.enableTextEditor;
 
 		// Create tools
 		const searchTool = createCodeBuilderSearchTool(this.nodeTypeParser);
@@ -166,6 +188,53 @@ export class CodeBuilderAgent {
 				console.log(`${prefix} ${message}`);
 			}
 		}
+	}
+
+	/**
+	 * Determine whether to enable the text editor tool.
+	 * Auto-enables for Claude 4.x models if not explicitly configured.
+	 */
+	private shouldEnableTextEditor(): boolean {
+		if (this.enableTextEditorConfig !== undefined) {
+			return this.enableTextEditorConfig;
+		}
+		// Auto-enable for Claude 4.x models (check model name from LLM)
+		const modelName = (this.llm as { modelId?: string }).modelId ?? '';
+		return (
+			modelName.includes('claude-4') ||
+			modelName.includes('opus-4') ||
+			modelName.includes('sonnet-4')
+		);
+	}
+
+	/**
+	 * Extract error context with line numbers for debugging
+	 */
+	private getErrorContext(code: string, errorMessage: string): string {
+		// Try to extract line number from error message (e.g., "at line 5" or "Line 5:")
+		const lineMatch = errorMessage.match(/(?:line|Line)\s*(\d+)/i);
+		if (!lineMatch) {
+			// No line number - show first 10 lines as context
+			const lines = code.split('\n').slice(0, 10);
+			return `Code context:\n${lines.map((l, i) => `${i + 1}: ${l}`).join('\n')}`;
+		}
+
+		const errorLine = parseInt(lineMatch[1], 10);
+		const lines = code.split('\n');
+
+		// Show 3 lines before and after the error line
+		const start = Math.max(0, errorLine - 4);
+		const end = Math.min(lines.length, errorLine + 3);
+		const context = lines
+			.slice(start, end)
+			.map((l, i) => {
+				const lineNum = start + i + 1;
+				const marker = lineNum === errorLine ? '> ' : '  ';
+				return `${marker}${lineNum}: ${l}`;
+			})
+			.join('\n');
+
+		return `Code around line ${errorLine}:\n${context}`;
 	}
 
 	/**
@@ -211,20 +280,31 @@ export class CodeBuilderAgent {
 				});
 			}
 
-			const prompt = buildCodeBuilderPrompt(currentWorkflow, historyContext);
+			// Check if text editor mode should be enabled
+			const textEditorEnabled = this.shouldEnableTextEditor();
+			this.debugLog('CHAT', 'Text editor mode', { textEditorEnabled });
+
+			const prompt = buildCodeBuilderPrompt(currentWorkflow, historyContext, {
+				enableTextEditor: textEditorEnabled,
+			});
 			this.debugLog('CHAT', 'Prompt built successfully', {
 				hasHistoryContext: !!historyContext,
 				historyMessagesCount: historyContext?.userMessages?.length ?? 0,
 				hasPreviousSummary: !!historyContext?.previousSummary,
+				textEditorEnabled,
 			});
 
-			// Bind tools to LLM
+			// Bind tools to LLM (include text editor tool when enabled)
 			this.debugLog('CHAT', 'Binding tools to LLM...');
 			if (!this.llm.bindTools) {
 				throw new Error('LLM does not support bindTools - cannot use tools for node discovery');
 			}
-			const llmWithTools = this.llm.bindTools(this.tools);
-			this.debugLog('CHAT', 'Tools bound to LLM');
+			const toolsToUse = textEditorEnabled ? [...this.tools, TEXT_EDITOR_TOOL] : this.tools;
+			const llmWithTools = this.llm.bindTools(toolsToUse);
+			this.debugLog('CHAT', 'Tools bound to LLM', {
+				toolCount: toolsToUse.length,
+				includesTextEditor: textEditorEnabled,
+			});
 
 			// Format initial messages
 			this.debugLog('CHAT', 'Formatting initial messages...');
@@ -247,6 +327,27 @@ export class CodeBuilderAgent {
 			const generationErrors: StreamGenerationError[] = [];
 			// Track warning codes that have been sent to agent (to avoid repeating)
 			const previousWarningCodes = new Set<string>();
+
+			// Text editor mode state
+			let textEditorHandler: TextEditorHandler | null = null;
+			let textEditorFinalizeAttempts = 0;
+
+			if (textEditorEnabled) {
+				textEditorHandler = new TextEditorHandler();
+
+				// Pre-populate with current workflow from frontend (for iterations/refinements)
+				const hasExistingWorkflow =
+					(currentWorkflow?.nodes?.length ?? 0) > 0 ||
+					Object.keys(currentWorkflow?.connections ?? {}).length > 0;
+
+				if (currentWorkflow && hasExistingWorkflow) {
+					const existingCode = generateWorkflowCode(currentWorkflow);
+					textEditorHandler.setWorkflowCode(existingCode);
+					this.debugLog('CHAT', 'Pre-populated text editor with existing workflow code', {
+						codeLength: existingCode.length,
+					});
+				}
+			}
 
 			while (iteration < MAX_AGENT_ITERATIONS) {
 				if (consecutiveParseErrors >= 3) {
@@ -326,11 +427,65 @@ export class CodeBuilderAgent {
 							this.debugLog('CHAT', 'Skipping tool call without ID', { name: toolCall.name });
 							continue;
 						}
-						yield* this.executeToolCall(
-							{ name: toolCall.name, args: toolCall.args, id: toolCall.id },
-							messages,
+
+						// Handle text editor tool calls separately
+						if (toolCall.name === 'str_replace_based_edit_tool' && textEditorHandler) {
+							const result = yield* this.executeTextEditorToolCall(
+								{ name: toolCall.name, args: toolCall.args, id: toolCall.id },
+								messages,
+								textEditorHandler,
+								{
+									getFinalizeAttempts: () => textEditorFinalizeAttempts,
+									incrementFinalizeAttempts: () => textEditorFinalizeAttempts++,
+									getWorkflow: () => workflow,
+									setWorkflow: (w: WorkflowJSON | null) => {
+										workflow = w;
+									},
+									setSourceCode: (c: string) => {
+										sourceCode = c;
+									},
+									setParseDuration: (d: number) => {
+										parseDuration = d;
+									},
+								},
+								currentWorkflow,
+								generationErrors,
+								iteration,
+							);
+
+							// If finalize succeeded, break the loop
+							if (result?.workflowReady) {
+								this.debugLog('CHAT', 'Text editor finalize succeeded, exiting loop');
+								break;
+							}
+						} else {
+							yield* this.executeToolCall(
+								{ name: toolCall.name, args: toolCall.args, id: toolCall.id },
+								messages,
+							);
+						}
+					}
+
+					// Check if we should exit after text editor finalize
+					if (textEditorEnabled && workflow) {
+						this.debugLog('CHAT', 'Workflow ready from text editor, exiting loop');
+						break;
+					}
+
+					// Check for too many finalize failures in text editor mode
+					if (textEditorEnabled && textEditorFinalizeAttempts >= MAX_FINALIZE_ATTEMPTS) {
+						throw new Error(
+							`Failed to generate valid workflow after ${MAX_FINALIZE_ATTEMPTS} finalize attempts.`,
 						);
 					}
+				} else if (textEditorEnabled) {
+					// In text editor mode, no tool calls without finalize means agent forgot to finalize
+					this.debugLog('CHAT', 'Text editor mode: no tool calls, prompting to finalize');
+					messages.push(
+						new HumanMessage(
+							'Please use the text editor tool to create or edit the workflow code, then call finalize when done.',
+						),
+					);
 				} else {
 					// No tool calls - try to parse as final response
 					this.debugLog('CHAT', 'No tool calls, attempting to parse final response...');
@@ -688,6 +843,174 @@ export class CodeBuilderAgent {
 				],
 			};
 		}
+	}
+
+	/**
+	 * Execute a text editor tool call and yield progress updates
+	 *
+	 * @returns Object with workflowReady flag indicating if finalize succeeded
+	 */
+	private async *executeTextEditorToolCall(
+		toolCall: { name: string; args: Record<string, unknown>; id: string },
+		messages: BaseMessage[],
+		handler: TextEditorHandler,
+		state: {
+			getFinalizeAttempts: () => number;
+			incrementFinalizeAttempts: () => void;
+			getWorkflow: () => WorkflowJSON | null;
+			setWorkflow: (w: WorkflowJSON | null) => void;
+			setSourceCode: (c: string) => void;
+			setParseDuration: (d: number) => void;
+		},
+		currentWorkflow: WorkflowJSON | undefined,
+		generationErrors: StreamGenerationError[],
+		iteration: number,
+	): AsyncGenerator<StreamOutput, { workflowReady: boolean } | undefined, unknown> {
+		const command = toolCall.args as unknown as TextEditorCommand;
+		this.debugLog('TEXT_EDITOR', `Executing text editor command: ${command.command}`, {
+			toolCallId: toolCall.id,
+			command,
+		});
+
+		// Stream tool progress
+		yield {
+			messages: [
+				{
+					type: 'tool',
+					toolName: 'text_editor',
+					status: 'running',
+					args: toolCall.args,
+				} as ToolProgressChunk,
+			],
+		};
+
+		// Handle finalize separately - triggers validation
+		if (command.command === 'finalize') {
+			state.incrementFinalizeAttempts();
+			const code = handler.getWorkflowCode();
+
+			if (!code) {
+				messages.push(
+					new ToolMessage({
+						tool_call_id: toolCall.id,
+						content: 'Error: No workflow code to finalize. Use create first.',
+					}),
+				);
+				yield {
+					messages: [
+						{ type: 'tool', toolName: 'text_editor', status: 'completed' } as ToolProgressChunk,
+					],
+				};
+				return { workflowReady: false };
+			}
+
+			const parseStartTime = Date.now();
+			try {
+				const result = await this.parseAndValidate(code, currentWorkflow);
+				state.setParseDuration(Date.now() - parseStartTime);
+				state.setSourceCode(code);
+
+				if (result.warnings.length > 0) {
+					const warningText = result.warnings.map((w) => `- [${w.code}] ${w.message}`).join('\n');
+					const errorContext = this.getErrorContext(code, result.warnings[0].message);
+
+					// Track as generation error
+					generationErrors.push({
+						message: `Validation warnings:\n${warningText}`,
+						code,
+						iteration,
+						type: 'validation',
+					});
+
+					messages.push(
+						new ToolMessage({
+							tool_call_id: toolCall.id,
+							content: `Validation warnings:\n${warningText}\n\n${errorContext}\n\nUse str_replace to fix, then finalize again.`,
+						}),
+					);
+					state.setWorkflow(null);
+					yield {
+						messages: [
+							{ type: 'tool', toolName: 'text_editor', status: 'completed' } as ToolProgressChunk,
+						],
+					};
+					return { workflowReady: false };
+				}
+
+				// Success - workflow validated
+				state.setWorkflow(result.workflow);
+				messages.push(
+					new ToolMessage({
+						tool_call_id: toolCall.id,
+						content: 'Workflow validated successfully.',
+					}),
+				);
+				this.debugLog('TEXT_EDITOR', 'Workflow finalized successfully', {
+					nodeCount: result.workflow.nodes.length,
+				});
+				yield {
+					messages: [
+						{ type: 'tool', toolName: 'text_editor', status: 'completed' } as ToolProgressChunk,
+					],
+				};
+				return { workflowReady: true };
+			} catch (error) {
+				state.setParseDuration(Date.now() - parseStartTime);
+				const errorMessage = error instanceof Error ? error.message : String(error);
+				const errorContext = this.getErrorContext(code, errorMessage);
+
+				// Track the generation error
+				generationErrors.push({
+					message: errorMessage,
+					code,
+					iteration,
+					type: 'parse',
+				});
+
+				messages.push(
+					new ToolMessage({
+						tool_call_id: toolCall.id,
+						content: `Parse error: ${errorMessage}\n\n${errorContext}\n\nUse str_replace to fix, then finalize again.`,
+					}),
+				);
+				yield {
+					messages: [
+						{ type: 'tool', toolName: 'text_editor', status: 'completed' } as ToolProgressChunk,
+					],
+				};
+				return { workflowReady: false };
+			}
+		}
+
+		// Execute non-finalize commands (view, create, str_replace, insert)
+		try {
+			const result = handler.execute(command);
+			messages.push(
+				new ToolMessage({
+					tool_call_id: toolCall.id,
+					content: result,
+				}),
+			);
+			this.debugLog('TEXT_EDITOR', `Command ${command.command} executed successfully`, {
+				result,
+			});
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			messages.push(
+				new ToolMessage({
+					tool_call_id: toolCall.id,
+					content: `Error: ${errorMessage}`,
+				}),
+			);
+			this.debugLog('TEXT_EDITOR', `Command ${command.command} failed`, { error: errorMessage });
+		}
+
+		yield {
+			messages: [
+				{ type: 'tool', toolName: 'text_editor', status: 'completed' } as ToolProgressChunk,
+			],
+		};
+		return undefined;
 	}
 
 	/**
