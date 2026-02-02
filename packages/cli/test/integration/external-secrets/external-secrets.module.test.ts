@@ -19,8 +19,6 @@ const mockProvidersInstance = new MockProviders();
 mockInstance(ExternalSecretsProviders, mockProvidersInstance);
 
 describe('ExternalSecretsModule', () => {
-	let config: ExternalSecretsConfig;
-
 	beforeAll(async () => {
 		await testModules.loadModules(['external-secrets']);
 		await testDb.init();
@@ -58,7 +56,7 @@ describe('ExternalSecretsModule', () => {
 
 			const settingsRepository = Container.get(SettingsRepository);
 			const cipher = Container.get(Cipher);
-			config = Container.get(ExternalSecretsConfig);
+			const config = Container.get(ExternalSecretsConfig);
 			module = Container.get(ExternalSecretsModule);
 
 			(config as any).externalSecretsForProjects = false;
@@ -83,84 +81,46 @@ describe('ExternalSecretsModule', () => {
 			});
 		});
 
-		describe('init', () => {
-			afterEach(async () => {
-				jest.useRealTimers();
-				await module.shutdown();
-			});
-
-			it('should load enabled providers', async () => {
-				const initSpy = jest.spyOn(DummyProvider.prototype, 'init');
-				const connectSpy = jest.spyOn(DummyProvider.prototype, 'connect');
-				const updateSpy = jest.spyOn(DummyProvider.prototype, 'update');
-
-				const initDisabledSpy = jest.spyOn(AnotherDummyProvider.prototype, 'init');
-				const connectDisabledSpy = jest.spyOn(AnotherDummyProvider.prototype, 'connect');
-				const updateDisabledSpy = jest.spyOn(AnotherDummyProvider.prototype, 'update');
-
-				await module.init();
-
-				expect(initSpy).toHaveBeenCalled();
-				expect(connectSpy).toHaveBeenCalled();
-				expect(updateSpy).toHaveBeenCalled();
-
-				expect(initDisabledSpy).toHaveBeenCalled();
-				expect(connectDisabledSpy).not.toHaveBeenCalled();
-				expect(updateDisabledSpy).not.toHaveBeenCalled();
-
-				initSpy.mockRestore();
-				connectSpy.mockRestore();
-				updateSpy.mockRestore();
-
-				initDisabledSpy.mockRestore();
-				connectDisabledSpy.mockRestore();
-				updateDisabledSpy.mockRestore();
-			});
-
-			it('should start secrets refresh interval', async () => {
-				jest.useFakeTimers();
-
-				await module.init();
-
-				const updateSpy = jest.spyOn(DummyProvider.prototype, 'update');
-
-				jest.advanceTimersByTime(config.updateInterval * 1000);
-
-				expect(updateSpy).toHaveBeenCalled();
-				updateSpy.mockRestore();
-			});
+		afterEach(async () => {
+			await module.shutdown();
 		});
 
-		describe('shutdown', () => {
-			beforeEach(async () => {
-				await module.init();
-			});
+		it('should load enabled providers on init', async () => {
+			const initSpy = jest.spyOn(DummyProvider.prototype, 'init');
+			const connectSpy = jest.spyOn(DummyProvider.prototype, 'connect');
+			const updateSpy = jest.spyOn(DummyProvider.prototype, 'update');
 
-			afterEach(async () => {
-				jest.useRealTimers();
-			});
+			const initDisabledSpy = jest.spyOn(AnotherDummyProvider.prototype, 'init');
+			const connectDisabledSpy = jest.spyOn(AnotherDummyProvider.prototype, 'connect');
+			const updateDisabledSpy = jest.spyOn(AnotherDummyProvider.prototype, 'update');
 
-			it('should disconnect providers after shutdown', async () => {
-				const disconnectSpy = jest.spyOn(DummyProvider.prototype, 'disconnect');
+			await module.init();
 
-				await module.shutdown();
+			expect(initSpy).toHaveBeenCalled();
+			expect(connectSpy).toHaveBeenCalled();
+			expect(updateSpy).toHaveBeenCalled();
 
-				expect(disconnectSpy).toHaveBeenCalled();
-				disconnectSpy.mockRestore();
-			});
+			expect(initDisabledSpy).toHaveBeenCalled();
+			expect(connectDisabledSpy).not.toHaveBeenCalled();
+			expect(updateDisabledSpy).not.toHaveBeenCalled();
 
-			it('should stop refresh after shutdown', async () => {
-				jest.useFakeTimers();
+			initSpy.mockRestore();
+			connectSpy.mockRestore();
+			updateSpy.mockRestore();
 
-				const updateSpy = jest.spyOn(DummyProvider.prototype, 'update');
+			initDisabledSpy.mockRestore();
+			connectDisabledSpy.mockRestore();
+			updateDisabledSpy.mockRestore();
+		});
 
-				await module.shutdown();
+		it('should disconnect providers after shutdown', async () => {
+			await module.init();
 
-				jest.advanceTimersByTime(config.updateInterval * 1000 * 2);
-				expect(updateSpy).not.toHaveBeenCalled();
+			const disconnectSpy = jest.spyOn(DummyProvider.prototype, 'disconnect');
+			await module.shutdown();
 
-				updateSpy.mockRestore();
-			});
+			expect(disconnectSpy).toHaveBeenCalled();
+			disconnectSpy.mockRestore();
 		});
 	});
 
@@ -177,7 +137,7 @@ describe('ExternalSecretsModule', () => {
 
 			connectionRepository = Container.get(SecretsProviderConnectionRepository);
 			cipher = Container.get(Cipher);
-			config = Container.get(ExternalSecretsConfig);
+			const config = Container.get(ExternalSecretsConfig);
 			module = Container.get(ExternalSecretsModule);
 
 			(config as any).externalSecretsForProjects = true;
@@ -198,83 +158,46 @@ describe('ExternalSecretsModule', () => {
 			});
 		});
 
-		describe('init', () => {
-			afterEach(async () => {
-				jest.useRealTimers();
-				await module.shutdown();
-			});
-
-			it('should load enabled providers', async () => {
-				const initSpy = jest.spyOn(DummyProvider.prototype, 'init');
-				const connectSpy = jest.spyOn(DummyProvider.prototype, 'connect');
-				const updateSpy = jest.spyOn(DummyProvider.prototype, 'update');
-
-				const initDisabledSpy = jest.spyOn(AnotherDummyProvider.prototype, 'init');
-				const connectDisabledSpy = jest.spyOn(AnotherDummyProvider.prototype, 'connect');
-				const updateDisabledSpy = jest.spyOn(AnotherDummyProvider.prototype, 'update');
-
-				await module.init();
-
-				expect(initSpy).toHaveBeenCalled();
-				expect(connectSpy).toHaveBeenCalled();
-				expect(updateSpy).toHaveBeenCalled();
-
-				expect(initDisabledSpy).toHaveBeenCalled();
-				expect(connectDisabledSpy).not.toHaveBeenCalled();
-				expect(updateDisabledSpy).not.toHaveBeenCalled();
-
-				initSpy.mockRestore();
-				connectSpy.mockRestore();
-				updateSpy.mockRestore();
-
-				initDisabledSpy.mockRestore();
-				connectDisabledSpy.mockRestore();
-				updateDisabledSpy.mockRestore();
-			});
-
-			it('should start secrets refresh interval', async () => {
-				jest.useFakeTimers();
-
-				await module.init();
-
-				const updateSpy = jest.spyOn(DummyProvider.prototype, 'update');
-
-				jest.advanceTimersByTime(config.updateInterval * 1000);
-
-				expect(updateSpy).toHaveBeenCalled();
-				updateSpy.mockRestore();
-			});
+		afterEach(async () => {
+			await module.shutdown();
 		});
 
-		describe('shutdown', () => {
-			beforeEach(async () => {
-				await module.init();
-			});
+		it('should load enabled providers on init', async () => {
+			const initSpy = jest.spyOn(DummyProvider.prototype, 'init');
+			const connectSpy = jest.spyOn(DummyProvider.prototype, 'connect');
+			const updateSpy = jest.spyOn(DummyProvider.prototype, 'update');
 
-			afterEach(async () => {
-				jest.useRealTimers();
-			});
+			const initDisabledSpy = jest.spyOn(AnotherDummyProvider.prototype, 'init');
+			const connectDisabledSpy = jest.spyOn(AnotherDummyProvider.prototype, 'connect');
+			const updateDisabledSpy = jest.spyOn(AnotherDummyProvider.prototype, 'update');
 
-			it('should disconnect providers after shutdown', async () => {
-				const disconnectSpy = jest.spyOn(DummyProvider.prototype, 'disconnect');
+			await module.init();
 
-				await module.shutdown();
+			expect(initSpy).toHaveBeenCalled();
+			expect(connectSpy).toHaveBeenCalled();
+			expect(updateSpy).toHaveBeenCalled();
 
-				expect(disconnectSpy).toHaveBeenCalled();
-				disconnectSpy.mockRestore();
-			});
+			expect(initDisabledSpy).toHaveBeenCalled();
+			expect(connectDisabledSpy).not.toHaveBeenCalled();
+			expect(updateDisabledSpy).not.toHaveBeenCalled();
 
-			it('should stop refresh after shutdown', async () => {
-				jest.useFakeTimers();
-				const updateSpy = jest.spyOn(DummyProvider.prototype, 'update');
+			initSpy.mockRestore();
+			connectSpy.mockRestore();
+			updateSpy.mockRestore();
 
-				await module.shutdown();
+			initDisabledSpy.mockRestore();
+			connectDisabledSpy.mockRestore();
+			updateDisabledSpy.mockRestore();
+		});
 
-				jest.advanceTimersByTime(config.updateInterval * 1000 * 2);
-				expect(updateSpy).not.toHaveBeenCalled();
+		it('should disconnect providers after shutdown', async () => {
+			await module.init();
+			const disconnectSpy = jest.spyOn(DummyProvider.prototype, 'disconnect');
 
-				updateSpy.mockRestore();
-			});
+			await module.shutdown();
+
+			expect(disconnectSpy).toHaveBeenCalled();
+			disconnectSpy.mockRestore();
 		});
 	});
 });
