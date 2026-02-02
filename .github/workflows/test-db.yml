@@ -11,6 +11,7 @@ on:
       - packages/cli/src/modules/**/*.entity.ts
       - packages/cli/src/modules/**/*.repository.ts
       - packages/cli/test/integration/**
+      - packages/cli/test/migration/**
       - packages/cli/test/shared/db/**
       - packages/@n8n/db/**
       - packages/cli/**/__tests__/**
