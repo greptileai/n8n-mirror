@@ -9,11 +9,11 @@ import type { INodeTypeDescription } from 'n8n-workflow';
 import pLimit from 'p-limit';
 
 import type { SimpleWorkflow } from '@/types/workflow';
-import { extractLastTokenUsage } from '@/utils/token-usage';
 import type { BuilderFeatureFlags } from '@/workflow-builder-agent';
 
 import { createLogger } from '../harness/logger';
 import type { TokenUsageCollector } from '../harness/runner';
+import { TokenUsageTrackingHandler } from '../harness/token-tracking-handler';
 import {
 	runEvaluation,
 	createConsoleLifecycle,
@@ -67,6 +67,10 @@ function createWorkflowGenerator(
 			featureFlags,
 		});
 
+		// Create token tracking handler to capture usage from all LLM calls
+		// (supervisor, discovery, builder, responder agents)
+		const tokenTracker = tokenUsageCollector ? new TokenUsageTrackingHandler() : undefined;
+
 		await consumeGenerator(
 			agent.chat(
 				getChatPayload({
@@ -77,6 +81,7 @@ function createWorkflowGenerator(
 				}),
 				EVAL_USERS.LANGSMITH,
 				undefined, // abortSignal
+				tokenTracker ? [tokenTracker] : undefined, // externalCallbacks
 			),
 		);
 
@@ -86,15 +91,11 @@ function createWorkflowGenerator(
 			throw new Error('Invalid workflow state: workflow or messages missing');
 		}
 
-		// Report token usage if collector provided
-		if (tokenUsageCollector && state.values && 'messages' in state.values) {
-			const messages = state.values.messages as unknown[];
-			const usage = extractLastTokenUsage(messages);
-			if (usage) {
-				tokenUsageCollector({
-					inputTokens: usage.input_tokens,
-					outputTokens: usage.output_tokens,
-				});
+		// Report accumulated token usage from all agents
+		if (tokenUsageCollector && tokenTracker) {
+			const usage = tokenTracker.getUsage();
+			if (usage.inputTokens > 0 || usage.outputTokens > 0) {
+				tokenUsageCollector(usage);
 			}
 		}
 

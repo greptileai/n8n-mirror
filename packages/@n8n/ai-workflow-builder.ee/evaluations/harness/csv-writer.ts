@@ -30,6 +30,19 @@ const LLM_JUDGE_METRICS = [
 ] as const;
 
 /**
+ * Pairwise evaluator metrics.
+ */
+const PAIRWISE_METRICS = [
+	'pairwise_primary',
+	'pairwise_diagnostic',
+	'pairwise_judges_passed',
+	'pairwise_total_passes',
+	'pairwise_total_violations',
+] as const;
+
+type EvaluationSuite = 'llm-judge' | 'pairwise' | 'unknown';
+
+/**
  * Escape a value for CSV output.
  * Wraps in quotes if contains comma, quote, or newline.
  */
@@ -43,28 +56,52 @@ function escapeCsvValue(value: string | number | undefined): string {
 }
 
 /**
- * Extract the detail text from feedback for a given metric.
- * Returns semicolon-separated violation text.
+ * Detect the evaluation suite from feedback.
  */
-function extractMetricDetail(feedback: Feedback[], metric: string): string {
-	const item = feedback.find(
-		(f) => f.evaluator === 'llm-judge' && f.metric === metric && f.comment,
-	);
+function detectSuite(feedback: Feedback[]): EvaluationSuite {
+	if (feedback.some((f) => f.evaluator === 'llm-judge')) {
+		return 'llm-judge';
+	}
+	if (feedback.some((f) => f.evaluator === 'pairwise')) {
+		return 'pairwise';
+	}
+	return 'unknown';
+}
+
+/**
+ * Extract the detail text from feedback for a given evaluator and metric.
+ */
+function extractMetricDetail(feedback: Feedback[], evaluator: string, metric: string): string {
+	const item = feedback.find((f) => f.evaluator === evaluator && f.metric === metric && f.comment);
 	return item?.comment ?? '';
 }
 
 /**
- * Extract the score for a given metric.
+ * Extract the score for a given evaluator and metric.
  */
-function extractMetricScore(feedback: Feedback[], metric: string): number | undefined {
-	const item = feedback.find((f) => f.evaluator === 'llm-judge' && f.metric === metric);
+function extractMetricScore(
+	feedback: Feedback[],
+	evaluator: string,
+	metric: string,
+): number | undefined {
+	const item = feedback.find((f) => f.evaluator === evaluator && f.metric === metric);
 	return item?.score;
 }
 
 /**
- * Build a CSV row from an ExampleResult.
+ * Get the number of judges used in pairwise evaluation.
  */
-function buildCsvRow(result: ExampleResult): string[] {
+function getJudgeCount(feedback: Feedback[]): number {
+	const judgeMetrics = feedback.filter(
+		(f) => f.evaluator === 'pairwise' && f.metric.startsWith('judge'),
+	);
+	return judgeMetrics.length;
+}
+
+/**
+ * Build CSV row for LLM Judge suite.
+ */
+function buildLlmJudgeRow(result: ExampleResult): string[] {
 	const row: string[] = [];
 
 	// Fixed columns
@@ -75,19 +112,48 @@ function buildCsvRow(result: ExampleResult): string[] {
 	row.push(escapeCsvValue(result.generationInputTokens));
 	row.push(escapeCsvValue(result.generationOutputTokens));
 
-	// Metric columns (score + detail pairs)
+	// LLM Judge metric columns (score + detail pairs)
 	for (const metric of LLM_JUDGE_METRICS) {
-		row.push(escapeCsvValue(extractMetricScore(result.feedback, metric)));
-		row.push(escapeCsvValue(extractMetricDetail(result.feedback, metric)));
+		row.push(escapeCsvValue(extractMetricScore(result.feedback, 'llm-judge', metric)));
+		row.push(escapeCsvValue(extractMetricDetail(result.feedback, 'llm-judge', metric)));
 	}
 
 	return row;
 }
 
 /**
- * Build the CSV header row.
+ * Build CSV row for Pairwise suite.
  */
-function buildCsvHeader(): string[] {
+function buildPairwiseRow(result: ExampleResult, judgeCount: number): string[] {
+	const row: string[] = [];
+
+	// Fixed columns
+	row.push(escapeCsvValue(result.prompt));
+	row.push(escapeCsvValue(result.score));
+	row.push(escapeCsvValue(result.status));
+	row.push(escapeCsvValue(result.generationDurationMs));
+	row.push(escapeCsvValue(result.generationInputTokens));
+	row.push(escapeCsvValue(result.generationOutputTokens));
+
+	// Pairwise metrics (scores only, no detail)
+	for (const metric of PAIRWISE_METRICS) {
+		row.push(escapeCsvValue(extractMetricScore(result.feedback, 'pairwise', metric)));
+	}
+
+	// Individual judge results (score + violation detail)
+	for (let i = 1; i <= judgeCount; i++) {
+		const judgeMetric = `judge${i}`;
+		row.push(escapeCsvValue(extractMetricScore(result.feedback, 'pairwise', judgeMetric)));
+		row.push(escapeCsvValue(extractMetricDetail(result.feedback, 'pairwise', judgeMetric)));
+	}
+
+	return row;
+}
+
+/**
+ * Build CSV header for LLM Judge suite.
+ */
+function buildLlmJudgeHeader(): string[] {
 	const header: string[] = [...FIXED_COLUMNS];
 
 	for (const metric of LLM_JUDGE_METRICS) {
@@ -99,21 +165,65 @@ function buildCsvHeader(): string[] {
 }
 
 /**
+ * Build CSV header for Pairwise suite.
+ */
+function buildPairwiseHeader(judgeCount: number): string[] {
+	const header: string[] = [...FIXED_COLUMNS];
+
+	// Pairwise metrics
+	for (const metric of PAIRWISE_METRICS) {
+		header.push(metric);
+	}
+
+	// Individual judge columns
+	for (let i = 1; i <= judgeCount; i++) {
+		header.push(`judge${i}`);
+		header.push(`judge${i}_detail`);
+	}
+
+	return header;
+}
+
+/**
  * Write evaluation results to a CSV file.
  * Results are sorted by prompt for consistent ordering across runs.
+ * Automatically detects evaluation suite (llm-judge or pairwise) and formats accordingly.
  */
 export function writeResultsCsv(results: ExampleResult[], outputPath: string): void {
+	if (results.length === 0) {
+		writeFileSync(outputPath, '', 'utf-8');
+		return;
+	}
+
 	// Sort by prompt for consistent ordering
 	const sorted = [...results].sort((a, b) => a.prompt.localeCompare(b.prompt));
 
+	// Detect suite from first result with feedback
+	const firstWithFeedback = sorted.find((r) => r.feedback.length > 0);
+	const suite = firstWithFeedback ? detectSuite(firstWithFeedback.feedback) : 'unknown';
+
 	const lines: string[] = [];
 
-	// Header
-	lines.push(buildCsvHeader().join(','));
+	if (suite === 'pairwise') {
+		// Determine max judge count across all results
+		const judgeCount = Math.max(...sorted.map((r) => getJudgeCount(r.feedback)), 0);
 
-	// Data rows
-	for (const result of sorted) {
-		lines.push(buildCsvRow(result).join(','));
+		// Header
+		lines.push(buildPairwiseHeader(judgeCount).join(','));
+
+		// Data rows
+		for (const result of sorted) {
+			lines.push(buildPairwiseRow(result, judgeCount).join(','));
+		}
+	} else {
+		// Default to LLM Judge format (also handles unknown)
+		// Header
+		lines.push(buildLlmJudgeHeader().join(','));
+
+		// Data rows
+		for (const result of sorted) {
+			lines.push(buildLlmJudgeRow(result).join(','));
+		}
 	}
 
 	// Write file (overwrites if exists)

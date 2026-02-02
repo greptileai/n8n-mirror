@@ -122,4 +122,104 @@ describe('writeResultsCsv', () => {
 		// Should escape the prompt value containing newline
 		expect(content).toContain('"Workflow with\nnewline"');
 	});
+
+	it('writes pairwise evaluation results with correct columns', () => {
+		const results: ExampleResult[] = [
+			{
+				index: 1,
+				prompt: 'Test pairwise workflow',
+				status: 'fail',
+				score: 0.5,
+				feedback: [
+					{
+						evaluator: 'pairwise',
+						metric: 'pairwise_primary',
+						score: 0,
+						kind: 'score',
+						comment: '0/3 judges passed',
+					},
+					{
+						evaluator: 'pairwise',
+						metric: 'pairwise_diagnostic',
+						score: 0.67,
+						kind: 'metric',
+					},
+					{
+						evaluator: 'pairwise',
+						metric: 'pairwise_judges_passed',
+						score: 0,
+						kind: 'detail',
+					},
+					{
+						evaluator: 'pairwise',
+						metric: 'pairwise_total_passes',
+						score: 6,
+						kind: 'detail',
+					},
+					{
+						evaluator: 'pairwise',
+						metric: 'pairwise_total_violations',
+						score: 3,
+						kind: 'detail',
+					},
+					{
+						evaluator: 'pairwise',
+						metric: 'judge1',
+						score: 0,
+						kind: 'detail',
+						comment: '[Spec violation] Missing required field',
+					},
+					{
+						evaluator: 'pairwise',
+						metric: 'judge2',
+						score: 1,
+						kind: 'detail',
+						comment: '',
+					},
+					{
+						evaluator: 'pairwise',
+						metric: 'judge3',
+						score: 0,
+						kind: 'detail',
+						comment: '[Spec violation] Wrong parameter value',
+					},
+				],
+				durationMs: 5000,
+				generationDurationMs: 3000,
+				generationInputTokens: 1000,
+				generationOutputTokens: 500,
+			},
+		];
+
+		const outputPath = join(tempDir, 'pairwise-results.csv');
+		writeResultsCsv(results, outputPath);
+
+		const content = readFileSync(outputPath, 'utf-8');
+		const lines = content.trim().split('\n');
+
+		// Check header has pairwise columns
+		expect(lines[0]).toContain('prompt,overall_score,status,gen_latency_ms');
+		expect(lines[0]).toContain('pairwise_primary');
+		expect(lines[0]).toContain('pairwise_diagnostic');
+		expect(lines[0]).toContain('pairwise_judges_passed');
+		expect(lines[0]).toContain('pairwise_total_passes');
+		expect(lines[0]).toContain('pairwise_total_violations');
+		expect(lines[0]).toContain('judge1,judge1_detail');
+		expect(lines[0]).toContain('judge2,judge2_detail');
+		expect(lines[0]).toContain('judge3,judge3_detail');
+
+		// Check data row contains judge violation details
+		expect(lines[1]).toContain('[Spec violation] Missing required field');
+		expect(lines[1]).toContain('[Spec violation] Wrong parameter value');
+	});
+
+	it('handles empty results array', () => {
+		const results: ExampleResult[] = [];
+
+		const outputPath = join(tempDir, 'empty-results.csv');
+		writeResultsCsv(results, outputPath);
+
+		const content = readFileSync(outputPath, 'utf-8');
+		expect(content).toBe('');
+	});
 });
