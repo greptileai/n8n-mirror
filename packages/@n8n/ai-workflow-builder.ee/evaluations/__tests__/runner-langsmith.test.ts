@@ -175,7 +175,7 @@ describe('Runner - LangSmith Mode', () => {
 			if (!isLangsmithTargetOutput(result)) throw new Error('Expected LangSmith target output');
 
 			// Callbacks are passed explicitly from the traceable wrapper (undefined in tests without traceable context)
-			expect(generateWorkflow).toHaveBeenCalledWith('Create a workflow', undefined);
+			expect(generateWorkflow).toHaveBeenCalledWith('Create a workflow', expect.any(Function));
 			expect(evaluator.evaluate).toHaveBeenCalledWith(
 				workflow,
 				expect.objectContaining({ prompt: 'Create a workflow' }),

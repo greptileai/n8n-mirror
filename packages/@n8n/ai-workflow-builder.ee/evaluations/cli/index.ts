@@ -5,15 +5,15 @@
  * Can be run directly or used as a reference for custom setups.
  */
 
-import type { Callbacks } from '@langchain/core/callbacks/manager';
 import type { INodeTypeDescription } from 'n8n-workflow';
 import pLimit from 'p-limit';
 
 import type { SimpleWorkflow } from '@/types/workflow';
+import { extractLastTokenUsage } from '@/utils/token-usage';
 import type { BuilderFeatureFlags } from '@/workflow-builder-agent';
 
-import { consumeGenerator, getChatPayload } from '../harness/evaluation-helpers';
 import { createLogger } from '../harness/logger';
+import type { TokenUsageCollector } from '../harness/runner';
 import {
 	runEvaluation,
 	createConsoleLifecycle,
@@ -39,6 +39,7 @@ import {
 	getDefaultTestCaseIds,
 } from './csv-prompt-loader';
 import { sendWebhookNotification } from './webhook';
+import { consumeGenerator, getChatPayload } from '../harness/evaluation-helpers';
 import { generateRunId, isWorkflowStateValues } from '../langsmith/types';
 import { EVAL_TYPES, EVAL_USERS } from '../support/constants';
 import { setupTestEnvironment, createAgent, type ResolvedStageLLMs } from '../support/environment';
@@ -53,8 +54,11 @@ function createWorkflowGenerator(
 	parsedNodeTypes: INodeTypeDescription[],
 	llms: ResolvedStageLLMs,
 	featureFlags?: BuilderFeatureFlags,
-): (prompt: string, callbacks?: Callbacks) => Promise<SimpleWorkflow> {
-	return async (prompt: string, callbacks?: Callbacks): Promise<SimpleWorkflow> => {
+): (prompt: string, tokenUsageCollector?: TokenUsageCollector) => Promise<SimpleWorkflow> {
+	return async (
+		prompt: string,
+		tokenUsageCollector?: TokenUsageCollector,
+	): Promise<SimpleWorkflow> => {
 		const runId = generateRunId();
 
 		const agent = createAgent({
@@ -73,7 +77,6 @@ function createWorkflowGenerator(
 				}),
 				EVAL_USERS.LANGSMITH,
 				undefined, // abortSignal
-				callbacks,
 			),
 		);
 
@@ -81,6 +84,18 @@ function createWorkflowGenerator(
 
 		if (!state.values || !isWorkflowStateValues(state.values)) {
 			throw new Error('Invalid workflow state: workflow or messages missing');
+		}
+
+		// Report token usage if collector provided
+		if (tokenUsageCollector && state.values && 'messages' in state.values) {
+			const messages = state.values.messages as unknown[];
+			const usage = extractLastTokenUsage(messages);
+			if (usage) {
+				tokenUsageCollector({
+					inputTokens: usage.input_tokens,
+					outputTokens: usage.output_tokens,
+				});
+			}
 		}
 
 		return state.values.workflowJSON;

@@ -2,6 +2,7 @@ import type { Client as LangsmithClient } from 'langsmith/client';
 import type pLimit from 'p-limit';
 
 import type { EvalLogger } from './logger.js';
+import type { TokenUsageCollector } from './runner.js';
 import type { SimpleWorkflow } from '../../src/types/workflow.js';
 
 export type LlmCallLimiter = ReturnType<typeof pLimit>;
@@ -99,8 +100,11 @@ export interface TestCase {
  * Configuration for an evaluation run.
  */
 export interface RunConfigBase {
-	/** Function to generate workflow from prompt */
-	generateWorkflow: (prompt: string) => Promise<SimpleWorkflow>;
+	/** Function to generate workflow from prompt. Optional tokenUsageCollector receives token counts. */
+	generateWorkflow: (
+		prompt: string,
+		tokenUsageCollector?: TokenUsageCollector,
+	) => Promise<SimpleWorkflow>;
 	/** Evaluators to run on each generated workflow */
 	evaluators: Array<Evaluator<EvaluationContext>>;
 	/** Global context available to all evaluators */
