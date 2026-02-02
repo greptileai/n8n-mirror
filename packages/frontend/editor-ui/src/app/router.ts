@@ -74,8 +74,19 @@ const SignoutView = async () => await import('@/features/core/auth/views/Signout
 const SamlOnboarding = async () => await import('@/features/settings/sso/views/SamlOnboarding.vue');
 const SettingsSourceControl = async () =>
 	await import('@/features/integrations/sourceControl.ee/views/SettingsSourceControl.vue');
-const SettingsExternalSecrets = async () =>
-	await import('@/features/integrations/externalSecrets.ee/views/SettingsExternalSecrets.vue');
+const SettingsExternalSecrets = async () => {
+	const { check } = useEnvFeatureFlag();
+
+	if (check.value('EXTERNAL_SECRETS_FOR_PROJECTS')) {
+		return await import(
+			'@/features/integrations/secretsProviders.ee/views/SettingsSecretsProviders.ee.vue'
+		);
+	}
+
+	return await import(
+		'@/features/integrations/externalSecrets.ee/views/SettingsExternalSecrets.vue'
+	);
+};
 const WorkerView = async () =>
 	await import('@/features/settings/orchestration.ee/views/WorkerView.vue');
 const WorkflowHistory = async () =>
@@ -87,6 +98,7 @@ const TestRunDetailView = async () =>
 	await import('@/features/ai/evaluation.ee/views/TestRunDetailView.vue');
 const EvaluationRootView = async () =>
 	await import('@/features/ai/evaluation.ee/views/EvaluationsRootView.vue');
+const SettingsAIView = async () => await import('@/features/ai/assistant/views/SettingsAIView.vue');
 const ResourceCenterView = async () =>
 	await import('@/experiments/resourceCenter/views/ResourceCenterView.vue');
 const ResourceCenterSectionView = async () =>
@@ -602,6 +614,31 @@ export const routes: RouteRecordRaw[] = [
 						getProperties() {
 							return {
 								feature: 'users',
+							};
+						},
+					},
+				},
+			},
+			{
+				path: 'ai',
+				name: VIEWS.AI_SETTINGS,
+				component: SettingsAIView,
+				meta: {
+					middleware: ['authenticated', 'rbac', 'custom'],
+					middlewareOptions: {
+						rbac: {
+							scope: 'aiAssistant:manage',
+						},
+						custom: () => {
+							const settingsStore = useSettingsStore();
+							return settingsStore.isAiAssistantEnabled || settingsStore.isAskAiEnabled;
+						},
+					},
+					telemetry: {
+						pageCategory: 'settings',
+						getProperties() {
+							return {
+								feature: 'assistant',
 							};
 						},
 					},
