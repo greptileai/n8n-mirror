@@ -324,12 +324,16 @@ describe('FolderRepository', () => {
 			let testFolder: Folder;
 
 			beforeEach(async () => {
-				const parentFolder = await createFolder(project, { name: 'Parent Folder' });
+				const parentFolder = await createFolder(project, {
+					name: 'Parent Folder',
+					updatedAt: DateTime.now().minus({ minutes: 1 }).toJSDate(),
+				});
 				const tag = await createTag({ name: 'test-tag' });
 				testFolder = await createFolder(project, {
 					name: 'Test Folder',
 					parentFolder,
 					tags: [tag],
+					updatedAt: DateTime.now().toJSDate(),
 				});
 				await createWorkflow({ parentFolder: testFolder });
 			});
