@@ -278,7 +278,7 @@ export interface N8nOpenAICompatibleModelOptions {
 
 /**
  * For models with non-OpenAI APIs.
- * Community must implement the invoke/stream methods.
+ * Only `invoke` is required. Streaming is optional.
  */
 export interface N8nCustomChatModelOptions {
   type: 'custom';
@@ -286,13 +286,13 @@ export interface N8nCustomChatModelOptions {
   // Model identifier
   name: string;
   
-  // Required: implement model logic
+  // Required: core model logic
   invoke: (
     messages: N8nMessage[],
     options?: N8nInvokeOptions
   ) => Promise<N8nAiMessage>;
   
-  // Optional: streaming support
+  // Optional: streaming support (for real-time token display in chat UI)
   stream?: (
     messages: N8nMessage[],
     options?: N8nInvokeOptions
@@ -574,7 +574,7 @@ export class MemoryRedis implements INodeType {
 
 ### Example 2: Custom Chat Model (Community-Compatible)
 
-This example shows creating a chat model for a custom API endpoint. Uses only `fetch()` so it works for both internal and community nodes.
+This example shows creating a chat model for a custom API endpoint. Uses `this.helpers.httpRequest()` so it works for both internal and community nodes.
 
 ```typescript
 // nodes/LmChatCustomProvider/LmChatCustomProvider.node.ts
@@ -656,23 +656,22 @@ export class LmChatCustomProvider implements INodeType {
       name: modelName,
 
       invoke: async (messages: N8nMessage[]): Promise<N8nAiMessage> => {
-        const response = await fetch(`${baseUrl}/v1/chat`, {
+        // Use n8n's httpRequest helper for better proxy/retry handling
+        const data = await this.helpers.httpRequest({
           method: 'POST',
+          url: `${baseUrl}/v1/chat`,
           headers: {
             'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
+          body: {
             model: modelName,
             messages: messages.map((m) => ({
               role: m.role,
               content: m.content,
             })),
             temperature,
-          }),
+          },
         });
-
-        const data = await response.json();
         
         return {
           role: 'ai',
@@ -685,41 +684,11 @@ export class LmChatCustomProvider implements INodeType {
         };
       },
 
+      // Optional: streaming support
       stream: async function* (messages: N8nMessage[]): AsyncGenerator<N8nStreamChunk> {
-        const response = await fetch(`${baseUrl}/v1/chat`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: modelName,
-            messages: messages.map((m) => ({
-              role: m.role,
-              content: m.content,
-            })),
-            temperature,
-            stream: true,
-          }),
-        });
-
-        const reader = response.body!.getReader();
-        const decoder = new TextDecoder();
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          const chunk = decoder.decode(value);
-          const lines = chunk.split('\n').filter((l) => l.startsWith('data: '));
-
-          for (const line of lines) {
-            const data = JSON.parse(line.slice(6));
-            if (data.choices?.[0]?.delta?.content) {
-              yield { content: data.choices[0].delta.content };
-            }
-          }
-        }
+        // TODO: Consider providing SDK helper like `createSSEStream(this, options)`
+        // to abstract away low-level fetch/streaming complexity.
+        // See "Open Questions" section.
       },
     });
 
