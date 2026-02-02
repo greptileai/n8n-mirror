@@ -1,16 +1,23 @@
-import type { StartSpanOptions } from '@sentry/core';
+import {
+	SPAN_STATUS_ERROR,
+	SPAN_STATUS_OK,
+	type StartSpanOptions as SentryStartSpanOptions,
+} from '@sentry/core';
 import type Sentry from '@sentry/node';
 
 import { NoopTracing } from './noop-tracing';
 
+export type StartSpanOpts = SentryStartSpanOptions;
+export type Span = Sentry.Span;
+
 /**
  * Interface for concrete tracing implementations
  */
-export interface TracingInterface {
-	startSpan<T>(options: StartSpanOptions, spanCb: (span?: Sentry.Span) => Promise<T>): Promise<T>;
+export interface Tracer {
+	startSpan<T>(options: StartSpanOpts, spanCb: (span?: Span) => Promise<T>): Promise<T>;
 }
 
-const commonN8nAttributes = {
+const COMMON_TRACE_ATTRIBUTES = {
 	workflow: {
 		id: 'n8n.workflow.id',
 		name: 'n8n.workflow.name',
@@ -22,6 +29,11 @@ const commonN8nAttributes = {
 		typeVersion: 'n8n.node.type_version',
 	},
 } as const;
+
+export const enum SpanStatus {
+	ok = SPAN_STATUS_OK,
+	error = SPAN_STATUS_ERROR,
+}
 
 /**
  * Class to instrument the application with tracing. This class is a
@@ -42,20 +54,20 @@ const commonN8nAttributes = {
  * ```
  */
 export class Tracing {
-	private static instance: TracingInterface = new NoopTracing();
+	private static instance: Tracer = new NoopTracing();
 
 	/** Common n8n specific attribute names */
-	static commonAttrs = commonN8nAttributes;
+	static commonAttrs = COMMON_TRACE_ATTRIBUTES;
 
 	/** Set the concrete tracing implementation to use */
-	static setTracingImplementation(tracing: TracingInterface): void {
+	static setTracingImplementation(tracing: Tracer): void {
 		Tracing.instance = tracing;
 	}
 
 	/** Start a span and execute the callback with the span */
 	static async startSpan<T>(
-		options: StartSpanOptions,
-		spanCb: (span?: Sentry.Span) => Promise<T>,
+		options: StartSpanOpts,
+		spanCb: (span?: Span) => Promise<T>,
 	): Promise<T> {
 		return await Tracing.instance.startSpan(options, spanCb);
 	}

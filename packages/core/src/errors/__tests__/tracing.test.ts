@@ -2,10 +2,10 @@ import type { StartSpanOptions } from '@sentry/core';
 import type Sentry from '@sentry/node';
 
 import { NoopTracing } from '../noop-tracing';
-import { Tracing, type TracingInterface } from '../tracing';
+import { Tracing, type Tracer } from '../tracing';
 
 describe('Tracing', () => {
-	let mockTracingImplementation: jest.Mocked<TracingInterface>;
+	let mockTracingImplementation: jest.Mocked<Tracer>;
 
 	beforeEach(() => {
 		mockTracingImplementation = {

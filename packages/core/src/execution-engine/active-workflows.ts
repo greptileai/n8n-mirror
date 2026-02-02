@@ -20,7 +20,7 @@ import {
 } from 'n8n-workflow';
 
 import { ErrorReporter } from '@/errors/error-reporter';
-import { Tracing } from '@/errors/tracing';
+import { SpanStatus, Tracing } from '@/errors/tracing';
 import type { IWorkflowData } from '@/interfaces';
 
 import type { IGetExecutePollFunctions, IGetExecuteTriggerFunctions } from './interfaces';
@@ -256,7 +256,7 @@ export class ActiveWorkflows {
 						[Tracing.commonAttrs.node.typeVersion]: node.typeVersion,
 					},
 				},
-				async () => {
+				async (span) => {
 					this.logger.debug(`Polling trigger initiated for workflow "${workflow.name}"`, {
 						workflowName: workflow.name,
 						workflowId: workflow.id,
@@ -272,7 +272,10 @@ export class ActiveWorkflows {
 						if (pollResponse !== null) {
 							pollFunctions.__emit(pollResponse);
 						}
+
+						span?.setStatus({ code: SpanStatus.ok });
 					} catch (error) {
+						span?.setStatus({ code: SpanStatus.error });
 						// If the poll function fails in the first activation
 						// throw the error back so we let the user know there is
 						// an issue with the trigger.
