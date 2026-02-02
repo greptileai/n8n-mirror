@@ -894,26 +894,18 @@ export class CredentialsService {
 			}
 		}
 
-		const needsOauthUrlValidation =
-			type === 'oAuth2Api' ||
-			type === 'oAuth1Api' ||
-			(this.credentialTypes.getParentTypes(type) ?? []).includes('oAuth2Api') ||
-			(this.credentialTypes.getParentTypes(type) ?? []).includes('oAuth1Api');
-
-		if (needsOauthUrlValidation) {
-			this.validateOAuthCredentialUrls(type, data);
-		}
+		this.validateOAuthCredentialUrls(type, data);
 	}
 
 	/**
 	 * Validates that OAuth credential URL fields (authUrl, accessTokenUrl, etc.) use http/https only.
-	 * No-op if the credential type is not OAuth1 or OAuth2.
+	 * No-op if the credential type is not OAuth1 or OAuth2 (including extended types).
 	 */
-	private validateOAuthCredentialUrls(
-		type: 'oAuth2Api' | 'oAuth1Api',
-		data: ICredentialDataDecryptedObject,
-	) {
-		if (type === 'oAuth2Api') {
+	private validateOAuthCredentialUrls(type: string, data: ICredentialDataDecryptedObject) {
+		const parentTypes = this.credentialTypes.getParentTypes(type) ?? [];
+		const isOAuth2 = type === 'oAuth2Api' || parentTypes.includes('oAuth2Api');
+		const isOAuth1 = type === 'oAuth1Api' || parentTypes.includes('oAuth1Api');
+		if (isOAuth2) {
 			const oauthUrlFields = ['authUrl', 'accessTokenUrl', 'serverUrl'] as const;
 			for (const field of oauthUrlFields) {
 				const value = data[field];
@@ -922,7 +914,7 @@ export class CredentialsService {
 				}
 			}
 		}
-		if (type === 'oAuth1Api') {
+		if (isOAuth1) {
 			const oauthUrlFields = ['authUrl', 'requestTokenUrl', 'accessTokenUrl'] as const;
 			for (const field of oauthUrlFields) {
 				const value = data[field];
