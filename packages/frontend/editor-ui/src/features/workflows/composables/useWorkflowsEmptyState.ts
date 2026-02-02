@@ -5,6 +5,8 @@ import { useProjectsStore } from '@/features/collaboration/projects/projects.sto
 import { useSourceControlStore } from '@/features/integrations/sourceControl.ee/sourceControl.store';
 import { useRecommendedTemplatesStore } from '@/features/workflows/templates/recommendations/recommendedTemplates.store';
 import { useEmptyStateBuilderPromptStore } from '@/experiments/emptyStateBuilderPrompt/stores/emptyStateBuilderPrompt.store';
+import { usePostHog } from '@/app/stores/posthog.store';
+import { RECOMMENDED_TEMPLATES_EXPERIMENT } from '@/app/constants';
 import { getResourcePermissions } from '@n8n/permissions';
 import type { IUser } from 'n8n-workflow';
 
@@ -20,6 +22,7 @@ export function useWorkflowsEmptyState() {
 	const sourceControlStore = useSourceControlStore();
 	const recommendedTemplatesStore = useRecommendedTemplatesStore();
 	const emptyStateBuilderPromptStore = useEmptyStateBuilderPromptStore();
+	const posthogStore = usePostHog();
 
 	const currentUser = computed(() => usersStore.currentUser ?? ({} as IUser));
 	const personalProject = computed(() => projectsStore.personalProject);
@@ -36,7 +39,13 @@ export function useWorkflowsEmptyState() {
 	);
 
 	const showRecommendedTemplatesInline = computed(() => {
+		const isRecommendedTemplatesVariant = posthogStore.isVariantEnabled(
+			RECOMMENDED_TEMPLATES_EXPERIMENT.name,
+			RECOMMENDED_TEMPLATES_EXPERIMENT.variant,
+		);
+
 		return (
+			isRecommendedTemplatesVariant &&
 			recommendedTemplatesStore.isFeatureEnabled() &&
 			!readOnlyEnv.value &&
 			projectPermissions.value.workflow.create
