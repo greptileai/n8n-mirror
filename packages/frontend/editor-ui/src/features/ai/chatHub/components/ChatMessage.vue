@@ -4,7 +4,14 @@ import ChatTypingIndicator from '@/features/ai/chatHub/components/ChatTypingIndi
 import type { AgentIconOrEmoji, ChatMessageId, ChatModelDto } from '@n8n/api-types';
 import { N8nButton, N8nIcon, N8nIconButton, N8nInput } from '@n8n/design-system';
 import { useSpeechSynthesis } from '@vueuse/core';
-import { computed, onBeforeMount, ref, useTemplateRef, watch } from 'vue';
+import {
+	computed,
+	onBeforeMount,
+	ref,
+	useTemplateRef,
+	watch,
+	type ComponentPublicInstance,
+} from 'vue';
 import type { ChatMessage } from '../chat.types';
 import ChatMessageActions from './ChatMessageActions.vue';
 import { unflattenModel, splitMarkdownIntoChunks } from '@/features/ai/chatHub/chat.utils';
@@ -16,7 +23,7 @@ import { useDeviceSupport } from '@n8n/composables/useDeviceSupport';
 import { useI18n } from '@n8n/i18n';
 import ChatMarkdownChunk from '@/features/ai/chatHub/components/ChatMarkdownChunk.vue';
 import CopyButton from '@/features/ai/chatHub/components/CopyButton.vue';
-import { reconstructDocument, stripDocumentCommands } from '../chat-document';
+import { reconstructDocument } from '../chat-document';
 
 interface MergedAttachment {
 	isNew: boolean;
@@ -64,15 +71,25 @@ const i18n = useI18n();
 const editedText = ref('');
 const newFiles = ref<File[]>([]);
 const removedExistingIndices = ref<Set<number>>(new Set());
-const fileInputRef = useTemplateRef('fileInputRef');
-const textareaRef = useTemplateRef('textarea');
-const markdownChunkRefs = useTemplateRef('markdownChunk');
-const messageContent = computed(() =>
-	message.type === 'ai' ? stripDocumentCommands(message.content) : message.content,
-);
+const fileInputRef = useTemplateRef<HTMLInputElement>('fileInputRef');
+const textareaRef = useTemplateRef<InstanceType<typeof N8nInput>>('textarea');
+const markdownChunkRefs = useTemplateRef<
+	Array<ComponentPublicInstance<{
+		hoveredCodeBlockActions: HTMLElement | null;
+		getHoveredCodeBlockContent: () => string | undefined;
+	}> | null>
+>('markdownChunk');
 
-const activeCodeBlockTeleport = computed(() => {
-	for (const chunkRef of markdownChunkRefs.value) {
+const activeCodeBlockTeleport = computed<{
+	target: HTMLElement;
+	content: string;
+} | null>(() => {
+	const refs = markdownChunkRefs.value;
+	if (!refs || !Array.isArray(refs)) {
+		return null;
+	}
+
+	for (const chunkRef of refs) {
 		if (chunkRef?.hoveredCodeBlockActions) {
 			const content = chunkRef.getHoveredCodeBlockContent();
 			if (content) {
@@ -89,10 +106,10 @@ const messageChunks = computed(() => {
 		return [i18n.baseText('chatHub.message.error.unknown')];
 	}
 
-	return splitMarkdownIntoChunks(messageContent.value).filter((chunk) => chunk.trim() !== '');
+	return splitMarkdownIntoChunks(message.content).filter((chunk) => chunk.trim() !== '');
 });
 
-const speech = useSpeechSynthesis(messageContent, {
+const speech = useSpeechSynthesis(message.content, {
 	pitch: 1,
 	rate: 1,
 	volume: 1,

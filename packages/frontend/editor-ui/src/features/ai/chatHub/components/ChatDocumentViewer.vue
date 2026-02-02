@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, useTemplateRef } from 'vue';
+import { computed, useTemplateRef, type ComponentPublicInstance } from 'vue';
 import { N8nText } from '@n8n/design-system';
 import ChatMarkdownChunk from './ChatMarkdownChunk.vue';
 import type { ChatDocument } from '@n8n/api-types';
@@ -11,8 +11,14 @@ const props = defineProps<{
 
 const isHtmlDocument = computed(() => props.document.type === 'html');
 const isMarkdownDocument = computed(() => props.document.type === 'md');
-const chunkRef = useTemplateRef('markdownChunk');
-const activeCodeBlockTeleport = computed(() => {
+const chunkRef = useTemplateRef<ComponentPublicInstance<{
+	hoveredCodeBlockActions: HTMLElement | null;
+	getHoveredCodeBlockContent: () => string | undefined;
+}> | null>('markdownChunk');
+const activeCodeBlockTeleport = computed<{
+	target: HTMLElement;
+	content: string;
+} | null>(() => {
 	if (chunkRef.value?.hoveredCodeBlockActions) {
 		const content = chunkRef.value.getHoveredCodeBlockContent();
 		if (content) {
