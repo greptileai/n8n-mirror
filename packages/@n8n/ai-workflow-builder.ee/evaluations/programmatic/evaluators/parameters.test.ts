@@ -301,6 +301,65 @@ describe('validateParameters', () => {
 			expect(violations[0].metadata?.nodeName).toBe('Node 2');
 		});
 
+		it('should respect displayOptions for boolean parameters (e.g., sshTunnel)', () => {
+			const nodeType = createNodeType('n8n-nodes-base.test', [
+				{
+					displayName: 'SSH Tunnel',
+					name: 'sshTunnel',
+					type: 'boolean',
+					default: false,
+				},
+				{
+					displayName: 'SSH Host',
+					name: 'sshHost',
+					type: 'string',
+					default: '',
+					required: true,
+					displayOptions: { show: { sshTunnel: [true] } },
+				},
+				{
+					displayName: 'Regular Field',
+					name: 'regularField',
+					type: 'string',
+					default: '',
+					required: true,
+					displayOptions: { hide: { sshTunnel: [true] } },
+				},
+			]);
+
+			// sshTunnel is false, so sshHost should be hidden (not required)
+			// but regularField is shown (required)
+			const workflowTunnelOff = createWorkflow([
+				createNode('n8n-nodes-base.test', { sshTunnel: false, regularField: 'value' }),
+			]);
+			expect(validateParameters(workflowTunnelOff, [nodeType])).toHaveLength(0);
+
+			// sshTunnel is true, so sshHost is shown (required) and regularField is hidden
+			// Missing sshHost should trigger violation
+			const workflowTunnelOn = createWorkflow([
+				createNode('n8n-nodes-base.test', { sshTunnel: true }),
+			]);
+			const violations = validateParameters(workflowTunnelOn, [nodeType]);
+			expect(violations).toContainEqual(
+				expect.objectContaining({
+					name: 'node-missing-required-parameter',
+					metadata: expect.objectContaining({ parameterName: 'sshHost' }),
+				}),
+			);
+			// regularField should NOT be flagged since it's hidden when sshTunnel is true
+			expect(violations).not.toContainEqual(
+				expect.objectContaining({
+					metadata: expect.objectContaining({ parameterName: 'regularField' }),
+				}),
+			);
+
+			// sshTunnel is true and sshHost is provided - should pass
+			const workflowTunnelOnValid = createWorkflow([
+				createNode('n8n-nodes-base.test', { sshTunnel: true, sshHost: 'localhost' }),
+			]);
+			expect(validateParameters(workflowTunnelOnValid, [nodeType])).toHaveLength(0);
+		});
+
 		it('should handle node with different version via @version displayOptions', () => {
 			const nodeType = createNodeType(
 				'n8n-nodes-base.test',

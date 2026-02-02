@@ -30,7 +30,7 @@ function isOptionValue(value: unknown): value is OptionValue {
 function isHiddenByCondition(
 	displayOptions: INodeProperties['displayOptions'],
 	conditionKey: string,
-	value: string | number,
+	value: string | number | boolean,
 ): boolean {
 	// Check 'show' condition - if specified but doesn't match, hide it
 	const showCondition = displayOptions?.show?.[conditionKey];
@@ -67,8 +67,12 @@ function isPropertyHiddenForContext(
 			if (conditionKey === '@version') continue; // Already checked above
 
 			const paramValue = currentValues[conditionKey];
-			// Only check if we have a value for this parameter
-			if (typeof paramValue === 'string' || typeof paramValue === 'number') {
+			// Only check if we have a value for this parameter (string, number, or boolean)
+			if (
+				typeof paramValue === 'string' ||
+				typeof paramValue === 'number' ||
+				typeof paramValue === 'boolean'
+			) {
 				if (isHiddenByCondition(displayOptions, conditionKey, paramValue)) {
 					return true;
 				}
@@ -86,7 +90,11 @@ function isPropertyHiddenForContext(
 			if (conditionKey === '@version') continue; // Already checked above
 
 			const paramValue = currentValues[conditionKey];
-			if (typeof paramValue === 'string' || typeof paramValue === 'number') {
+			if (
+				typeof paramValue === 'string' ||
+				typeof paramValue === 'number' ||
+				typeof paramValue === 'boolean'
+			) {
 				if (isHiddenByCondition(displayOptions, conditionKey, paramValue)) {
 					return true;
 				}
