@@ -75,6 +75,28 @@ export class OauthService {
 		private readonly dynamicCredentialsProxy: DynamicCredentialsProxy,
 	) {}
 
+	private static readonly ALLOWED_OAUTH_URL_PROTOCOLS = ['http:', 'https:'];
+
+	private validateOAuthUrl(url: string): void {
+		const trimmed = url?.trim();
+		if (!trimmed) return;
+		let parsed: URL;
+
+		try {
+			parsed = new URL(trimmed);
+		} catch (e) {
+			this.logger.error('Invalid OAuth URL', { url, error: e });
+			throw new BadRequestError(`OAuth url is not a valid URL.`);
+		}
+
+		if (!OauthService.ALLOWED_OAUTH_URL_PROTOCOLS.includes(parsed.protocol)) {
+			this.logger.error('Invalid OAuth URL protocol', { url, protocol: parsed.protocol });
+			throw new BadRequestError(
+				`OAuth url must use HTTP or HTTPS protocol. Invalid protocol: ${parsed.protocol}`,
+			);
+		}
+	}
+
 	getBaseUrl(oauthVersion: OauthVersion) {
 		const restUrl = `${this.urlService.getInstanceBaseUrl()}/${this.globalConfig.endpoints.rest}`;
 		return `${restUrl}/oauth${oauthVersion}-credential`;
@@ -387,6 +409,9 @@ export class OauthService {
 			}
 		}
 
+		this.validateOAuthUrl(oauthCredentials.authUrl ?? '');
+		this.validateOAuthUrl(oauthCredentials.accessTokenUrl ?? '');
+
 		// Generate a CSRF prevention token and send it as an OAuth2 state string
 		const [csrfSecret, state] = this.createCsrfState(csrfData);
 
@@ -425,12 +450,16 @@ export class OauthService {
 		return returnUri.toString();
 	}
 
-	async generateAOauth1AuthUri(
+	async generateAOuth1AuthUri(
 		credential: CredentialsEntity,
 		csrfData: CreateCsrfStateData,
 	): Promise<string> {
 		const oauthCredentials: OAuth1CredentialData =
 			await this.getOAuthCredentials<OAuth1CredentialData>(credential);
+
+		this.validateOAuthUrl(oauthCredentials.authUrl ?? '');
+		this.validateOAuthUrl(oauthCredentials.requestTokenUrl ?? '');
+		this.validateOAuthUrl(oauthCredentials.accessTokenUrl ?? '');
 
 		const [csrfSecret, state] = this.createCsrfState(csrfData);
 
