@@ -2,6 +2,7 @@ import {
 	SPAN_STATUS_ERROR,
 	SPAN_STATUS_OK,
 	type StartSpanOptions as SentryStartSpanOptions,
+	type SpanContextData as SentrySpanContextData,
 } from '@sentry/core';
 import type Sentry from '@sentry/node';
 
@@ -9,12 +10,13 @@ import { NoopTracing } from './noop-tracing';
 
 export type StartSpanOpts = SentryStartSpanOptions;
 export type Span = Sentry.Span;
+export type SpanContextData = SentrySpanContextData;
 
 /**
  * Interface for concrete tracing implementations
  */
 export interface Tracer {
-	startSpan<T>(options: StartSpanOpts, spanCb: (span?: Span) => Promise<T>): Promise<T>;
+	startSpan<T>(options: StartSpanOpts, spanCb: (span: Span) => Promise<T>): Promise<T>;
 }
 
 const COMMON_TRACE_ATTRIBUTES = {
@@ -67,7 +69,7 @@ export class Tracing {
 	/** Start a span and execute the callback with the span */
 	static async startSpan<T>(
 		options: StartSpanOpts,
-		spanCb: (span?: Span) => Promise<T>,
+		spanCb: (span: Span) => Promise<T>,
 	): Promise<T> {
 		return await Tracing.instance.startSpan(options, spanCb);
 	}

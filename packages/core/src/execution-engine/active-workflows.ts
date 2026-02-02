@@ -273,9 +273,9 @@ export class ActiveWorkflows {
 							pollFunctions.__emit(pollResponse);
 						}
 
-						span?.setStatus({ code: SpanStatus.ok });
+						span.setStatus({ code: SpanStatus.ok });
 					} catch (error) {
-						span?.setStatus({ code: SpanStatus.error });
+						span.setStatus({ code: SpanStatus.error });
 						// If the poll function fails in the first activation
 						// throw the error back so we let the user know there is
 						// an issue with the trigger.
