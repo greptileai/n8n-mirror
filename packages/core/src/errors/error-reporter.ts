@@ -8,8 +8,7 @@ import { AxiosError } from 'axios';
 import { ApplicationError, ExecutionCancelledError, BaseError } from 'n8n-workflow';
 import { createHash } from 'node:crypto';
 
-import { SentryTracing } from './sentry-tracing';
-import { Tracing } from './tracing';
+import { Tracing, SentryTracing } from '@/observability';
 
 type SentryIntegration = 'Redis' | 'Postgres' | 'Http' | 'Express';
 

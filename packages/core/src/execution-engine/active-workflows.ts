@@ -20,8 +20,8 @@ import {
 } from 'n8n-workflow';
 
 import { ErrorReporter } from '@/errors/error-reporter';
-import { SpanStatus, Tracing } from '@/errors/tracing';
 import type { IWorkflowData } from '@/interfaces';
+import { SpanStatus, Tracing } from '@/observability';
 
 import type { IGetExecutePollFunctions, IGetExecuteTriggerFunctions } from './interfaces';
 import { ScheduledTaskManager } from './scheduled-task-manager';

@@ -12,7 +12,7 @@ import type {
 import { LoggerProxy, TriggerCloseError, WorkflowActivationError } from 'n8n-workflow';
 
 import type { ErrorReporter } from '@/errors/error-reporter';
-import { Tracing } from '@/errors/tracing';
+import { Tracing } from '@/observability';
 
 import { ActiveWorkflows } from '../active-workflows';
 import type { IGetExecuteTriggerFunctions } from '../interfaces';
