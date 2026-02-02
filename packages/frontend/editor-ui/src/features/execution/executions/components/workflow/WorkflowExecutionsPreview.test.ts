@@ -80,7 +80,7 @@ const renderComponent = createComponentRenderer(WorkflowExecutionsPreview, {
 		},
 		plugins: [router],
 		provide: {
-			[WorkflowIdKey as symbol]: computed(() => 'test-workflow-id'),
+			[WorkflowIdKey]: computed(() => 'test-workflow-id'),
 		},
 	},
 });

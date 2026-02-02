@@ -90,7 +90,7 @@ const renderComponent = createComponentRenderer(MainHeader, {
 			TabBar: { template: '<div></div>' },
 		},
 		provide: {
-			[WorkflowIdKey as symbol]: computed(() => 'test-workflow-id'),
+			[WorkflowIdKey]: computed(() => 'test-workflow-id'),
 		},
 	},
 });

@@ -47,7 +47,7 @@ const renderComponent = createComponentRenderer(WorkflowExecutionsCard, {
 			},
 		},
 		provide: {
-			[WorkflowIdKey as symbol]: computed(() => 'test-workflow-id'),
+			[WorkflowIdKey]: computed(() => 'test-workflow-id'),
 		},
 	},
 });
