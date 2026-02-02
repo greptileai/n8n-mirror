@@ -85,6 +85,7 @@ describe('ExternalSecretsModule', () => {
 
 		describe('init', () => {
 			afterEach(async () => {
+				jest.useRealTimers();
 				await module.shutdown();
 			});
 
@@ -127,14 +128,16 @@ describe('ExternalSecretsModule', () => {
 
 				expect(updateSpy).toHaveBeenCalled();
 				updateSpy.mockRestore();
-
-				jest.useRealTimers();
 			});
 		});
 
 		describe('shutdown', () => {
 			beforeEach(async () => {
 				await module.init();
+			});
+
+			afterEach(async () => {
+				jest.useRealTimers();
 			});
 
 			it('should disconnect providers after shutdown', async () => {
@@ -157,7 +160,6 @@ describe('ExternalSecretsModule', () => {
 				expect(updateSpy).not.toHaveBeenCalled();
 
 				updateSpy.mockRestore();
-				jest.useRealTimers();
 			});
 		});
 	});
@@ -198,6 +200,7 @@ describe('ExternalSecretsModule', () => {
 
 		describe('init', () => {
 			afterEach(async () => {
+				jest.useRealTimers();
 				await module.shutdown();
 			});
 
@@ -240,14 +243,16 @@ describe('ExternalSecretsModule', () => {
 
 				expect(updateSpy).toHaveBeenCalled();
 				updateSpy.mockRestore();
-
-				jest.useRealTimers();
 			});
 		});
 
 		describe('shutdown', () => {
 			beforeEach(async () => {
 				await module.init();
+			});
+
+			afterEach(async () => {
+				jest.useRealTimers();
 			});
 
 			it('should disconnect providers after shutdown', async () => {
@@ -261,7 +266,6 @@ describe('ExternalSecretsModule', () => {
 
 			it('should stop refresh after shutdown', async () => {
 				jest.useFakeTimers();
-
 				const updateSpy = jest.spyOn(DummyProvider.prototype, 'update');
 
 				await module.shutdown();
@@ -270,7 +274,6 @@ describe('ExternalSecretsModule', () => {
 				expect(updateSpy).not.toHaveBeenCalled();
 
 				updateSpy.mockRestore();
-				jest.useRealTimers();
 			});
 		});
 	});
