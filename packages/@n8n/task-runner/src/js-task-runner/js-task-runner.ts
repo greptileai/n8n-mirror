@@ -290,15 +290,13 @@ export class JsTaskRunner extends TaskRunner {
 
 				abortSignal.addEventListener('abort', abortHandler, { once: true });
 
-				let taskResult: Promise<unknown>;
-
-				if (this.mode === 'secure') {
-					taskResult = runInContext(this.createVmExecutableCode(settings.code), context, {
-						timeout: this.taskTimeout * 1000,
-					}) as Promise<unknown>;
-				} else {
-					taskResult = this.runDirectly<unknown>(settings.code, context);
-				}
+				// We don't need to check for the insecure mode since we are not
+				// giving access to any third party libraries.
+				const taskResult: Promise<unknown> = runInContext(
+					this.createVmExecutableCode(settings.code),
+					context,
+					{ timeout: this.taskTimeout * 1000 },
+				) as Promise<unknown>;
 
 				void taskResult
 					.then(resolve)
