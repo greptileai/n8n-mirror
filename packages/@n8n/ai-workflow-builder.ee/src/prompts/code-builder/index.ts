@@ -668,6 +668,57 @@ Your code must:
 Now, analyze the user's request and generate the workflow code following all the steps above.`;
 
 /**
+ * Text editor tool instructions (only included when text editor mode is enabled)
+ */
+const TEXT_EDITOR_INSTRUCTIONS = `# Text Editor Tool
+
+You MUST use the \`str_replace_based_edit_tool\` for all workflow code. Do NOT output code in markdown blocks.
+
+## Commands
+
+- **create**: Create the initial workflow code for a NEW workflow.
+  \`\`\`json
+  {{"command": "create", "path": "/workflow.ts", "file_text": "..."}}
+  \`\`\`
+
+- **view**: View code with line numbers. Use view_range for specific lines.
+  \`\`\`json
+  {{"command": "view", "path": "/workflow.ts"}}
+  {{"command": "view", "path": "/workflow.ts", "view_range": [1, 10]}}
+  \`\`\`
+
+- **str_replace**: Replace exact string match. old_str must match exactly one occurrence.
+  \`\`\`json
+  {{"command": "str_replace", "path": "/workflow.ts", "old_str": "...", "new_str": "..."}}
+  \`\`\`
+
+- **insert**: Insert text after a specific line (0 = beginning of file).
+  \`\`\`json
+  {{"command": "insert", "path": "/workflow.ts", "insert_line": 5, "new_str": "..."}}
+  \`\`\`
+
+- **finalize**: Call when done editing. Validates the code and completes the workflow.
+  \`\`\`json
+  {{"command": "finalize", "path": "/workflow.ts"}}
+  \`\`\`
+
+## Workflow
+
+1. For **NEW workflows**: Use \`create\` to write initial code, then \`finalize\`
+2. For **EXISTING workflows**: Code is pre-loaded. Use \`view\` to see current state, then \`str_replace\` to edit, then \`finalize\`
+3. After \`finalize\`, you'll see validation results:
+   - **Success**: Workflow is complete
+   - **Errors**: Use \`str_replace\` to fix the issues, then \`finalize\` again
+4. SDK types are available via the \`get_nodes\` tool
+
+## Important Notes
+
+- The only supported file path is \`/workflow.ts\`
+- When using \`str_replace\`, ensure old_str matches EXACTLY one occurrence in the file
+- If you get "multiple matches" error, include more context in old_str to make it unique
+- Always call \`finalize\` when you're done editing to validate the workflow`;
+
+/**
  * History context for multi-turn conversations
  */
 export interface HistoryContext {
@@ -678,22 +729,35 @@ export interface HistoryContext {
 }
 
 /**
+ * Options for building the code builder prompt
+ */
+export interface BuildCodeBuilderPromptOptions {
+	/** Enable text editor tool instructions */
+	enableTextEditor?: boolean;
+}
+
+/**
  * Build the complete system prompt for the code builder agent
  *
  * @param currentWorkflow - Optional current workflow JSON context
  * @param historyContext - Optional conversation history for multi-turn refinement
+ * @param options - Optional configuration options
  */
 export function buildCodeBuilderPrompt(
 	currentWorkflow?: WorkflowJSON,
 	historyContext?: HistoryContext,
+	options?: BuildCodeBuilderPromptOptions,
 ): ChatPromptTemplate {
-	const systemMessage = [
-		ROLE,
-		WORKFLOW_RULES,
-		WORKFLOW_PATTERNS,
-		MANDATORY_WORKFLOW,
-		OUTPUT_FORMAT,
-	].join('\n\n');
+	const promptSections = [ROLE, WORKFLOW_RULES, WORKFLOW_PATTERNS, MANDATORY_WORKFLOW];
+
+	// Add text editor instructions if enabled (replaces OUTPUT_FORMAT)
+	if (options?.enableTextEditor) {
+		promptSections.push(TEXT_EDITOR_INSTRUCTIONS);
+	} else {
+		promptSections.push(OUTPUT_FORMAT);
+	}
+
+	const systemMessage = promptSections.join('\n\n');
 
 	// User message template
 	const userMessageParts: string[] = [];
