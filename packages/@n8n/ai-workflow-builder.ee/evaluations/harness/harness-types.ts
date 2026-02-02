@@ -178,6 +178,10 @@ export interface ExampleResult {
 	generationDurationMs?: number;
 	/** Time spent running evaluators, when known. */
 	evaluationDurationMs?: number;
+	/** Input tokens used during workflow generation */
+	generationInputTokens?: number;
+	/** Output tokens used during workflow generation */
+	generationOutputTokens?: number;
 	workflow?: SimpleWorkflow;
 	error?: string;
 }
