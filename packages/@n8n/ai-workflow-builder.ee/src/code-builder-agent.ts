@@ -132,7 +132,7 @@ interface WorkflowCodeOutput {
  */
 interface ParseAndValidateResult {
 	workflow: WorkflowJSON;
-	warnings: Array<{ code: string; message: string; nodeName?: string }>;
+	warnings: Array<{ code: string; message: string; nodeName?: string; parameterPath?: string }>;
 }
 
 /**
@@ -448,7 +448,7 @@ ${'='.repeat(50)}
 			let sourceCode: string | null = null;
 			const generationErrors: StreamGenerationError[] = [];
 			// Track warnings that have been sent to agent (to avoid repeating)
-			// Uses "code|message" as key to match on both
+			// Uses "code|nodeName|parameterPath" as key to deduplicate by location, not message content
 			const previousWarnings = new Set<string>();
 
 			// Text editor mode state
@@ -787,8 +787,10 @@ ${'='.repeat(50)}
 							});
 
 							// Check for new warnings that haven't been sent to agent before
+							// Use code|nodeName|parameterPath as key to deduplicate by location, not message content
 							const newWarnings = result.warnings.filter(
-								(w) => !previousWarnings.has(`${w.code}|${w.message}`),
+								(w) =>
+									!previousWarnings.has(`${w.code}|${w.nodeName || ''}|${w.parameterPath || ''}`),
 							);
 
 							if (newWarnings.length > 0) {
@@ -799,7 +801,7 @@ ${'='.repeat(50)}
 
 								// Mark these warnings as sent (so we don't repeat)
 								for (const w of newWarnings) {
-									previousWarnings.add(`${w.code}|${w.message}`);
+									previousWarnings.add(`${w.code}|${w.nodeName || ''}|${w.parameterPath || ''}`);
 								}
 
 								// Format warnings for the agent
@@ -1431,9 +1433,10 @@ ${'='.repeat(50)}
 
 			if (result.warnings.length > 0) {
 				// Filter out warnings that have already been shown to the agent
+				// Use code|nodeName|parameterPath as key to deduplicate by location, not message content
 				const previousWarnings = state.getPreviousWarnings();
 				const newWarnings = result.warnings.filter((w) => {
-					const key = `${w.code}|${w.message}`;
+					const key = `${w.code}|${w.nodeName || ''}|${w.parameterPath || ''}`;
 					return !previousWarnings.has(key);
 				});
 
@@ -1445,7 +1448,9 @@ ${'='.repeat(50)}
 
 				if (newWarnings.length > 0) {
 					// Track new warnings so we don't repeat them
-					const newWarningKeys = newWarnings.map((w) => `${w.code}|${w.message}`);
+					const newWarningKeys = newWarnings.map(
+						(w) => `${w.code}|${w.nodeName || ''}|${w.parameterPath || ''}`,
+					);
 					state.addWarnings(newWarningKeys);
 
 					const warningText = newWarnings.map((w) => `- [${w.code}] ${w.message}`).join('\n');

@@ -1142,5 +1142,272 @@ describe('Validation', () => {
 			// No warning because 'amount' exists in pinData (fallback)
 			expect(expressionWarnings).toHaveLength(0);
 		});
+
+		it('should not warn when expression uses JS method on existing field (e.g. $json.output.includes)', () => {
+			const webhookTrigger = trigger({
+				type: 'n8n-nodes-base.webhook',
+				version: 2,
+				config: {
+					name: 'Webhook',
+					pinData: [{ output: 'some text content' }],
+				},
+			});
+
+			// This node uses $json.output.includes() - "includes" is a JS method, not a field
+			const setNode = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: {
+					name: 'Set',
+					parameters: {
+						value: '={{ $json.output.includes("test") }}',
+					},
+				},
+			});
+
+			const wf = workflow('test', 'Test').add(webhookTrigger).then(setNode);
+
+			const result = wf.validate();
+			const expressionWarnings = result.warnings.filter(
+				(w) => w.code === 'INVALID_EXPRESSION_PATH' || w.code === 'PARTIAL_EXPRESSION_PATH',
+			);
+
+			// No warning because "output" exists, and "includes" is filtered as a JS method
+			expect(expressionWarnings).toHaveLength(0);
+		});
+
+		it('should not warn when expression uses chained JS methods on existing field', () => {
+			const webhookTrigger = trigger({
+				type: 'n8n-nodes-base.webhook',
+				version: 2,
+				config: {
+					name: 'Webhook',
+					pinData: [{ data: { items: ['a', 'b', 'c'] } }],
+				},
+			});
+
+			// Uses multiple chained methods: $json.data.items.map(...).join(...)
+			const setNode = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: {
+					name: 'Set',
+					parameters: {
+						value: '={{ $json.data.items.map }}',
+					},
+				},
+			});
+
+			const wf = workflow('test', 'Test').add(webhookTrigger).then(setNode);
+
+			const result = wf.validate();
+			const expressionWarnings = result.warnings.filter(
+				(w) => w.code === 'INVALID_EXPRESSION_PATH' || w.code === 'PARTIAL_EXPRESSION_PATH',
+			);
+
+			// No warning because "data.items" exists, and "map" is filtered as a JS method
+			expect(expressionWarnings).toHaveLength(0);
+		});
+
+		it('should warn when JS method is used on non-existing field', () => {
+			const webhookTrigger = trigger({
+				type: 'n8n-nodes-base.webhook',
+				version: 2,
+				config: {
+					name: 'Webhook',
+					pinData: [{ data: 'test' }],
+				},
+			});
+
+			// Uses nonexistent.includes() - even after filtering "includes", "nonexistent" doesn't exist
+			const setNode = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: {
+					name: 'Set',
+					parameters: {
+						value: '={{ $json.nonexistent.includes("test") }}',
+					},
+				},
+			});
+
+			const wf = workflow('test', 'Test').add(webhookTrigger).then(setNode);
+
+			const result = wf.validate();
+			const expressionWarnings = result.warnings.filter(
+				(w) => w.code === 'INVALID_EXPRESSION_PATH',
+			);
+
+			// Should warn because "nonexistent" doesn't exist (even after filtering "includes")
+			expect(expressionWarnings.length).toBeGreaterThan(0);
+			expect(expressionWarnings[0].message).toContain('nonexistent');
+		});
+
+		it('should filter common JS string methods: toLowerCase, toUpperCase, trim, split, replace', () => {
+			const webhookTrigger = trigger({
+				type: 'n8n-nodes-base.webhook',
+				version: 2,
+				config: {
+					name: 'Webhook',
+					pinData: [{ text: 'Hello World' }],
+				},
+			});
+
+			const setNode = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: {
+					name: 'Set',
+					parameters: {
+						lower: '={{ $json.text.toLowerCase }}',
+						upper: '={{ $json.text.toUpperCase }}',
+						trimmed: '={{ $json.text.trim }}',
+						parts: '={{ $json.text.split }}',
+						replaced: '={{ $json.text.replace }}',
+					},
+				},
+			});
+
+			const wf = workflow('test', 'Test').add(webhookTrigger).then(setNode);
+
+			const result = wf.validate();
+			const expressionWarnings = result.warnings.filter(
+				(w) => w.code === 'INVALID_EXPRESSION_PATH' || w.code === 'PARTIAL_EXPRESSION_PATH',
+			);
+
+			// No warnings - all method names should be filtered
+			expect(expressionWarnings).toHaveLength(0);
+		});
+
+		it('should filter common JS array methods: filter, map, find, some, every', () => {
+			const webhookTrigger = trigger({
+				type: 'n8n-nodes-base.webhook',
+				version: 2,
+				config: {
+					name: 'Webhook',
+					pinData: [{ items: [1, 2, 3] }],
+				},
+			});
+
+			const setNode = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: {
+					name: 'Set',
+					parameters: {
+						filtered: '={{ $json.items.filter }}',
+						mapped: '={{ $json.items.map }}',
+						found: '={{ $json.items.find }}',
+						hasSome: '={{ $json.items.some }}',
+						hasEvery: '={{ $json.items.every }}',
+					},
+				},
+			});
+
+			const wf = workflow('test', 'Test').add(webhookTrigger).then(setNode);
+
+			const result = wf.validate();
+			const expressionWarnings = result.warnings.filter(
+				(w) => w.code === 'INVALID_EXPRESSION_PATH' || w.code === 'PARTIAL_EXPRESSION_PATH',
+			);
+
+			// No warnings - all method names should be filtered
+			expect(expressionWarnings).toHaveLength(0);
+		});
+
+		it('should include parameterPath in expression validation warnings', () => {
+			const webhookTrigger = trigger({
+				type: 'n8n-nodes-base.webhook',
+				version: 2,
+				config: {
+					name: 'Webhook',
+					pinData: [{ existingField: 'test' }],
+				},
+			});
+
+			const setNode = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: {
+					name: 'Set',
+					parameters: {
+						someParam: '={{ $json.nonexistent }}',
+					},
+				},
+			});
+
+			const wf = workflow('test', 'Test').add(webhookTrigger).then(setNode);
+
+			const result = wf.validate();
+			const expressionWarning = result.warnings.find((w) => w.code === 'INVALID_EXPRESSION_PATH');
+
+			expect(expressionWarning).toBeDefined();
+			expect(expressionWarning?.parameterPath).toBe('someParam');
+			expect(expressionWarning?.nodeName).toBe('Set');
+		});
+
+		it('should include nested parameterPath in expression validation warnings', () => {
+			const webhookTrigger = trigger({
+				type: 'n8n-nodes-base.webhook',
+				version: 2,
+				config: {
+					name: 'Webhook',
+					pinData: [{ existingField: 'test' }],
+				},
+			});
+
+			const setNode = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: {
+					name: 'Set',
+					parameters: {
+						options: {
+							nested: {
+								deepValue: '={{ $json.nonexistent }}',
+							},
+						},
+					},
+				},
+			});
+
+			const wf = workflow('test', 'Test').add(webhookTrigger).then(setNode);
+
+			const result = wf.validate();
+			const expressionWarning = result.warnings.find((w) => w.code === 'INVALID_EXPRESSION_PATH');
+
+			expect(expressionWarning).toBeDefined();
+			expect(expressionWarning?.parameterPath).toBe('options.nested.deepValue');
+		});
+
+		it('should include parameterPath for array index in expression validation warnings', () => {
+			const webhookTrigger = trigger({
+				type: 'n8n-nodes-base.webhook',
+				version: 2,
+				config: {
+					name: 'Webhook',
+					pinData: [{ existingField: 'test' }],
+				},
+			});
+
+			const setNode = node({
+				type: 'n8n-nodes-base.set',
+				version: 3,
+				config: {
+					name: 'Set',
+					parameters: {
+						items: [{ value: '={{ $json.nonexistent }}' }],
+					},
+				},
+			});
+
+			const wf = workflow('test', 'Test').add(webhookTrigger).then(setNode);
+
+			const result = wf.validate();
+			const expressionWarning = result.warnings.find((w) => w.code === 'INVALID_EXPRESSION_PATH');
+
+			expect(expressionWarning).toBeDefined();
+			expect(expressionWarning?.parameterPath).toBe('items[0].value');
+		});
 	});
 });

@@ -57,6 +57,52 @@ const DEFAULT_Y = 300;
 const START_X = 100;
 
 /**
+ * Common JavaScript methods that may appear after field paths in expressions.
+ * These should not be treated as part of the field path during validation.
+ * E.g., $json.output.includes("test") - "includes" is a method, not a field.
+ */
+const JS_METHODS = new Set([
+	'includes',
+	'indexOf',
+	'slice',
+	'substring',
+	'toLowerCase',
+	'toUpperCase',
+	'trim',
+	'split',
+	'replace',
+	'match',
+	'startsWith',
+	'endsWith',
+	'filter',
+	'map',
+	'reduce',
+	'find',
+	'findIndex',
+	'some',
+	'every',
+	'forEach',
+	'join',
+	'sort',
+	'push',
+	'pop',
+	'length',
+	'toString',
+]);
+
+/**
+ * Remove trailing JS methods from field path.
+ * E.g., ["output", "includes"] -> ["output"]
+ */
+function filterMethodsFromPath(fieldPath: string[]): string[] {
+	const result = [...fieldPath];
+	while (result.length > 0 && JS_METHODS.has(result[result.length - 1])) {
+		result.pop();
+	}
+	return result;
+}
+
+/**
  * Parse version string to number
  */
 function parseVersion(version: string | undefined): number {
@@ -871,6 +917,7 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 							'DISCONNECTED_NODE',
 							`${this.formatNodeRef(displayName, origForWarning, graphNode.instance.type)} is not connected to any input. It will not receive data.`,
 							displayName,
+							undefined, // parameterPath
 							origForWarning,
 						),
 					);
@@ -1251,6 +1298,7 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 						'SET_CREDENTIAL_FIELD',
 						`${nodeRef} has a field named "${assignment.name}" which appears to be storing credentials. Use n8n's credential system instead.`,
 						displayName,
+						undefined, // parameterPath
 						origForWarning,
 					),
 				);
@@ -1673,24 +1721,26 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 
 			for (const { expression, path } of expressions) {
 				const parsed = this.parseExpression(expression);
+				// Filter out JS methods from field path (e.g., "output.includes" -> "output")
+				const filteredFieldPath = filterMethodsFromPath(parsed.fieldPath);
 
-				if (parsed.type === '$json' && parsed.fieldPath.length > 0) {
+				if (parsed.type === '$json' && filteredFieldPath.length > 0) {
 					this.validateJsonPath(
 						mapKey,
 						path,
-						parsed.fieldPath,
+						filteredFieldPath,
 						predecessors,
 						outputShapes,
 						warnings,
 					);
 				}
 
-				if (parsed.type === '$node' && parsed.nodeName && parsed.fieldPath.length > 0) {
+				if (parsed.type === '$node' && parsed.nodeName && filteredFieldPath.length > 0) {
 					this.validateNodePath(
 						mapKey,
 						path,
 						parsed.nodeName,
-						parsed.fieldPath,
+						filteredFieldPath,
 						outputShapes,
 						warnings,
 					);
@@ -1733,6 +1783,7 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 					'INVALID_EXPRESSION_PATH',
 					`'${nodeName}' parameter '${paramPath}' uses $json.${fieldPathStr} but no predecessor outputs this field.`,
 					nodeName,
+					paramPath,
 				),
 			);
 		} else if (invalidIn.length > 0 && validIn.length > 0) {
@@ -1741,6 +1792,7 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 					'PARTIAL_EXPRESSION_PATH',
 					`'${nodeName}' parameter '${paramPath}' uses $json.${fieldPathStr} - exists in [${validIn.join(', ')}] but NOT in [${invalidIn.join(', ')}].`,
 					nodeName,
+					paramPath,
 				),
 			);
 		}
@@ -1766,6 +1818,7 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 					'INVALID_EXPRESSION_PATH',
 					`'${nodeName}' parameter '${paramPath}' uses $('${referencedNode}').item.json.${fieldPath.join('.')} but '${referencedNode}' doesn't output this field.`,
 					nodeName,
+					paramPath,
 				),
 			);
 		}
