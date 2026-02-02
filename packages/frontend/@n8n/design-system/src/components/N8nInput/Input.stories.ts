@@ -18,6 +18,24 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
+// Story layout styles
+const storyStyles = `
+<style>
+.input-story-container {
+	padding: 40px;
+	max-width: 400px;
+}
+
+.input-story-value {
+	margin-top: 16px;
+}
+
+.input-story-section {
+	margin-top: 16px;
+}
+</style>
+`;
+
 export const Text = {
 	render: (args) => ({
 		components: { Input },
@@ -26,9 +44,10 @@ export const Text = {
 			return { args, value };
 		},
 		template: `
-		<div style="padding: 40px; max-width: 400px;">
+		${storyStyles}
+		<div class="input-story-container">
 			<Input v-bind="args" v-model="value" />
-			<p style="margin-top: 16px;">Value: {{ value }}</p>
+			<p class="input-story-value">Value: {{ value }}</p>
 		</div>
 		`,
 	}),
@@ -38,7 +57,7 @@ export const Text = {
 	},
 } satisfies Story;
 
-export const Textarea = {
+export const TextareaFixedRows = {
 	render: (args) => ({
 		components: { Input },
 		setup() {
@@ -46,19 +65,60 @@ export const Textarea = {
 			return { args, value };
 		},
 		template: `
-		<div style="padding: 40px; max-width: 400px;">
-			<h3>Fixed rows</h3>
-			<Input v-bind="args" v-model="value" :rows="4" />
-			<h3 style="margin-top: 16px;">Autosize</h3>
-			<Input v-bind="args" v-model="value" :autosize="true" />
-			<h3 style="margin-top: 16px;">Autosize with minRows/maxRows</h3>
-			<Input v-bind="args" v-model="value" :autosize="{ minRows: 2, maxRows: 6 }" />
+		${storyStyles}
+		<div class="input-story-container">
+			<Input v-bind="args" v-model="value" />
 		</div>
 		`,
 	}),
 	args: {
 		type: 'textarea',
+		rows: 4,
 		placeholder: 'Enter multi-line text...',
+		modelValue: '',
+	},
+} satisfies Story;
+
+export const TextareaAutosize = {
+	render: (args) => ({
+		components: { Input },
+		setup() {
+			const value = ref(args.modelValue);
+			return { args, value };
+		},
+		template: `
+		${storyStyles}
+		<div class="input-story-container">
+			<Input v-bind="args" v-model="value" />
+		</div>
+		`,
+	}),
+	args: {
+		type: 'textarea',
+		autosize: true,
+		placeholder: 'Auto-growing textarea...',
+		modelValue: '',
+	},
+} satisfies Story;
+
+export const TextareaAutosizeMinMax = {
+	render: (args) => ({
+		components: { Input },
+		setup() {
+			const value = ref(args.modelValue);
+			return { args, value };
+		},
+		template: `
+		${storyStyles}
+		<div class="input-story-container">
+			<Input v-bind="args" v-model="value" />
+		</div>
+		`,
+	}),
+	args: {
+		type: 'textarea',
+		autosize: { minRows: 2, maxRows: 6 },
+		placeholder: 'Auto-growing with min 2, max 6 rows...',
 		modelValue: '',
 	},
 } satisfies Story;
@@ -71,7 +131,8 @@ export const Password = {
 			return { args, value };
 		},
 		template: `
-		<div style="padding: 40px; max-width: 400px;">
+		${storyStyles}
+		<div class="input-story-container">
 			<Input v-bind="args" v-model="value" />
 		</div>
 		`,
@@ -83,7 +144,7 @@ export const Password = {
 	},
 } satisfies Story;
 
-export const WithSlots = {
+export const WithPrefixSlot = {
 	render: (args) => ({
 		components: { Input, N8nIcon },
 		setup() {
@@ -91,24 +152,33 @@ export const WithSlots = {
 			return { args, value };
 		},
 		template: `
-		<div style="padding: 40px; max-width: 400px;">
-			<h3>Prefix slot</h3>
+		${storyStyles}
+		<div class="input-story-container">
 			<Input v-bind="args" v-model="value">
 				<template #prefix>
 					<N8nIcon icon="search" size="small" />
 				</template>
 			</Input>
-			<h3 style="margin-top: 16px;">Suffix slot</h3>
+		</div>
+		`,
+	}),
+	args: {
+		placeholder: 'Search...',
+		modelValue: '',
+	},
+} satisfies Story;
+
+export const WithSuffixSlot = {
+	render: (args) => ({
+		components: { Input, N8nIcon },
+		setup() {
+			const value = ref(args.modelValue);
+			return { args, value };
+		},
+		template: `
+		${storyStyles}
+		<div class="input-story-container">
 			<Input v-bind="args" v-model="value">
-				<template #suffix>
-					<N8nIcon icon="check" size="small" />
-				</template>
-			</Input>
-			<h3 style="margin-top: 16px;">Both slots</h3>
-			<Input v-bind="args" v-model="value">
-				<template #prefix>
-					<N8nIcon icon="envelope" size="small" />
-				</template>
 				<template #suffix>
 					<N8nIcon icon="check" size="small" />
 				</template>
@@ -122,6 +192,33 @@ export const WithSlots = {
 	},
 } satisfies Story;
 
+export const WithPrefixAndSuffixSlots = {
+	render: (args) => ({
+		components: { Input, N8nIcon },
+		setup() {
+			const value = ref(args.modelValue);
+			return { args, value };
+		},
+		template: `
+		${storyStyles}
+		<div class="input-story-container">
+			<Input v-bind="args" v-model="value">
+				<template #prefix>
+					<N8nIcon icon="envelope" size="small" />
+				</template>
+				<template #suffix>
+					<N8nIcon icon="check" size="small" />
+				</template>
+			</Input>
+		</div>
+		`,
+	}),
+	args: {
+		placeholder: 'Email address...',
+		modelValue: '',
+	},
+} satisfies Story;
+
 export const Clearable = {
 	render: (args) => ({
 		components: { Input },
@@ -130,9 +227,10 @@ export const Clearable = {
 			return { args, value };
 		},
 		template: `
-		<div style="padding: 40px; max-width: 400px;">
+		${storyStyles}
+		<div class="input-story-container">
 			<Input v-bind="args" v-model="value" clearable />
-			<p style="margin-top: 16px;">Value: {{ value }}</p>
+			<p class="input-story-value">Value: {{ value }}</p>
 		</div>
 		`,
 	}),
@@ -150,10 +248,11 @@ export const Disabled = {
 			return { args, value };
 		},
 		template: `
-		<div style="padding: 40px; max-width: 400px;">
+		${storyStyles}
+		<div class="input-story-container">
 			<h3>Disabled with value</h3>
 			<Input v-bind="args" v-model="value" disabled />
-			<h3 style="margin-top: 16px;">Disabled with placeholder</h3>
+			<h3 class="input-story-section">Disabled with placeholder</h3>
 			<Input placeholder="Disabled input" disabled />
 		</div>
 		`,
@@ -171,16 +270,17 @@ export const Sizes = {
 			return { args, value };
 		},
 		template: `
-		<div style="padding: 40px; max-width: 400px;">
+		${storyStyles}
+		<div class="input-story-container">
 			<h3>xlarge (48px)</h3>
 			<Input v-bind="args" v-model="value" size="xlarge" />
-			<h3 style="margin-top: 16px;">large (40px) - default</h3>
+			<h3 class="input-story-section">large (40px) - default</h3>
 			<Input v-bind="args" v-model="value" size="large" />
-			<h3 style="margin-top: 16px;">medium (36px)</h3>
+			<h3 class="input-story-section">medium (36px)</h3>
 			<Input v-bind="args" v-model="value" size="medium" />
-			<h3 style="margin-top: 16px;">small (28px)</h3>
+			<h3 class="input-story-section">small (28px)</h3>
 			<Input v-bind="args" v-model="value" size="small" />
-			<h3 style="margin-top: 16px;">mini (22px)</h3>
+			<h3 class="input-story-section">mini (22px)</h3>
 			<Input v-bind="args" v-model="value" size="mini" />
 		</div>
 		`,
