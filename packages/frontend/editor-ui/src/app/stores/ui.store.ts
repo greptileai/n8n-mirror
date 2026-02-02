@@ -60,6 +60,7 @@ import {
 import {
 	SOURCE_CONTROL_PUSH_MODAL_KEY,
 	SOURCE_CONTROL_PULL_MODAL_KEY,
+	SOURCE_CONTROL_PULL_RESULT_MODAL_KEY,
 } from '@/features/integrations/sourceControl.ee/sourceControl.constants';
 import { PROJECT_MOVE_RESOURCE_MODAL } from '@/features/collaboration/projects/projects.constants';
 import {
@@ -158,6 +159,7 @@ export const useUIStore = defineStore(STORES.UI, () => {
 				WORKFLOW_HISTORY_PUBLISH_MODAL_KEY,
 				WORKFLOW_HISTORY_VERSION_UNPUBLISH,
 				CREDENTIAL_RESOLVER_EDIT_MODAL_KEY,
+				SOURCE_CONTROL_PULL_RESULT_MODAL_KEY,
 			].map((modalKey) => [modalKey, { open: false }]),
 		),
 		[DELETE_USER_MODAL_KEY]: {
