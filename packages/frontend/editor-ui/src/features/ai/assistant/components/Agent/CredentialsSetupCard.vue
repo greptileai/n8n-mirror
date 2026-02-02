@@ -38,16 +38,25 @@ const formattedNodeNames = computed(() => {
 	const names = nodeNames.value;
 	if (names.length === 0) return '';
 	if (names.length === 1) return names[0];
-	if (names.length === 2) return `${names[0]} and ${names[1]}`;
+	if (names.length === 2) {
+		return i18n.baseText('aiAssistant.builder.executeMessage.nodeListTwo', {
+			interpolate: { first: names[0], second: names[1] },
+		});
+	}
 
 	if (names.length <= MAX_VISIBLE_NODES) {
 		const allButLast = names.slice(0, -1).join(', ');
-		return `${allButLast}, and ${names[names.length - 1]}`;
+		return i18n.baseText('aiAssistant.builder.executeMessage.nodeListLast', {
+			interpolate: { list: allButLast, last: names[names.length - 1] },
+		});
 	}
 
 	const visible = names.slice(0, MAX_VISIBLE_NODES).join(', ');
 	const remaining = names.length - MAX_VISIBLE_NODES;
-	return `${visible}, and ${remaining} more`;
+	return i18n.baseText('aiAssistant.builder.executeMessage.nodeListMore', {
+		interpolate: { list: visible, count: String(remaining) },
+		adjustToNumber: remaining,
+	});
 });
 
 function handleClick() {
