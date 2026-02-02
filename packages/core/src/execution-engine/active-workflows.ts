@@ -248,12 +248,12 @@ export class ActiveWorkflows {
 					name: 'Workflow Trigger Poll',
 					op: 'trigger.poll',
 					attributes: {
-						'n8n.workflow.id': workflow.id,
-						'n8n.workflow.name': workflow.name,
-						'n8n.node.id': node.id,
-						'n8n.node.name': node.name,
-						'n8n.node.type': node.type,
-						'n8n.node.type_version': node.typeVersion,
+						[Tracing.commonAttrs.workflow.id]: workflow.id,
+						[Tracing.commonAttrs.workflow.name]: workflow.name,
+						[Tracing.commonAttrs.node.id]: node.id,
+						[Tracing.commonAttrs.node.name]: node.name,
+						[Tracing.commonAttrs.node.type]: node.type,
+						[Tracing.commonAttrs.node.typeVersion]: node.typeVersion,
 					},
 				},
 				async () => {
