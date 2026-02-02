@@ -162,6 +162,8 @@ export class ErrorReporter {
 			tracingIntegrations
 				.filter((integrationName) => !!eligibleIntegrations[integrationName])
 				.forEach((integrationName) => enabledIntegrations.add(integrationName));
+
+			this.tracing.setTracingImplementation(new SentryTracing(sentry));
 		}
 
 		const isProfilingEnabled = profilesSampleRate > 0;
@@ -204,8 +206,6 @@ export class ErrorReporter {
 				...profilingIntegration,
 			],
 		});
-
-		this.tracing.setTracingImplementation(new SentryTracing(sentry));
 
 		setTag('server_type', serverType);
 
