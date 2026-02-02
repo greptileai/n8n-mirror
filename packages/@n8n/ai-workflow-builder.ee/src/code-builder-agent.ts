@@ -9,31 +9,28 @@
  * discovery and code generation in a single, context-preserving agent.
  */
 
-import { appendFileSync, mkdirSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
-import { tmpdir } from 'node:os';
-import { inspect } from 'node:util';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import type { BaseMessage } from '@langchain/core/messages';
-import { AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
+import type { BaseMessage, AIMessage } from '@langchain/core/messages';
+import { HumanMessage, ToolMessage } from '@langchain/core/messages';
 import type { StructuredToolInterface } from '@langchain/core/tools';
 import type { Logger } from '@n8n/backend-common';
-import type { INodeTypeDescription } from 'n8n-workflow';
 import {
 	parseWorkflowCodeToBuilder,
 	validateWorkflow,
 	generateWorkflowCode,
 } from '@n8n/workflow-sdk';
 import type { WorkflowJSON } from '@n8n/workflow-sdk';
+import type { INodeTypeDescription } from 'n8n-workflow';
+import { appendFileSync, mkdirSync, existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { inspect } from 'node:util';
 
-import { extractWorkflowCode } from './utils/extract-code';
-import { TextEditorHandler } from './tools/text-editor-handler';
-import type { TextEditorCommand } from './types/text-editor';
-import { NodeTypeParser } from './utils/node-type-parser';
 import { buildCodeBuilderPrompt, type HistoryContext } from './prompts/code-builder';
-import { createCodeBuilderSearchTool } from './tools/code-builder-search.tool';
 import { createCodeBuilderGetTool } from './tools/code-builder-get.tool';
+import { createCodeBuilderSearchTool } from './tools/code-builder-search.tool';
 import { createGetSuggestedNodesTool } from './tools/get-suggested-nodes.tool';
+import { TextEditorHandler } from './tools/text-editor-handler';
 import type {
 	StreamOutput,
 	AgentMessageChunk,
@@ -41,8 +38,11 @@ import type {
 	ToolProgressChunk,
 	StreamGenerationError,
 } from './types/streaming';
-import type { ChatPayload } from './workflow-builder-agent';
+import type { TextEditorCommand } from './types/text-editor';
 import type { EvaluationLogger } from './utils/evaluation-logger';
+import { extractWorkflowCode } from './utils/extract-code';
+import { NodeTypeParser } from './utils/node-type-parser';
+import type { ChatPayload } from './workflow-builder-agent';
 
 /** Maximum iterations for the agentic loop to prevent infinite loops */
 const MAX_AGENT_ITERATIONS = 25;
@@ -1228,7 +1228,7 @@ ${'='.repeat(50)}
 		const workflowCode = extractWorkflowCode(content);
 
 		// Check if we got valid code (should contain workflow-related keywords)
-		if (!workflowCode || !workflowCode.includes('workflow')) {
+		if (!workflowCode?.includes('workflow')) {
 			this.debugLog('PARSE_OUTPUT', 'No valid workflow code found in content');
 			return {
 				result: null,
