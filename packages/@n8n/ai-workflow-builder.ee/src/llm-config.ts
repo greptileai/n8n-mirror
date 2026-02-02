@@ -208,7 +208,7 @@ export const MODEL_FACTORIES: Record<
 	// Native models
 	'claude-opus-4.5': anthropicClaudeOpus45,
 	'claude-sonnet-4.5': anthropicClaudeSonnet45,
-	'claude-sonnet-4.5-think': anthropicClaudeSonnet45,
+	'claude-sonnet-4.5-think': anthropicClaudeSonnet45Think,
 	'claude-haiku-4.5': anthropicHaiku45,
 	'gpt-5.2': gpt52,
 	// OpenRouter models
