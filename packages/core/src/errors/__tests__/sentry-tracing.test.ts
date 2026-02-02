@@ -1,16 +1,17 @@
 import type { StartSpanOptions } from '@sentry/core';
 import type Sentry from '@sentry/node';
+import { mock, mockClear } from 'jest-mock-extended';
 
 import { SentryTracing } from '../sentry-tracing';
 
 describe('SentryTracing', () => {
-	let mockSentry: jest.Mocked<typeof Sentry>;
 	let sentryTracing: SentryTracing;
+	const mockSentry = mock({
+		startSpan: jest.fn(),
+	});
 
 	beforeEach(() => {
-		mockSentry = {
-			startSpan: jest.fn(),
-		} as unknown as jest.Mocked<typeof Sentry>;
+		mockClear(mockSentry);
 
 		sentryTracing = new SentryTracing(mockSentry);
 	});
