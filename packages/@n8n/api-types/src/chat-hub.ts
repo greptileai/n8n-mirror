@@ -542,3 +542,24 @@ export interface ChatReconnectResponse {
 	/** Last sequence number received by client (for gap detection) */
 	lastSequenceNumber: number;
 }
+
+/**
+ * Document generated during chat interaction
+ */
+export interface ChatDocument {
+	title: string;
+	type: string;
+	content: string;
+}
+
+export interface ChatDocCreateCommand {
+	title: string;
+	type: string;
+	content: string;
+}
+
+export interface ChatDocEditCommand {
+	oldString: string;
+	newString: string;
+	replaceAll: boolean;
+}

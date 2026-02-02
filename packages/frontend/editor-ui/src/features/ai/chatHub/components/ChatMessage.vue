@@ -4,14 +4,7 @@ import ChatTypingIndicator from '@/features/ai/chatHub/components/ChatTypingIndi
 import type { AgentIconOrEmoji, ChatMessageId, ChatModelDto } from '@n8n/api-types';
 import { N8nButton, N8nIcon, N8nIconButton, N8nInput } from '@n8n/design-system';
 import { useSpeechSynthesis } from '@vueuse/core';
-import {
-	computed,
-	onBeforeMount,
-	ref,
-	useTemplateRef,
-	watch,
-	type ComponentPublicInstance,
-} from 'vue';
+import { computed, onBeforeMount, ref, useTemplateRef, watch } from 'vue';
 import type { ChatMessage } from '../chat.types';
 import ChatMessageActions from './ChatMessageActions.vue';
 import { unflattenModel, splitMarkdownIntoChunks } from '@/features/ai/chatHub/chat.utils';
@@ -23,6 +16,7 @@ import { useDeviceSupport } from '@n8n/composables/useDeviceSupport';
 import { useI18n } from '@n8n/i18n';
 import ChatMarkdownChunk from '@/features/ai/chatHub/components/ChatMarkdownChunk.vue';
 import CopyButton from '@/features/ai/chatHub/components/CopyButton.vue';
+import { reconstructDocument, stripDocumentCommands } from '../chat-document';
 
 interface MergedAttachment {
 	isNew: boolean;
@@ -72,13 +66,10 @@ const newFiles = ref<File[]>([]);
 const removedExistingIndices = ref<Set<number>>(new Set());
 const fileInputRef = useTemplateRef('fileInputRef');
 const textareaRef = useTemplateRef('textarea');
-const messageContent = computed(() => message.content);
-const markdownChunkRefs = ref<
-	Array<ComponentPublicInstance<{
-		hoveredCodeBlockActions: HTMLElement | null;
-		getHoveredCodeBlockContent: () => string | undefined;
-	}> | null>
->([]);
+const markdownChunkRefs = useTemplateRef('markdownChunk');
+const messageContent = computed(() =>
+	message.type === 'ai' ? stripDocumentCommands(message.content) : message.content,
+);
 
 const activeCodeBlockTeleport = computed(() => {
 	for (const chunkRef of markdownChunkRefs.value) {
@@ -98,7 +89,7 @@ const messageChunks = computed(() => {
 		return [i18n.baseText('chatHub.message.error.unknown')];
 	}
 
-	return splitMarkdownIntoChunks(message.content).filter((chunk) => chunk.trim() !== '');
+	return splitMarkdownIntoChunks(messageContent.value).filter((chunk) => chunk.trim() !== '');
 });
 
 const speech = useSpeechSynthesis(messageContent, {
@@ -138,6 +129,18 @@ const mergedAttachments = computed(() => [
 
 const hideMessage = computed(() => {
 	return message.status === 'success' && message.content === '';
+});
+
+const hasIncompleteCommand = computed(() => {
+	if (message.type !== 'ai') {
+		return false;
+	}
+	const { hasIncompleteCommand: incomplete } = reconstructDocument([message]);
+	return incomplete;
+});
+
+const shouldShowTypingIndicator = computed(() => {
+	return message.status === 'running' || hasIncompleteCommand.value;
 });
 
 function handleEdit() {
@@ -356,10 +359,8 @@ onBeforeMount(() => {
 					<div v-else :class="$style.markdownContent">
 						<ChatMarkdownChunk
 							v-for="(chunk, index) in messageChunks"
+							ref="markdownChunk"
 							:key="index"
-							:ref="
-								(el) => (markdownChunkRefs[index] = el as (typeof markdownChunkRefs.value)[number])
-							"
 							:source="chunk"
 						/>
 						<Teleport v-if="activeCodeBlockTeleport" :to="activeCodeBlockTeleport.target">
@@ -367,7 +368,7 @@ onBeforeMount(() => {
 						</Teleport>
 					</div>
 				</div>
-				<ChatTypingIndicator v-if="message.status === 'running'" :class="$style.typingIndicator" />
+				<ChatTypingIndicator v-if="shouldShowTypingIndicator" :class="$style.typingIndicator" />
 				<ChatMessageActions
 					v-else
 					:is-speech-synthesis-available="speech.isSupported.value"

@@ -88,6 +88,7 @@ import { NotFoundError } from '@/errors/response-errors/not-found.error';
 import { ExecutionService } from '@/executions/execution.service';
 import { WorkflowExecutionService } from '@/workflows/workflow-execution.service';
 import { WorkflowFinderService } from '@/workflows/workflow-finder.service';
+import { reconstructDocument } from './chat-document.utils';
 
 @Service()
 export class ChatHubService {
@@ -160,6 +161,26 @@ export class ChatHubService {
 		return credentials[PROVIDER_CREDENTIAL_TYPE_MAP[provider]]?.id ?? null;
 	}
 
+	private buildDocumentContext(history: ChatHubMessage[]): string {
+		const document = reconstructDocument(history);
+		if (!document) {
+			return '';
+		}
+
+		return `
+
+## Current Document
+
+Title: ${document.title}
+Type: ${document.type}
+Content:
+\`\`\`${document.type}
+${document.content}
+\`\`\`
+
+You can update this document using the commands described above.`;
+	}
+
 	private async prepareReplyWorkflow(
 		user: User,
 		sessionId: ChatSessionId,
@@ -199,6 +220,10 @@ export class ChatHubService {
 			);
 		}
 
+		const documentContext = this.buildDocumentContext(history);
+		const systemMessage =
+			this.chatHubWorkflowService.getSystemMessageMetadata(timeZone) + documentContext;
+
 		return await this.prepareBaseChatWorkflow(
 			user,
 			sessionId,
@@ -206,7 +231,7 @@ export class ChatHubService {
 			model,
 			history,
 			message,
-			undefined,
+			systemMessage,
 			tools,
 			attachments,
 			timeZone,
@@ -276,8 +301,12 @@ export class ChatHubService {
 			throw new BadRequestError('Credentials not set for agent');
 		}
 
+		const documentContext = this.buildDocumentContext(history);
 		const systemMessage =
-			agent.systemPrompt + '\n\n' + this.chatHubWorkflowService.getSystemMessageMetadata(timeZone);
+			agent.systemPrompt +
+			'\n\n' +
+			this.chatHubWorkflowService.getSystemMessageMetadata(timeZone) +
+			documentContext;
 
 		const model: ChatHubBaseLLMModel = {
 			provider: agent.provider,
@@ -1558,7 +1587,7 @@ export class ChatHubService {
 			await this.chatStreamService.endExecution(user.id, sessionId, 'error');
 		} finally {
 			if (model.provider !== 'n8n') {
-				await this.deleteChatWorkflow(workflowData.id);
+				//await this.deleteChatWorkflow(workflowData.id);
 			}
 		}
 

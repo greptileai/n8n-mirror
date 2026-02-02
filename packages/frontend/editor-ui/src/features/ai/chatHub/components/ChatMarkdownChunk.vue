@@ -3,8 +3,9 @@ import VueMarkdown from 'vue-markdown-render';
 import { useChatHubMarkdownOptions } from '@/features/ai/chatHub/composables/useChatHubMarkdownOptions';
 import { ref, useCssModule } from 'vue';
 
-const { source } = defineProps<{
+const { source, singlePre = false } = defineProps<{
 	source: string;
+	singlePre?: boolean;
 }>();
 
 const styles = useCssModule();
@@ -39,7 +40,7 @@ defineExpose({
 	<VueMarkdown
 		:key="markdown.forceReRenderKey.value"
 		:source="source"
-		:class="$style.chatMessageMarkdown"
+		:class="[$style.chatMessageMarkdown, { [$style.singlePre]: singlePre }]"
 		:options="markdown.options"
 		:plugins="markdown.plugins.value"
 		@mousemove="handleMouseMove"
@@ -209,6 +210,12 @@ defineExpose({
 		& ~ pre {
 			margin-bottom: calc(var(--markdown--spacing) * 2.5);
 		}
+	}
+
+	&.singlePre pre {
+		background: transparent;
+		margin: 0;
+		border-radius: 0;
 	}
 
 	// Blockquotes

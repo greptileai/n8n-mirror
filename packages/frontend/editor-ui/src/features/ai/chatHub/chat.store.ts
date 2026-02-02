@@ -50,6 +50,7 @@ import {
 	type ChatHubStreamError,
 	type ChatHubExecutionBegin,
 	type ChatHubExecutionEnd,
+	type ChatDocument,
 } from '@n8n/api-types';
 import type {
 	CredentialsMap,
@@ -74,6 +75,7 @@ import { deepCopy, type INode } from 'n8n-workflow';
 import { convertFileToBinaryData } from '@/app/utils/fileUtils';
 import { ResponseError } from '@n8n/rest-api-client';
 import { STORES } from '@n8n/stores/constants';
+import { reconstructDocument } from './chat-document';
 
 export const useChatStore = defineStore(STORES.CHAT_HUB, () => {
 	const rootStore = useRootStore();
@@ -95,6 +97,9 @@ export const useChatStore = defineStore(STORES.CHAT_HUB, () => {
 	const settingsLoading = ref(false);
 	const settings = ref<Record<ChatHubLLMProvider, ChatProviderSettingsDto> | null>(null);
 	const conversationsBySession = ref<Map<ChatSessionId, ChatConversation>>(new Map());
+	const documentBySession = ref<
+		Map<ChatSessionId, { document: ChatDocument | null; hasIncompleteCommand: boolean }>
+	>(new Map());
 
 	const getConversation = (sessionId: ChatSessionId): ChatConversation | undefined =>
 		conversationsBySession.value.get(sessionId);
@@ -272,6 +277,14 @@ export const useChatStore = defineStore(STORES.CHAT_HUB, () => {
 		}
 
 		message.content += chunk;
+		documentBySession.value.set(
+			sessionId,
+			reconstructDocument(
+				conversationsBySession.value
+					.get(sessionId)
+					?.activeMessageChain.map((c) => conversation.messages[c]) ?? [],
+			),
+		);
 	}
 
 	function updateMessage(
@@ -359,10 +372,15 @@ export const useChatStore = defineStore(STORES.CHAT_HUB, () => {
 			.sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1))
 			.pop();
 
+		const activeMessageChain = computeActiveChain(messages, latestMessage?.id ?? null);
 		conversationsBySession.value.set(sessionId, {
 			messages,
-			activeMessageChain: computeActiveChain(messages, latestMessage?.id ?? null),
+			activeMessageChain,
 		});
+		documentBySession.value?.set(
+			sessionId,
+			reconstructDocument(activeMessageChain.map((i) => messages[i])),
+		);
 		sessions.value.byId[sessionId] = session;
 	}
 
@@ -1188,6 +1206,7 @@ export const useChatStore = defineStore(STORES.CHAT_HUB, () => {
 		deleteSession,
 		updateToolsInSession,
 		conversationsBySession,
+		documentBySession,
 
 		/**
 		 * conversation
