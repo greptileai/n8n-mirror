@@ -35,10 +35,14 @@ describe('FolderRepository', () => {
 
 		describe('filters', () => {
 			it('should return all folders if not filter is provided', async () => {
-				const folder1 = await createFolder(project, { name: 'folder1' });
-				const folder2 = await createFolder(project, { name: 'folder2' });
-
-				await Promise.all([folder1, folder2]);
+				await createFolder(project, {
+					name: 'folder1',
+					updatedAt: DateTime.now().minus({ minutes: 1 }).toJSDate(),
+				});
+				await createFolder(project, {
+					name: 'folder2',
+					updatedAt: DateTime.now().toJSDate(),
+				});
 
 				const [folders, count] = await folderRepository.getManyAndCount();
 				expect(count).toBe(2);
