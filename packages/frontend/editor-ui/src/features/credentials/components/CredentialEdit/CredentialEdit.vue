@@ -1057,6 +1057,14 @@ async function oAuthCredentialAuthorize() {
 		return;
 	}
 
+	if (url === undefined || url === '') {
+		toast.showError(
+			new Error(i18n.baseText('credentialEdit.credentialEdit.showError.invalidOAuthUrl.message')),
+			i18n.baseText('credentialEdit.credentialEdit.showError.invalidOAuthUrl.title'),
+		);
+		return;
+	}
+
 	// Prevent javascript:, data:, vbscript: and other non-http(s) protocols (XSS)
 	const allowedOAuthUrlProtocols = ['http:', 'https:'];
 	try {
