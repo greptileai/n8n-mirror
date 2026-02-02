@@ -48,7 +48,7 @@ import type { ChatPayload } from './workflow-builder-agent';
 const MAX_AGENT_ITERATIONS = 25;
 
 /** Maximum finalize attempts before giving up in text editor mode */
-const MAX_FINALIZE_ATTEMPTS = 3;
+const MAX_FINALIZE_ATTEMPTS = 10;
 
 /** Native Anthropic text editor tool configuration */
 const TEXT_EDITOR_TOOL = {
