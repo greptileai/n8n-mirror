@@ -109,43 +109,50 @@ export = {
 			const offset = Number(req.query.offset) || 0;
 			const limit = Number(req.query.limit) || 100;
 
-			const projectService = Container.get(ProjectService);
-			const project = await projectService.getProjectWithScope(req.user, projectId, [
-				'project:list',
-			]);
-			if (!project) {
-				throw new NotFoundError(`Could not find project with ID "${projectId}"`);
+			try {
+				const projectService = Container.get(ProjectService);
+				const project = await projectService.getProjectWithScope(req.user, projectId, [
+					'project:list',
+				]);
+				if (!project) {
+					throw new NotFoundError(`Could not find project with ID "${projectId}"`);
+				}
+
+				const projectRelationRepository = Container.get(ProjectRelationRepository);
+				const [relations, count] = await projectRelationRepository.findAndCount({
+					where: { projectId },
+					relations: { user: true, role: true },
+					skip: offset,
+					take: limit,
+				});
+
+				const memberFields = [
+					'id',
+					'email',
+					'firstName',
+					'lastName',
+					'createdAt',
+					'updatedAt',
+				] as const;
+				const data = relations.map((relation) => ({
+					...pick(relation.user, memberFields),
+					role: relation.role?.slug ?? null,
+				}));
+
+				return res.json({
+					data,
+					nextCursor: encodeNextCursor({
+						offset,
+						limit,
+						numberOfTotalRecords: count,
+					}),
+				});
+			} catch (error) {
+				if (error instanceof ResponseError) {
+					return res.status(error.httpStatusCode).json({ message: error.message });
+				}
+				throw error;
 			}
-
-			const projectRelationRepository = Container.get(ProjectRelationRepository);
-			const [relations, count] = await projectRelationRepository.findAndCount({
-				where: { projectId },
-				relations: { user: true, role: true },
-				skip: offset,
-				take: limit,
-			});
-
-			const memberFields = [
-				'id',
-				'email',
-				'firstName',
-				'lastName',
-				'createdAt',
-				'updatedAt',
-			] as const;
-			const data = relations.map((relation) => ({
-				...pick(relation.user, memberFields),
-				role: relation.role?.slug ?? null,
-			}));
-
-			return res.json({
-				data,
-				nextCursor: encodeNextCursor({
-					offset,
-					limit,
-					numberOfTotalRecords: count,
-				}),
-			});
 		},
 	],
 	addUsersToProject: [
