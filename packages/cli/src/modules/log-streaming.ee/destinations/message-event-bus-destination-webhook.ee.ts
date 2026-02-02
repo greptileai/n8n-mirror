@@ -130,7 +130,8 @@ export class MessageEventBusDestinationWebhook
 
 		// Unwrap nested proxy: fixedCollection in logStreaming.constants uses name 'proxy' for both
 		// the collection and its single option, producing options.proxy = { proxy: { protocol, host, port } }.
-		// Axios expects proxy to be { protocol, host, port } or false.
+		// Axios expects proxy to be { protocol, host, port }. Only set when explicitly configured;
+		// leaving proxy undefined allows axios to use HTTP_PROXY/HTTPS_PROXY from the environment.
 		let proxy = axiosParameters.options?.proxy;
 		if (
 			proxy &&
@@ -140,7 +141,9 @@ export class MessageEventBusDestinationWebhook
 		) {
 			proxy = (proxy as { proxy: typeof proxy }).proxy;
 		}
-		axiosSetting.proxy = proxy ?? false;
+		if (proxy) {
+			axiosSetting.proxy = proxy;
+		}
 
 		axiosSetting.timeout =
 			axiosParameters.options?.timeout ?? LOGSTREAMING_DEFAULT_SOCKET_TIMEOUT_MS;
