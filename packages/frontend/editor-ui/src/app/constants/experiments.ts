@@ -68,6 +68,7 @@ export const RESOURCE_CENTER_EXPERIMENT = createExperiment('063_resource_center_
 });
 
 export const SIDEBAR_EXPANDED_EXPERIMENT = createExperiment('067_sidebar_expanded');
+export const DYNAMIC_TEMPLATES_EXPERIMENT = createExperiment('068_dynamic_templates');
 
 export const EXPERIMENTS_TO_TRACK = [
 	EXTRA_TEMPLATE_LINKS_EXPERIMENT.name,
@@ -83,4 +84,5 @@ export const EXPERIMENTS_TO_TRACK = [
 	TAMPER_PROOF_INVITE_LINKS.name,
 	EMPTY_STATE_BUILDER_PROMPT_EXPERIMENT.name,
 	SIDEBAR_EXPANDED_EXPERIMENT.name,
+	DYNAMIC_TEMPLATES_EXPERIMENT.name,
 ];
