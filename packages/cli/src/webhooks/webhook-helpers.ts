@@ -78,6 +78,42 @@ import * as WorkflowHelpers from '@/workflow-helpers';
 import { WorkflowRunner } from '@/workflow-runner';
 import merge from 'lodash/merge';
 
+// Type guards for MCP queue mode data validation
+interface McpToolCallPayload {
+	toolName: string;
+	arguments: Record<string, unknown>;
+	sourceNodeName?: string;
+}
+
+function isMcpToolCall(value: unknown): value is McpToolCallPayload {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'toolName' in value &&
+		typeof (value as Record<string, unknown>).toolName === 'string' &&
+		'arguments' in value &&
+		typeof (value as Record<string, unknown>).arguments === 'object'
+	);
+}
+
+interface McpListToolsRelayPayload {
+	sessionId: string;
+	messageId: string;
+	marker: { _listToolsRequest: boolean };
+}
+
+function isMcpListToolsRelay(value: unknown): value is McpListToolsRelayPayload {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'sessionId' in value &&
+		typeof (value as Record<string, unknown>).sessionId === 'string' &&
+		'messageId' in value &&
+		typeof (value as Record<string, unknown>).messageId === 'string' &&
+		'marker' in value
+	);
+}
+
 export function handleHostedChatResponse(
 	res: express.Response,
 	responseMode: WebhookResponseMode,
@@ -611,8 +647,14 @@ export async function executeWebhook(
 
 		const executionsConfig = Container.get(ExecutionsConfig);
 		if (workflowStartNode.type === MCP_TRIGGER_NODE_TYPE && executionsConfig.mode === 'queue') {
+			const querySessionId = req.query?.sessionId;
+			const headerSessionId = req.headers['mcp-session-id'];
 			const mcpSessionId =
-				(req.query?.sessionId as string) ?? (req.headers['mcp-session-id'] as string) ?? '';
+				typeof querySessionId === 'string'
+					? querySessionId
+					: typeof headerSessionId === 'string'
+						? headerSessionId
+						: '';
 
 			const firstItem = webhookResultData.workflowData?.[0]?.[0];
 			const mcpMessageId =
@@ -625,12 +667,26 @@ export async function executeWebhook(
 			runData.mcpSessionId = mcpSessionId;
 			runData.mcpMessageId = mcpMessageId;
 
-			if (firstItem && 'json' in firstItem && firstItem.json?.mcpToolCall) {
-				runData.mcpToolCall = firstItem.json.mcpToolCall as {
-					toolName: string;
-					arguments: Record<string, unknown>;
-					sourceNodeName?: string;
-				};
+			const mcpToolCallValue =
+				firstItem && 'json' in firstItem ? firstItem.json?.mcpToolCall : null;
+			if (isMcpToolCall(mcpToolCallValue)) {
+				runData.mcpToolCall = mcpToolCallValue;
+			}
+
+			// Handle MCP list tools relay - forward to main with SSE transport via pub/sub
+			const mcpListToolsRelayValue =
+				firstItem && 'json' in firstItem ? firstItem.json?.mcpListToolsRelay : null;
+			if (isMcpListToolsRelay(mcpListToolsRelayValue)) {
+				const { Publisher } = await import('@/scaling/pubsub/publisher.service');
+				const publisher = Container.get(Publisher);
+				await publisher.publishMcpRelay({
+					sessionId: mcpListToolsRelayValue.sessionId,
+					messageId: mcpListToolsRelayValue.messageId,
+					response: mcpListToolsRelayValue.marker,
+				});
+				// Don't run workflow - the relay will be handled by the main with the transport
+				// Return undefined since no execution is started
+				return undefined;
 			}
 		}
 

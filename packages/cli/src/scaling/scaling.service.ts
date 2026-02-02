@@ -85,7 +85,33 @@ export class ScalingService {
 		const { McpServerManager } = await import(
 			'@n8n/n8n-nodes-langchain/dist/nodes/mcp/McpTrigger/McpServer'
 		);
-		McpServerManager.instance(this.logger).setQueueMode(true);
+		const mcpServerManager = McpServerManager.instance(this.logger);
+		mcpServerManager.setQueueMode(true);
+
+		// Configure session validation callbacks using Redis to prevent session fixation attacks
+		// when recreating transports on different main instances
+		const MCP_SESSION_TTL = 86400; // 24 hours in seconds
+		const getMcpSessionKey = (sessionId: string) =>
+			`${this.globalConfig.redis.prefix}:mcp-session:${sessionId}`;
+
+		const { Publisher } = await import('@/scaling/pubsub/publisher.service');
+		const publisher = Container.get(Publisher);
+
+		mcpServerManager.setSessionCallbacks(
+			// Register session: store in Redis with TTL
+			async (sessionId: string) => {
+				await publisher.set(getMcpSessionKey(sessionId), '1', MCP_SESSION_TTL);
+			},
+			// Validate session: check if exists in Redis
+			async (sessionId: string) => {
+				const result = await publisher.get(getMcpSessionKey(sessionId));
+				return result !== null;
+			},
+			// Unregister session: remove from Redis
+			async (sessionId: string) => {
+				await publisher.clear(getMcpSessionKey(sessionId));
+			},
+		);
 
 		this.logger.debug('Queue setup completed');
 	}

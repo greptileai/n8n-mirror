@@ -554,5 +554,175 @@ describe('JobProcessor', () => {
 				}),
 			);
 		});
+
+		it('should execute tool node and send result for MCP Trigger with tool call', async () => {
+			const executionRepository = mock<ExecutionRepository>();
+			const toolNode = { name: 'tool-node', type: 'n8n-nodes-base.tool' };
+			executionRepository.findSingleExecution.mockResolvedValueOnce(
+				mock<IExecutionResponse>({
+					mode: 'trigger',
+					workflowData: {
+						id: 'wf-1',
+						nodes: [toolNode],
+						staticData: {},
+					},
+					data: mock<IRunExecutionData>({
+						executionData: undefined,
+					}),
+				}),
+			);
+			// Second call for fetching result
+			executionRepository.findSingleExecution.mockResolvedValueOnce(
+				mock<IExecutionResponse>({
+					status: 'success',
+					workflowData: { id: 'wf-1', nodes: [toolNode], staticData: {} },
+					data: mock<IRunExecutionData>({ resultData: { runData: {} } }),
+				}),
+			);
+
+			const manualExecutionService = mock<ManualExecutionService>();
+			const mcpInstanceSettings = {
+				hostId: 'worker-host-123',
+			} as unknown as InstanceSettings;
+
+			// Mock the processRunExecutionData to return tool result
+			processRunExecutionDataMock.mockResolvedValue({
+				data: {
+					resultData: {
+						runData: {
+							'tool-node': [
+								{
+									data: {
+										main: [[{ json: { toolResult: 'success' } }]],
+									},
+								},
+							],
+						},
+					},
+				},
+			});
+
+			const jobProcessor = new JobProcessor(
+				logger,
+				executionRepository,
+				mock(), // workflowRepository
+				mock(), // nodeTypes
+				mcpInstanceSettings,
+				manualExecutionService,
+				executionsConfig,
+				mock(), // eventService
+			);
+
+			const job = mock<Job>();
+			job.data = {
+				workflowId: 'wf-1',
+				executionId: 'exec-mcp-tool',
+				loadStaticData: false,
+				isMcpExecution: true,
+				mcpType: 'trigger',
+				mcpSessionId: 'session-tool',
+				mcpMessageId: 'msg-tool',
+				mcpToolCall: {
+					toolName: 'test-tool',
+					arguments: { arg1: 'value1' },
+					sourceNodeName: 'tool-node',
+				},
+			};
+
+			await jobProcessor.processJob(job);
+
+			// Should send mcp-response with tool result
+			const mcpResponseCalls = (job.progress as jest.Mock).mock.calls.filter(
+				(call: unknown[]) => (call[0] as { kind: string }).kind === 'mcp-response',
+			);
+			expect(mcpResponseCalls.length).toBeGreaterThan(0);
+			expect(mcpResponseCalls[mcpResponseCalls.length - 1][0]).toMatchObject({
+				kind: 'mcp-response',
+				executionId: 'exec-mcp-tool',
+				mcpType: 'trigger',
+				sessionId: 'session-tool',
+				messageId: 'msg-tool',
+				workerId: 'worker-host-123',
+			});
+		});
+
+		it('should handle tool execution errors gracefully', async () => {
+			const executionRepository = mock<ExecutionRepository>();
+			executionRepository.findSingleExecution.mockResolvedValueOnce(
+				mock<IExecutionResponse>({
+					mode: 'trigger',
+					workflowData: {
+						id: 'wf-1',
+						nodes: [], // Missing tool node will cause error
+						staticData: {},
+					},
+					data: mock<IRunExecutionData>({
+						executionData: undefined,
+					}),
+				}),
+			);
+			executionRepository.findSingleExecution.mockResolvedValueOnce(
+				mock<IExecutionResponse>({
+					status: 'success',
+					workflowData: { id: 'wf-1', nodes: [], staticData: {} },
+					data: mock<IRunExecutionData>({ resultData: { runData: {} } }),
+				}),
+			);
+
+			const manualExecutionService = mock<ManualExecutionService>();
+			const mcpInstanceSettings = {
+				hostId: 'worker-host-123',
+			} as unknown as InstanceSettings;
+
+			const jobProcessor = new JobProcessor(
+				logger,
+				executionRepository,
+				mock(),
+				mock(),
+				mcpInstanceSettings,
+				manualExecutionService,
+				executionsConfig,
+				mock(),
+			);
+
+			const job = mock<Job>();
+			job.data = {
+				workflowId: 'wf-1',
+				executionId: 'exec-mcp-error',
+				loadStaticData: false,
+				isMcpExecution: true,
+				mcpType: 'trigger',
+				mcpSessionId: 'session-error',
+				mcpMessageId: 'msg-error',
+				mcpToolCall: {
+					toolName: 'missing-tool',
+					arguments: {},
+					sourceNodeName: 'nonexistent-node',
+				},
+			};
+
+			await jobProcessor.processJob(job);
+
+			// Should send mcp-response with error (error object without stack trace)
+			expect(job.progress).toHaveBeenCalledWith(
+				expect.objectContaining({
+					kind: 'mcp-response',
+					response: expect.objectContaining({
+						error: expect.objectContaining({
+							message: expect.any(String),
+						}),
+					}),
+				}),
+			);
+
+			// Verify no stack trace is exposed
+			const mcpResponseCalls = (job.progress as jest.Mock).mock.calls.filter(
+				(call: unknown[]) => (call[0] as { kind: string }).kind === 'mcp-response',
+			);
+			const lastResponse = mcpResponseCalls[mcpResponseCalls.length - 1][0] as {
+				response: { error?: { stack?: string } };
+			};
+			expect(lastResponse.response.error?.stack).toBeUndefined();
+		});
 	});
 });

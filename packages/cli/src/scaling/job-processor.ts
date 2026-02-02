@@ -327,7 +327,7 @@ export class JobProcessor {
 				toolResult = {
 					error:
 						error instanceof Error
-							? { message: error.message, name: error.name, stack: error.stack }
+							? { message: error.message, name: error.name }
 							: { message: String(error) },
 				};
 			}
@@ -460,12 +460,15 @@ export class JobProcessor {
 			throw new UnexpectedError(`Tool node "${sourceNodeName}" not found in workflow`);
 		}
 
+		// Validate toolArgs is a proper object (not null/array) before using as input data
+		const validatedToolArgs =
+			typeof toolArgs === 'object' && toolArgs !== null && !Array.isArray(toolArgs) ? toolArgs : {};
+
 		// Create input data for the tool node with the tool arguments
-		// Cast toolArgs to IDataObject since it comes from JSON-RPC which is type-safe
 		const inputData: INodeExecutionData[][] = [
 			[
 				{
-					json: toolArgs as unknown as INodeExecutionData['json'],
+					json: validatedToolArgs as INodeExecutionData['json'],
 				},
 			],
 		];
