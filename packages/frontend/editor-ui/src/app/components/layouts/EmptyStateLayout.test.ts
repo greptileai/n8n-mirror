@@ -7,7 +7,6 @@ import { useProjectsStore } from '@/features/collaboration/projects/projects.sto
 import { useSourceControlStore } from '@/features/integrations/sourceControl.ee/sourceControl.store';
 import { useRecommendedTemplatesStore } from '@/features/workflows/templates/recommendations/recommendedTemplates.store';
 import { useBannersStore } from '@/features/shared/banners/banners.store';
-import { usePostHog } from '@/app/stores/posthog.store';
 import userEvent from '@testing-library/user-event';
 import type { IUser } from '@n8n/rest-api-client/api/users';
 
@@ -46,7 +45,6 @@ describe('EmptyStateLayout', () => {
 		typeof mockedStore<typeof useRecommendedTemplatesStore>
 	>;
 	let bannersStore: ReturnType<typeof mockedStore<typeof useBannersStore>>;
-	let posthogStore: ReturnType<typeof mockedStore<typeof usePostHog>>;
 
 	beforeEach(() => {
 		usersStore = mockedStore(useUsersStore);
@@ -54,7 +52,6 @@ describe('EmptyStateLayout', () => {
 		sourceControlStore = mockedStore(useSourceControlStore);
 		recommendedTemplatesStore = mockedStore(useRecommendedTemplatesStore);
 		bannersStore = mockedStore(useBannersStore);
-		posthogStore = mockedStore(usePostHog);
 
 		usersStore.currentUser = {
 			id: '1',
@@ -80,7 +77,8 @@ describe('EmptyStateLayout', () => {
 
 		bannersStore.bannersHeight = 0;
 
-		posthogStore.isVariantEnabled.mockReturnValue(false);
+		// Default: feature disabled (control variant)
+		recommendedTemplatesStore.isFeatureEnabled = false;
 	});
 
 	afterEach(() => {
@@ -89,8 +87,7 @@ describe('EmptyStateLayout', () => {
 
 	describe('when recommended templates feature is enabled', () => {
 		beforeEach(() => {
-			recommendedTemplatesStore.isFeatureEnabled.mockReturnValue(true);
-			posthogStore.isVariantEnabled.mockReturnValue(true);
+			recommendedTemplatesStore.isFeatureEnabled = true;
 		});
 
 		it('should render welcome heading with user name', () => {
@@ -135,8 +132,7 @@ describe('EmptyStateLayout', () => {
 
 	describe('when recommended templates feature is disabled', () => {
 		beforeEach(() => {
-			recommendedTemplatesStore.isFeatureEnabled.mockReturnValue(false);
-			posthogStore.isVariantEnabled.mockReturnValue(false);
+			recommendedTemplatesStore.isFeatureEnabled = false;
 		});
 
 		it('should render heading with user name', () => {
@@ -181,8 +177,7 @@ describe('EmptyStateLayout', () => {
 
 	describe('when in read-only environment', () => {
 		beforeEach(() => {
-			recommendedTemplatesStore.isFeatureEnabled.mockReturnValue(true);
-			posthogStore.isVariantEnabled.mockReturnValue(true);
+			recommendedTemplatesStore.isFeatureEnabled = true;
 			sourceControlStore.preferences = {
 				branchReadOnly: true,
 			} as unknown as ReturnType<typeof useSourceControlStore>['preferences'];
@@ -203,8 +198,7 @@ describe('EmptyStateLayout', () => {
 
 	describe('when user does not have workflow create permission', () => {
 		beforeEach(() => {
-			recommendedTemplatesStore.isFeatureEnabled.mockReturnValue(true);
-			posthogStore.isVariantEnabled.mockReturnValue(true);
+			recommendedTemplatesStore.isFeatureEnabled = true;
 			projectsStore.personalProject = {
 				id: 'personal-project-1',
 				name: 'Personal Project',
