@@ -1,7 +1,7 @@
 import type { Span, StartSpanOpts, Tracer, SpanContextData } from './tracing';
 
 /** Empty span implementation that does not trace anything */
-class EmptySpan implements Span {
+export class EmptySpan implements Span {
 	private readonly emptyContextData: SpanContextData = Object.freeze({
 		traceId: '00000000000000000000000000000000',
 		spanId: '0000000000000000',

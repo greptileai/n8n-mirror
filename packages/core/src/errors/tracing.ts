@@ -1,16 +1,20 @@
+import { Service } from '@n8n/di';
 import {
 	SPAN_STATUS_ERROR,
 	SPAN_STATUS_OK,
 	type StartSpanOptions as SentryStartSpanOptions,
 	type SpanContextData as SentrySpanContextData,
+	type SpanAttributes as SentrySpanAttributes,
 } from '@sentry/core';
 import type Sentry from '@sentry/node';
+import type { INode, Workflow } from 'n8n-workflow';
 
 import { NoopTracing } from './noop-tracing';
 
 export type StartSpanOpts = SentryStartSpanOptions;
 export type Span = Sentry.Span;
 export type SpanContextData = SentrySpanContextData;
+export type SpanAttributes = SentrySpanAttributes;
 
 /**
  * Interface for concrete tracing implementations
@@ -55,22 +59,38 @@ export const enum SpanStatus {
  * });
  * ```
  */
+@Service()
 export class Tracing {
-	private static instance: Tracer = new NoopTracing();
+	private tracer: Tracer = new NoopTracing();
 
 	/** Common n8n specific attribute names */
-	static commonAttrs = COMMON_TRACE_ATTRIBUTES;
+	commonAttrs = COMMON_TRACE_ATTRIBUTES;
 
 	/** Set the concrete tracing implementation to use */
-	static setTracingImplementation(tracing: Tracer): void {
-		Tracing.instance = tracing;
+	setTracingImplementation(tracing: Tracer): void {
+		this.tracer = tracing;
 	}
 
 	/** Start a span and execute the callback with the span */
-	static async startSpan<T>(
-		options: StartSpanOpts,
-		spanCb: (span: Span) => Promise<T>,
-	): Promise<T> {
-		return await Tracing.instance.startSpan(options, spanCb);
+	async startSpan<T>(options: StartSpanOpts, spanCb: (span: Span) => Promise<T>): Promise<T> {
+		return await this.tracer.startSpan(options, spanCb);
+	}
+
+	/** Pick common attributes for a workflow */
+	pickWorkflowAttributes(workflow: Workflow): SpanAttributes {
+		return {
+			[this.commonAttrs.workflow.id]: workflow.id,
+			[this.commonAttrs.workflow.name]: workflow.name,
+		};
+	}
+
+	/** Pick common attributes for a node */
+	pickNodeAttributes(node: INode): SpanAttributes {
+		return {
+			[this.commonAttrs.node.id]: node.id,
+			[this.commonAttrs.node.name]: node.name,
+			[this.commonAttrs.node.type]: node.type,
+			[this.commonAttrs.node.typeVersion]: node.typeVersion,
+		};
 	}
 }

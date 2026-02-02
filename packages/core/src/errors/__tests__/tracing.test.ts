@@ -1,28 +1,31 @@
 import type { StartSpanOptions } from '@sentry/core';
 import type Sentry from '@sentry/node';
+import { mock } from 'jest-mock-extended';
 
-import { NoopTracing } from '../noop-tracing';
-import { Tracing, type Tracer } from '../tracing';
+import { EmptySpan, NoopTracing } from '../noop-tracing';
+import { type Span, Tracing, type Tracer } from '../tracing';
 
-describe('Tracing', () => {
+describe('tracing', () => {
 	let mockTracingImplementation: jest.Mocked<Tracer>;
+	const tracing = new Tracing();
+	const noopTracing = new NoopTracing();
 
 	beforeEach(() => {
 		mockTracingImplementation = {
 			startSpan: jest.fn(),
 		};
 
-		Tracing.setTracingImplementation(new NoopTracing());
+		tracing.setTracingImplementation(noopTracing);
 	});
 
 	describe('setTracingImplementation', () => {
 		it('should set the tracing implementation', async () => {
-			Tracing.setTracingImplementation(mockTracingImplementation);
+			tracing.setTracingImplementation(mockTracingImplementation);
 
 			const options: StartSpanOptions = { name: 'test-span' };
 			const callback = jest.fn().mockResolvedValue('result');
 
-			await Tracing.startSpan(options, callback);
+			await tracing.startSpan(options, callback);
 
 			expect(mockTracingImplementation.startSpan).toHaveBeenCalledWith(options, callback);
 		});
@@ -31,12 +34,12 @@ describe('Tracing', () => {
 	describe('startSpan', () => {
 		it('should delegate to the current implementation', async () => {
 			mockTracingImplementation.startSpan.mockResolvedValue('test-result');
-			Tracing.setTracingImplementation(mockTracingImplementation);
+			tracing.setTracingImplementation(mockTracingImplementation);
 
 			const options: StartSpanOptions = { name: 'test-span' };
 			const callback = jest.fn().mockResolvedValue('callback-result');
 
-			const result = await Tracing.startSpan(options, callback);
+			const result = await tracing.startSpan(options, callback);
 
 			expect(mockTracingImplementation.startSpan).toHaveBeenCalledWith(options, callback);
 			expect(result).toBe('test-result');
@@ -46,15 +49,14 @@ describe('Tracing', () => {
 			const options: StartSpanOptions = { name: 'test-span' };
 			const callback = jest.fn().mockResolvedValue('callback-result');
 
-			const result = await Tracing.startSpan(options, callback);
+			const result = await tracing.startSpan(options, callback);
 
-			// NoopTracing should call the callback with undefined span
-			expect(callback).toHaveBeenCalledWith(undefined);
+			expect(callback).toHaveBeenCalledWith(expect.any(EmptySpan));
 			expect(result).toBe('callback-result');
 		});
 
 		it('should pass options correctly to implementation', async () => {
-			Tracing.setTracingImplementation(mockTracingImplementation);
+			tracing.setTracingImplementation(mockTracingImplementation);
 
 			const options: StartSpanOptions = {
 				name: 'complex-span',
@@ -66,13 +68,13 @@ describe('Tracing', () => {
 			};
 			const callback = jest.fn();
 
-			await Tracing.startSpan(options, callback);
+			await tracing.startSpan(options, callback);
 
 			expect(mockTracingImplementation.startSpan).toHaveBeenCalledWith(options, callback);
 		});
 
 		it('should handle async callbacks correctly', async () => {
-			Tracing.setTracingImplementation(mockTracingImplementation);
+			tracing.setTracingImplementation(mockTracingImplementation);
 
 			const options: StartSpanOptions = { name: 'async-span' };
 			const callback = jest.fn().mockImplementation(async (_span?: Sentry.Span) => {
@@ -81,37 +83,37 @@ describe('Tracing', () => {
 			});
 
 			mockTracingImplementation.startSpan.mockImplementation(async (_opts, cb) => {
-				return await cb(undefined);
+				return await cb(mock<Span>());
 			});
 
-			const result = await Tracing.startSpan(options, callback);
+			const result = await tracing.startSpan(options, callback);
 
 			expect(result).toBe('async-result');
 		});
 
 		it('should propagate errors from the callback', async () => {
-			Tracing.setTracingImplementation(mockTracingImplementation);
+			tracing.setTracingImplementation(mockTracingImplementation);
 
 			const options: StartSpanOptions = { name: 'error-span' };
 			const error = new Error('Callback error');
 			const callback = jest.fn().mockRejectedValue(error);
 
 			mockTracingImplementation.startSpan.mockImplementation(async (_opts, cb) => {
-				return await cb(undefined);
+				return await cb(mock<Span>());
 			});
 
-			await expect(Tracing.startSpan(options, callback)).rejects.toThrow('Callback error');
+			await expect(tracing.startSpan(options, callback)).rejects.toThrow('Callback error');
 		});
 
 		it('should propagate errors from the implementation', async () => {
 			const error = new Error('Implementation error');
 			mockTracingImplementation.startSpan.mockRejectedValue(error);
-			Tracing.setTracingImplementation(mockTracingImplementation);
+			tracing.setTracingImplementation(mockTracingImplementation);
 
 			const options: StartSpanOptions = { name: 'error-span' };
 			const callback = jest.fn();
 
-			await expect(Tracing.startSpan(options, callback)).rejects.toThrow('Implementation error');
+			await expect(tracing.startSpan(options, callback)).rejects.toThrow('Implementation error');
 		});
 	});
 });

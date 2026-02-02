@@ -34,6 +34,7 @@ export class ActiveWorkflows {
 		private readonly scheduledTaskManager: ScheduledTaskManager,
 		private readonly triggersAndPollers: TriggersAndPollers,
 		private readonly errorReporter: ErrorReporter,
+		private readonly tracing: Tracing,
 	) {}
 
 	private activeWorkflows: { [workflowId: string]: IWorkflowData } = {};
@@ -243,17 +244,13 @@ export class ActiveWorkflows {
 		pollFunctions: IPollFunctions,
 	): (testingTrigger?: boolean) => Promise<void> {
 		return async (testingTrigger = false) => {
-			return await Tracing.startSpan(
+			return await this.tracing.startSpan(
 				{
 					name: 'Workflow Trigger Poll',
 					op: 'trigger.poll',
 					attributes: {
-						[Tracing.commonAttrs.workflow.id]: workflow.id,
-						[Tracing.commonAttrs.workflow.name]: workflow.name,
-						[Tracing.commonAttrs.node.id]: node.id,
-						[Tracing.commonAttrs.node.name]: node.name,
-						[Tracing.commonAttrs.node.type]: node.type,
-						[Tracing.commonAttrs.node.typeVersion]: node.typeVersion,
+						...this.tracing.pickWorkflowAttributes(workflow),
+						...this.tracing.pickNodeAttributes(node),
 					},
 				},
 				async (span) => {

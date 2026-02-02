@@ -59,7 +59,10 @@ export class ErrorReporter {
 
 	private beforeSendFilter?: (event: ErrorEvent, hint: EventHint) => boolean;
 
-	constructor(private readonly logger: Logger) {
+	constructor(
+		private readonly logger: Logger,
+		private readonly tracing: Tracing,
+	) {
 		// eslint-disable-next-line @typescript-eslint/unbound-method
 		this.report = this.defaultReport;
 	}
@@ -203,7 +206,7 @@ export class ErrorReporter {
 			],
 		});
 
-		Tracing.setTracingImplementation(new SentryTracing(sentry));
+		this.tracing.setTracingImplementation(new SentryTracing(sentry));
 
 		setTag('server_type', serverType);
 
