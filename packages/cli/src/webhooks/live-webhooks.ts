@@ -98,7 +98,7 @@ export class LiveWebhooks implements IWebhookManager {
 			where: { id: webhook.workflowId },
 			relations: {
 				activeVersion: true,
-				shared: { project: { projectRelations: true } },
+				shared: { project: true },
 			},
 		});
 
