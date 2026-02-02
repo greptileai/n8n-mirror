@@ -249,12 +249,38 @@ describe('validateParameters', () => {
 						{ name: 'High', value: 3 },
 					],
 				},
+				{
+					displayName: 'Enabled',
+					name: 'enabled',
+					type: 'options',
+					default: true,
+					options: [
+						{ name: 'Yes', value: true },
+						{ name: 'No', value: false },
+					],
+				},
 			]);
-			const workflow = createWorkflow([createNode('n8n-nodes-base.test', { priority: 5 })]);
-
-			expect(validateParameters(workflow, [nodeType])).toContainEqual(
+			// Invalid numeric value
+			const workflowNumeric = createWorkflow([
+				createNode('n8n-nodes-base.test', { priority: 5 }, { id: '1', name: 'Node 1' }),
+			]);
+			expect(validateParameters(workflowNumeric, [nodeType])).toContainEqual(
 				expect.objectContaining({ name: 'node-invalid-options-value' }),
 			);
+
+			// Invalid boolean value (string instead of boolean)
+			const workflowBoolean = createWorkflow([
+				createNode('n8n-nodes-base.test', { enabled: 'yes' }, { id: '2', name: 'Node 2' }),
+			]);
+			expect(validateParameters(workflowBoolean, [nodeType])).toContainEqual(
+				expect.objectContaining({ name: 'node-invalid-options-value' }),
+			);
+
+			// Valid boolean value should pass
+			const workflowValidBoolean = createWorkflow([
+				createNode('n8n-nodes-base.test', { enabled: false }, { id: '3', name: 'Node 3' }),
+			]);
+			expect(validateParameters(workflowValidBoolean, [nodeType])).toHaveLength(0);
 		});
 	});
 
