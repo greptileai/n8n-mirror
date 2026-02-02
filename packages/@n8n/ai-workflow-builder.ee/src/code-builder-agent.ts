@@ -60,6 +60,26 @@ const TEXT_EDITOR_TOOL = {
 	name: 'str_replace_based_edit_tool' as const,
 };
 
+/** Validate workflow tool schema - separate from text editor for clearer separation of concerns */
+const VALIDATE_TOOL = {
+	type: 'function' as const,
+	function: {
+		name: 'validate_workflow',
+		description:
+			'Validate the current workflow code for errors. Returns validation results - either success or a list of errors to fix.',
+		parameters: {
+			type: 'object' as const,
+			properties: {
+				path: {
+					type: 'string' as const,
+					description: 'Path to the workflow file (must be /workflow.ts)',
+				},
+			},
+			required: ['path'],
+		},
+	},
+};
+
 /** Claude Sonnet 4.5 pricing per million tokens (USD) */
 const SONNET_4_5_PRICING = {
 	inputPerMillion: 3,
@@ -376,7 +396,9 @@ ${'='.repeat(50)}
 			if (!this.llm.bindTools) {
 				throw new Error('LLM does not support bindTools - cannot use tools for node discovery');
 			}
-			const toolsToUse = textEditorEnabled ? [...this.tools, TEXT_EDITOR_TOOL] : this.tools;
+			const toolsToUse = textEditorEnabled
+				? [...this.tools, TEXT_EDITOR_TOOL, VALIDATE_TOOL]
+				: this.tools;
 			const llmWithTools = this.llm.bindTools(toolsToUse);
 			this.debugLog('CHAT', 'Tools bound to LLM', {
 				toolCount: toolsToUse.length,
@@ -555,6 +577,34 @@ ${'='.repeat(50)}
 								messages,
 								textEditorHandler,
 								{
+									getWorkflow: () => workflow,
+									setWorkflow: (w: WorkflowJSON | null) => {
+										workflow = w;
+									},
+									setSourceCode: (c: string) => {
+										sourceCode = c;
+									},
+									setParseDuration: (d: number) => {
+										parseDuration = d;
+									},
+								},
+								currentWorkflow,
+								generationErrors,
+								iteration,
+							);
+
+							// If create command auto-validated successfully, break the loop
+							if (result?.workflowReady) {
+								this.debugLog('CHAT', 'Text editor auto-validate succeeded, exiting loop');
+								break;
+							}
+						} else if (toolCall.name === 'validate_workflow' && textEditorHandler) {
+							// Handle validate_workflow tool
+							const result = yield* this.executeValidateTool(
+								{ name: toolCall.name, args: toolCall.args, id: toolCall.id },
+								messages,
+								textEditorHandler,
+								{
 									getValidateAttempts: () => textEditorValidateAttempts,
 									incrementValidateAttempts: () => textEditorValidateAttempts++,
 									getWorkflow: () => workflow,
@@ -573,10 +623,10 @@ ${'='.repeat(50)}
 								iteration,
 							);
 
-							// If validate succeeded and workflow is ready, break the loop
+							// If validate succeeded, the workflow is validated but we don't exit the loop
+							// Let auto-finalize happen when LLM stops calling tools
 							if (result?.workflowReady) {
-								this.debugLog('CHAT', 'Text editor validate succeeded, exiting loop');
-								break;
+								this.debugLog('CHAT', 'Validate tool succeeded');
 							}
 						} else {
 							yield* this.executeToolCall(
@@ -1090,15 +1140,13 @@ ${'='.repeat(50)}
 	/**
 	 * Execute a text editor tool call and yield progress updates
 	 *
-	 * @returns Object with workflowReady flag indicating if validate succeeded
+	 * @returns Object with workflowReady flag indicating if auto-validate succeeded (for create command)
 	 */
 	private async *executeTextEditorToolCall(
 		toolCall: { name: string; args: Record<string, unknown>; id: string },
 		messages: BaseMessage[],
 		handler: TextEditorHandler,
 		state: {
-			getValidateAttempts: () => number;
-			incrementValidateAttempts: () => void;
 			getWorkflow: () => WorkflowJSON | null;
 			setWorkflow: (w: WorkflowJSON | null) => void;
 			setSourceCode: (c: string) => void;
@@ -1127,162 +1175,7 @@ ${'='.repeat(50)}
 			],
 		};
 
-		// Handle validate separately - triggers validation but doesn't auto-complete
-		if (command.command === 'validate') {
-			const attemptNumber = state.getValidateAttempts() + 1;
-			state.incrementValidateAttempts();
-			this.debugLog('TEXT_EDITOR', '========== VALIDATE ATTEMPT ==========', {
-				attemptNumber,
-				iteration,
-			});
-
-			const code = handler.getWorkflowCode();
-
-			if (!code) {
-				this.debugLog('TEXT_EDITOR', 'Validate failed: no code exists');
-				messages.push(
-					new ToolMessage({
-						tool_call_id: toolCall.id,
-						content: 'Error: No workflow code to validate. Use str_replace to add code first.',
-					}),
-				);
-				yield {
-					messages: [
-						{
-							type: 'tool',
-							toolName: 'text_editor',
-							displayTitle: 'Crafting workflow',
-							status: 'completed',
-						} as ToolProgressChunk,
-					],
-				};
-				return { workflowReady: false };
-			}
-
-			this.debugLog('TEXT_EDITOR', 'Validate: code to check', {
-				codeLength: code.length,
-				codeLines: code.split('\n').length,
-				code,
-			});
-
-			const parseStartTime = Date.now();
-			try {
-				const result = await this.parseAndValidate(code, currentWorkflow);
-				const parseDuration = Date.now() - parseStartTime;
-				state.setParseDuration(parseDuration);
-				state.setSourceCode(code);
-
-				this.debugLog('TEXT_EDITOR', 'Validate: parse completed', {
-					parseDurationMs: parseDuration,
-					warningCount: result.warnings.length,
-					nodeCount: result.workflow.nodes.length,
-				});
-
-				if (result.warnings.length > 0) {
-					const warningText = result.warnings.map((w) => `- [${w.code}] ${w.message}`).join('\n');
-					const errorContext = this.getErrorContext(code, result.warnings[0].message);
-
-					this.debugLog('TEXT_EDITOR', 'Validate: validation warnings', {
-						warnings: result.warnings,
-						errorContext,
-					});
-
-					// Track as generation error
-					generationErrors.push({
-						message: `Validation warnings:\n${warningText}`,
-						code,
-						iteration,
-						type: 'validation',
-					});
-
-					messages.push(
-						new ToolMessage({
-							tool_call_id: toolCall.id,
-							content: `Validation warnings:\n${warningText}\n\n${errorContext}\n\nUse str_replace to fix these issues.`,
-						}),
-					);
-					state.setWorkflow(null);
-					yield {
-						messages: [
-							{
-								type: 'tool',
-								toolName: 'text_editor',
-								displayTitle: 'Crafting workflow',
-								status: 'completed',
-							} as ToolProgressChunk,
-						],
-					};
-					return { workflowReady: false };
-				}
-
-				// Validation passed - return success message but don't complete
-				// (workflow will auto-finalize when LLM stops calling tools)
-				messages.push(
-					new ToolMessage({
-						tool_call_id: toolCall.id,
-						content: 'Validation passed. Workflow code is valid.',
-					}),
-				);
-				this.debugLog('TEXT_EDITOR', '========== VALIDATE SUCCESS ==========', {
-					nodeCount: result.workflow.nodes.length,
-					nodeNames: result.workflow.nodes.map((n) => n.name),
-					nodeTypes: result.workflow.nodes.map((n) => n.type),
-				});
-				yield {
-					messages: [
-						{
-							type: 'tool',
-							toolName: 'text_editor',
-							displayTitle: 'Crafting workflow',
-							status: 'completed',
-						} as ToolProgressChunk,
-					],
-				};
-				// Don't set workflow ready - let auto-finalize happen when LLM stops calling tools
-				return { workflowReady: false };
-			} catch (error) {
-				const parseDuration = Date.now() - parseStartTime;
-				state.setParseDuration(parseDuration);
-				const errorMessage = error instanceof Error ? error.message : String(error);
-				const errorStack = error instanceof Error ? error.stack : undefined;
-				const errorContext = this.getErrorContext(code, errorMessage);
-
-				this.debugLog('TEXT_EDITOR', '========== VALIDATE FAILED ==========', {
-					parseDurationMs: parseDuration,
-					errorMessage,
-					errorStack,
-					errorContext,
-				});
-
-				// Track the generation error
-				generationErrors.push({
-					message: errorMessage,
-					code,
-					iteration,
-					type: 'parse',
-				});
-
-				messages.push(
-					new ToolMessage({
-						tool_call_id: toolCall.id,
-						content: `Parse error: ${errorMessage}\n\n${errorContext}\n\nUse str_replace to fix these issues.`,
-					}),
-				);
-				yield {
-					messages: [
-						{
-							type: 'tool',
-							toolName: 'text_editor',
-							displayTitle: 'Crafting workflow',
-							status: 'completed',
-						} as ToolProgressChunk,
-					],
-				};
-				return { workflowReady: false };
-			}
-		}
-
-		// Execute non-finalize commands (view, create, str_replace, insert)
+		// Execute text editor commands (view, create, str_replace, insert)
 		try {
 			const result = handler.execute(command);
 			messages.push(
@@ -1354,7 +1247,6 @@ ${'='.repeat(50)}
 
 						// Validation passed - workflow is ready
 						state.setWorkflow(parseResult.workflow);
-						state.incrementValidateAttempts(); // Count as a validate attempt
 						this.debugLog('TEXT_EDITOR', '========== AUTO-VALIDATE SUCCESS (CREATE) ==========', {
 							nodeCount: parseResult.workflow.nodes.length,
 							nodeNames: parseResult.workflow.nodes.map((n) => n.name),
@@ -1434,6 +1326,195 @@ ${'='.repeat(50)}
 			],
 		};
 		return undefined;
+	}
+
+	/**
+	 * Execute the validate_workflow tool call and yield progress updates
+	 *
+	 * @returns Object with workflowReady flag indicating if validation passed
+	 */
+	private async *executeValidateTool(
+		toolCall: { name: string; args: Record<string, unknown>; id: string },
+		messages: BaseMessage[],
+		handler: TextEditorHandler,
+		state: {
+			getValidateAttempts: () => number;
+			incrementValidateAttempts: () => void;
+			getWorkflow: () => WorkflowJSON | null;
+			setWorkflow: (w: WorkflowJSON | null) => void;
+			setSourceCode: (c: string) => void;
+			setParseDuration: (d: number) => void;
+		},
+		currentWorkflow: WorkflowJSON | undefined,
+		generationErrors: StreamGenerationError[],
+		iteration: number,
+	): AsyncGenerator<StreamOutput, { workflowReady: boolean }, unknown> {
+		const attemptNumber = state.getValidateAttempts() + 1;
+		state.incrementValidateAttempts();
+		this.debugLog('VALIDATE_TOOL', '========== VALIDATE ATTEMPT ==========', {
+			attemptNumber,
+			iteration,
+			toolCallId: toolCall.id,
+		});
+
+		// Stream tool progress
+		yield {
+			messages: [
+				{
+					type: 'tool',
+					toolName: 'validate_workflow',
+					displayTitle: 'Validating workflow',
+					status: 'running',
+					args: toolCall.args,
+				} as ToolProgressChunk,
+			],
+		};
+
+		const code = handler.getWorkflowCode();
+
+		if (!code) {
+			this.debugLog('VALIDATE_TOOL', 'Validate failed: no code exists');
+			messages.push(
+				new ToolMessage({
+					tool_call_id: toolCall.id,
+					content:
+						'Error: No workflow code to validate. Use str_replace_based_edit_tool to add code first.',
+				}),
+			);
+			yield {
+				messages: [
+					{
+						type: 'tool',
+						toolName: 'validate_workflow',
+						displayTitle: 'Validating workflow',
+						status: 'completed',
+					} as ToolProgressChunk,
+				],
+			};
+			return { workflowReady: false };
+		}
+
+		this.debugLog('VALIDATE_TOOL', 'Validate: code to check', {
+			codeLength: code.length,
+			codeLines: code.split('\n').length,
+			code,
+		});
+
+		const parseStartTime = Date.now();
+		try {
+			const result = await this.parseAndValidate(code, currentWorkflow);
+			const parseDuration = Date.now() - parseStartTime;
+			state.setParseDuration(parseDuration);
+			state.setSourceCode(code);
+
+			this.debugLog('VALIDATE_TOOL', 'Validate: parse completed', {
+				parseDurationMs: parseDuration,
+				warningCount: result.warnings.length,
+				nodeCount: result.workflow.nodes.length,
+			});
+
+			if (result.warnings.length > 0) {
+				const warningText = result.warnings.map((w) => `- [${w.code}] ${w.message}`).join('\n');
+				const errorContext = this.getErrorContext(code, result.warnings[0].message);
+
+				this.debugLog('VALIDATE_TOOL', 'Validate: validation warnings', {
+					warnings: result.warnings,
+					errorContext,
+				});
+
+				// Track as generation error
+				generationErrors.push({
+					message: `Validation warnings:\n${warningText}`,
+					code,
+					iteration,
+					type: 'validation',
+				});
+
+				messages.push(
+					new ToolMessage({
+						tool_call_id: toolCall.id,
+						content: `Validation warnings:\n${warningText}\n\n${errorContext}\n\nUse str_replace_based_edit_tool to fix these issues.`,
+					}),
+				);
+				state.setWorkflow(null);
+				yield {
+					messages: [
+						{
+							type: 'tool',
+							toolName: 'validate_workflow',
+							displayTitle: 'Validating workflow',
+							status: 'completed',
+						} as ToolProgressChunk,
+					],
+				};
+				return { workflowReady: false };
+			}
+
+			// Validation passed - return success message but don't complete
+			// (workflow will auto-finalize when LLM stops calling tools)
+			messages.push(
+				new ToolMessage({
+					tool_call_id: toolCall.id,
+					content: 'Validation passed. Workflow code is valid.',
+				}),
+			);
+			this.debugLog('VALIDATE_TOOL', '========== VALIDATE SUCCESS ==========', {
+				nodeCount: result.workflow.nodes.length,
+				nodeNames: result.workflow.nodes.map((n) => n.name),
+				nodeTypes: result.workflow.nodes.map((n) => n.type),
+			});
+			yield {
+				messages: [
+					{
+						type: 'tool',
+						toolName: 'validate_workflow',
+						displayTitle: 'Validating workflow',
+						status: 'completed',
+					} as ToolProgressChunk,
+				],
+			};
+			// Don't set workflow ready - let auto-finalize happen when LLM stops calling tools
+			return { workflowReady: false };
+		} catch (error) {
+			const parseDuration = Date.now() - parseStartTime;
+			state.setParseDuration(parseDuration);
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			const errorStack = error instanceof Error ? error.stack : undefined;
+			const errorContext = this.getErrorContext(code, errorMessage);
+
+			this.debugLog('VALIDATE_TOOL', '========== VALIDATE FAILED ==========', {
+				parseDurationMs: parseDuration,
+				errorMessage,
+				errorStack,
+				errorContext,
+			});
+
+			// Track the generation error
+			generationErrors.push({
+				message: errorMessage,
+				code,
+				iteration,
+				type: 'parse',
+			});
+
+			messages.push(
+				new ToolMessage({
+					tool_call_id: toolCall.id,
+					content: `Parse error: ${errorMessage}\n\n${errorContext}\n\nUse str_replace_based_edit_tool to fix these issues.`,
+				}),
+			);
+			yield {
+				messages: [
+					{
+						type: 'tool',
+						toolName: 'validate_workflow',
+						displayTitle: 'Validating workflow',
+						status: 'completed',
+					} as ToolProgressChunk,
+				],
+			};
+			return { workflowReady: false };
+		}
 	}
 
 	/**

@@ -257,19 +257,6 @@ describe('TextEditorHandler', () => {
 		});
 	});
 
-	describe('validate command', () => {
-		it('should return message indicating agent should handle it', () => {
-			handler.setWorkflowCode('code');
-
-			const result = handler.execute({
-				command: 'validate',
-				path: '/workflow.ts',
-			});
-
-			expect(result).toBe('Validate command should be handled by the agent.');
-		});
-	});
-
 	describe('path validation', () => {
 		it('should throw InvalidPathError for unsupported paths', () => {
 			expect(() =>

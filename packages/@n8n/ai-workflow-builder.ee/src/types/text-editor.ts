@@ -46,22 +46,9 @@ export interface InsertCommand {
 }
 
 /**
- * Validate command - validates current workflow code and returns errors
- */
-export interface ValidateCommand {
-	command: 'validate';
-	path: string;
-}
-
-/**
  * Union type for all text editor commands
  */
-export type TextEditorCommand =
-	| ViewCommand
-	| CreateCommand
-	| StrReplaceCommand
-	| InsertCommand
-	| ValidateCommand;
+export type TextEditorCommand = ViewCommand | CreateCommand | StrReplaceCommand | InsertCommand;
 
 /**
  * Text editor tool call from LLM response
@@ -78,8 +65,6 @@ export interface TextEditorToolCall {
 export interface TextEditorResult {
 	/** Result message to send back to the LLM */
 	content: string;
-	/** Whether this was a validate command */
-	isValidate: boolean;
 }
 
 /**

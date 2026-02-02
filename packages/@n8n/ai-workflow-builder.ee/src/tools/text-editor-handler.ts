@@ -42,7 +42,7 @@ type DebugLogFn = (context: string, message: string, data?: Record<string, unkno
  * Handler for text editor tool commands
  *
  * Manages a single virtual file (/workflow.ts) containing workflow SDK code.
- * Supports view, create, str_replace, insert, and validate commands.
+ * Supports view, create, str_replace, and insert commands.
  */
 export class TextEditorHandler {
 	private code: string | null = null;
@@ -83,11 +83,6 @@ export class TextEditorHandler {
 				break;
 			case 'insert':
 				result = this.handleInsert(command);
-				break;
-			case 'validate':
-				// Validate is handled separately by the agent
-				// This should not be called directly on execute
-				result = 'Validate command should be handled by the agent.';
 				break;
 			default:
 				result = `Unknown command: ${(command as { command: string }).command}`;
