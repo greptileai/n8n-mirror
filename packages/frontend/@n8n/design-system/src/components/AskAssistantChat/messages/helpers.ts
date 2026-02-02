@@ -6,7 +6,6 @@ import ErrorMessage from './ErrorMessage.vue';
 import EventMessage from './EventMessage.vue';
 import TextMessage from './TextMessage.vue';
 import ToolMessage from './ToolMessage.vue';
-import WorkflowCodeMessage from './WorkflowCodeMessage.vue';
 
 export function getSupportedMessageComponent(type: ChatUI.AssistantMessage['type']) {
 	switch (type) {
@@ -22,8 +21,6 @@ export function getSupportedMessageComponent(type: ChatUI.AssistantMessage['type
 			return EventMessage;
 		case 'tool':
 			return ToolMessage;
-		case 'workflow-updated':
-			return WorkflowCodeMessage;
 		case 'thinking-group': // Handled directly in AskAssistantChat.vue
 		case 'agent-suggestion':
 		case 'custom':
