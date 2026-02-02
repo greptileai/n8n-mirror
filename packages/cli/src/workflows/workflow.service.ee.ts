@@ -605,12 +605,14 @@ export class EnterpriseWorkflowService {
 			if (hasGlobalScope(user, ['credential:share'], { mode: 'allOf' })) {
 				credentialIdsToShare = credentialIds;
 			} else {
-				const accessibleIds = await this.credentialsFinderService.getCredentialIdsByUserAndRole(
-					[user.id],
-					{ scopes: ['credential:share'] },
-					trx,
+				const accessibleIds = new Set(
+					await this.credentialsFinderService.getCredentialIdsByUserAndRole(
+						[user.id],
+						{ scopes: ['credential:share'] },
+						trx,
+					),
 				);
-				credentialIdsToShare = credentialIds.filter((id) => accessibleIds.includes(id));
+				credentialIdsToShare = credentialIds.filter((id) => accessibleIds.has(id));
 			}
 
 			for (const credentialId of credentialIdsToShare) {
