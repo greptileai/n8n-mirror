@@ -4,6 +4,7 @@ import { ref } from 'vue';
 import N8nIcon from '@n8n/design-system/components/N8nIcon/Icon.vue';
 
 import Input from './Input.vue';
+import './Input.stories.css';
 
 const meta = {
 	title: 'Components/Input',
@@ -18,24 +19,6 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
-// Story layout styles
-const storyStyles = `
-<style>
-.input-story-container {
-	padding: 40px;
-	max-width: 400px;
-}
-
-.input-story-value {
-	margin-top: 16px;
-}
-
-.input-story-section {
-	margin-top: 16px;
-}
-</style>
-`;
-
 export const Text = {
 	render: (args) => ({
 		components: { Input },
@@ -44,7 +27,6 @@ export const Text = {
 			return { args, value };
 		},
 		template: `
-		${storyStyles}
 		<div class="input-story-container">
 			<Input v-bind="args" v-model="value" />
 			<p class="input-story-value">Value: {{ value }}</p>
@@ -65,7 +47,6 @@ export const TextareaFixedRows = {
 			return { args, value };
 		},
 		template: `
-		${storyStyles}
 		<div class="input-story-container">
 			<Input v-bind="args" v-model="value" />
 		</div>
@@ -87,7 +68,6 @@ export const TextareaAutosize = {
 			return { args, value };
 		},
 		template: `
-		${storyStyles}
 		<div class="input-story-container">
 			<Input v-bind="args" v-model="value" />
 		</div>
@@ -109,7 +89,6 @@ export const TextareaAutosizeMinMax = {
 			return { args, value };
 		},
 		template: `
-		${storyStyles}
 		<div class="input-story-container">
 			<Input v-bind="args" v-model="value" />
 		</div>
@@ -131,7 +110,6 @@ export const Password = {
 			return { args, value };
 		},
 		template: `
-		${storyStyles}
 		<div class="input-story-container">
 			<Input v-bind="args" v-model="value" />
 		</div>
@@ -152,7 +130,6 @@ export const WithPrefixSlot = {
 			return { args, value };
 		},
 		template: `
-		${storyStyles}
 		<div class="input-story-container">
 			<Input v-bind="args" v-model="value">
 				<template #prefix>
@@ -176,7 +153,6 @@ export const WithSuffixSlot = {
 			return { args, value };
 		},
 		template: `
-		${storyStyles}
 		<div class="input-story-container">
 			<Input v-bind="args" v-model="value">
 				<template #suffix>
@@ -200,7 +176,6 @@ export const WithPrefixAndSuffixSlots = {
 			return { args, value };
 		},
 		template: `
-		${storyStyles}
 		<div class="input-story-container">
 			<Input v-bind="args" v-model="value">
 				<template #prefix>
@@ -227,7 +202,6 @@ export const Clearable = {
 			return { args, value };
 		},
 		template: `
-		${storyStyles}
 		<div class="input-story-container">
 			<Input v-bind="args" v-model="value" clearable />
 			<p class="input-story-value">Value: {{ value }}</p>
@@ -248,7 +222,6 @@ export const Disabled = {
 			return { args, value };
 		},
 		template: `
-		${storyStyles}
 		<div class="input-story-container">
 			<h3>Disabled with value</h3>
 			<Input v-bind="args" v-model="value" disabled />
@@ -270,7 +243,6 @@ export const Sizes = {
 			return { args, value };
 		},
 		template: `
-		${storyStyles}
 		<div class="input-story-container">
 			<h3>xlarge (48px)</h3>
 			<Input v-bind="args" v-model="value" size="xlarge" />
