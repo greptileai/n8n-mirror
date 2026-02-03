@@ -40,8 +40,8 @@ const i18n = useI18n();
 					{{ i18n.baseText('nodeCreator.noResults.httpRequest') }}
 				</N8nLink>
 
-				<N8nLink v-if="rootView === TRIGGER_NODE_CREATOR_VIEW" @click="$emit('addWebhookNode')">
-					{{ i18n.baseText('nodeCreator.noResults.webhook') }}
+				<N8nLink v-if="rootView === TRIGGER_NODE_CREATOR_VIEW" @click="$emit('addHttpNode')">
+					{{ i18n.baseText('nodeCreator.noResults.httpRequest') }}
 				</N8nLink>
 				{{ i18n.baseText('nodeCreator.noResults.node') }}
 			</div>
