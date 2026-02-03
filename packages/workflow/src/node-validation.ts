@@ -1,4 +1,4 @@
-import type { INode, INodeType, IConnections, INodeCredentialDescription } from './interfaces';
+import type { INode, INodeType, IConnections } from './interfaces';
 import { displayParameter } from './node-helpers';
 
 export interface NodeValidationIssue {
@@ -24,18 +24,13 @@ export function validateNodeCredentials(node: INode, nodeType: INodeType): NodeC
 		if (!credDesc.required) continue;
 
 		// Check if this credential should be displayed based on displayOptions
-		const shouldDisplay = displayParameter(
-			node.parameters,
-			credDesc as INodeCredentialDescription,
-			node,
-			nodeType.description,
-		);
+		const shouldDisplay = displayParameter(node.parameters, credDesc, node, nodeType.description);
 
 		if (!shouldDisplay) continue;
 
 		const credentialName = credDesc.name;
 		const nodeCredential = node.credentials?.[credentialName];
-		const displayName = credDesc.displayName || credentialName;
+		const displayName = credDesc.displayName ?? credentialName;
 
 		if (!nodeCredential) {
 			issues.push({
