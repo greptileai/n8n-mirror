@@ -1,7 +1,7 @@
 import { Service } from '@n8n/di';
-import { DataSource, Repository, In } from '@n8n/typeorm';
+import { DataSource, Repository } from '@n8n/typeorm';
 
-import { ProjectSecretsProviderAccess, SecretsProviderConnection } from '../entities';
+import { SecretsProviderConnection } from '../entities';
 
 @Service()
 export class SecretsProviderConnectionRepository extends Repository<SecretsProviderConnection> {
@@ -29,25 +29,11 @@ export class SecretsProviderConnectionRepository extends Repository<SecretsProvi
 	 * Find all enabled connections that have access to a specific project
 	 */
 	async findByProjectId(projectId: string): Promise<SecretsProviderConnection[]> {
-		// Get connection IDs that have access to this project
-		const accessRecords = await this.manager.find(ProjectSecretsProviderAccess, {
-			where: { projectId },
-			select: ['secretsProviderConnectionId'],
-		});
-
-		if (accessRecords.length === 0) {
-			return [];
-		}
-
-		const connectionIds = accessRecords.map((r) => r.secretsProviderConnectionId);
-
-		// Return enabled connections with the projectAccess relation loaded
-		return await this.find({
-			where: {
-				id: In(connectionIds),
-				isEnabled: true,
-			},
-			relations: ['projectAccess'],
-		});
+		return await this.manager
+			.createQueryBuilder(SecretsProviderConnection, 'connection')
+			.innerJoin('connection.projectAccess', 'access')
+			.where('access.projectId = :projectId', { projectId })
+			.andWhere('connection.isEnabled = :isEnabled', { isEnabled: true })
+			.getMany();
 	}
 }
