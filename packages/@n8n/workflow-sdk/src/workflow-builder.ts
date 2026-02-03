@@ -1961,8 +1961,15 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 				continue;
 			}
 
-			// Only generate for nodes that need newCredential() OR are HTTP Request/Webhook
-			if (!this.hasNewCredential(node) && !this.isHttpRequestOrWebhook(node.type)) {
+			// Only generate for nodes that:
+			// 1. Have newCredential() in credentials (or subnodes), OR
+			// 2. Are HTTP Request/Webhook nodes, OR
+			// 3. Are Data Table nodes without a table configured
+			if (
+				!this.hasNewCredential(node) &&
+				!this.isHttpRequestOrWebhook(node.type) &&
+				!this.isDataTableWithoutTable(node)
+			) {
 				continue;
 			}
 
@@ -2010,6 +2017,19 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 
 	private isHttpRequestOrWebhook(type: string): boolean {
 		return type === 'n8n-nodes-base.httpRequest' || type === 'n8n-nodes-base.webhook';
+	}
+
+	private isDataTableWithoutTable(node: NodeInstance<string, string, unknown>): boolean {
+		if (node.type !== 'n8n-nodes-base.dataTable') {
+			return false;
+		}
+
+		// Check if dataTableId parameter has a value
+		const params = node.config?.parameters as Record<string, unknown> | undefined;
+		const dataTableId = params?.dataTableId as { value?: string } | undefined;
+
+		// No table configured if dataTableId is missing or has empty value
+		return !dataTableId?.value;
 	}
 
 	/**

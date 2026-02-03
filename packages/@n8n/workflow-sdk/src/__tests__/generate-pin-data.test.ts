@@ -518,4 +518,109 @@ describe('generatePinData', () => {
 			expect(json.pinData!['QA Chain']).toEqual(outputData);
 		});
 	});
+
+	describe('Data Table nodes without table configured', () => {
+		it('generates pin data for Data Table node with empty dataTableId', () => {
+			const outputData = [{ id: 1, name: 'Row 1' }];
+
+			const wf = workflow('id', 'Test')
+				.add(
+					node({
+						type: 'n8n-nodes-base.dataTable',
+						version: 1,
+						config: {
+							name: 'Data Table',
+							parameters: {
+								resource: 'row',
+								action: 'get',
+								dataTableId: { mode: 'list', value: '' },
+							},
+						},
+						output: outputData,
+					}),
+				)
+				.generatePinData();
+
+			const json = wf.toJSON();
+			expect(json.pinData).toBeDefined();
+			expect(json.pinData!['Data Table']).toEqual(outputData);
+		});
+
+		it('generates pin data for Data Table node with no dataTableId parameter', () => {
+			const outputData = [{ id: 1, name: 'Row 1' }];
+
+			const wf = workflow('id', 'Test')
+				.add(
+					node({
+						type: 'n8n-nodes-base.dataTable',
+						version: 1,
+						config: {
+							name: 'Data Table',
+							parameters: {
+								resource: 'row',
+								action: 'get',
+							},
+						},
+						output: outputData,
+					}),
+				)
+				.generatePinData();
+
+			const json = wf.toJSON();
+			expect(json.pinData).toBeDefined();
+			expect(json.pinData!['Data Table']).toEqual(outputData);
+		});
+
+		it('does not generate pin data for Data Table node with table configured', () => {
+			const outputData = [{ id: 1, name: 'Row 1' }];
+
+			const wf = workflow('id', 'Test')
+				.add(
+					node({
+						type: 'n8n-nodes-base.dataTable',
+						version: 1,
+						config: {
+							name: 'Data Table',
+							parameters: {
+								resource: 'row',
+								action: 'get',
+								dataTableId: { mode: 'id', value: 'table-123' },
+							},
+						},
+						output: outputData,
+					}),
+				)
+				.generatePinData();
+
+			const json = wf.toJSON();
+			// Should NOT generate pin data - table is configured
+			expect(json.pinData?.['Data Table']).toBeUndefined();
+		});
+
+		it('does not generate pin data for Data Table node with table configured by name', () => {
+			const outputData = [{ id: 1, name: 'Row 1' }];
+
+			const wf = workflow('id', 'Test')
+				.add(
+					node({
+						type: 'n8n-nodes-base.dataTable',
+						version: 1,
+						config: {
+							name: 'Data Table',
+							parameters: {
+								resource: 'row',
+								action: 'get',
+								dataTableId: { mode: 'name', value: 'My Table' },
+							},
+						},
+						output: outputData,
+					}),
+				)
+				.generatePinData();
+
+			const json = wf.toJSON();
+			// Should NOT generate pin data - table is configured
+			expect(json.pinData?.['Data Table']).toBeUndefined();
+		});
+	});
 });
