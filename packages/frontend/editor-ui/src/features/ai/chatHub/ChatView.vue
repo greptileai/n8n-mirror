@@ -33,8 +33,8 @@ import {
 	type ChatModelDto,
 	chatHubConversationModelSchema,
 } from '@n8n/api-types';
-import { N8nIconButton, N8nScrollArea, N8nText } from '@n8n/design-system';
-import { useLocalStorage, useMediaQuery, useScroll } from '@vueuse/core';
+import { N8nIconButton, N8nResizeWrapper, N8nScrollArea, N8nText } from '@n8n/design-system';
+import { useElementSize, useLocalStorage, useMediaQuery, useScroll } from '@vueuse/core';
 import { v4 as uuidv4 } from 'uuid';
 import {
 	computed,
@@ -65,6 +65,8 @@ import { hasRole } from '@/app/utils/rbac/checks';
 import { useFreeAiCredits } from '@/app/composables/useFreeAiCredits';
 import ChatGreetings from './components/ChatGreetings.vue';
 import { useChatPushHandler } from './composables/useChatPushHandler';
+import ChatDocumentViewer from './components/ChatDocumentViewer.vue';
+import { useResizablePanel } from '@/app/composables/useResizablePanel';
 
 const router = useRouter();
 const route = useRoute();
@@ -91,10 +93,13 @@ onBeforeUnmount(() => {
 const headerRef = useTemplateRef('headerRef');
 const inputRef = useTemplateRef('inputRef');
 const scrollableRef = useTemplateRef('scrollable');
+const chatLayoutRef = useTemplateRef('chatLayout');
 
 const welcomeScreenDismissed = ref(false);
 const showCreditsClaimedCallout = ref(false);
 const hasAttemptedAutoClaim = ref(false);
+const isDocumentViewerCollapsed = ref(false);
+const selectedDocumentIndex = ref(0);
 
 const { userCanClaimOpenAiCredits, aiCreditsQuota, claimCredits } = useFreeAiCredits();
 const sessionId = computed<string>(() =>
@@ -103,6 +108,7 @@ const sessionId = computed<string>(() =>
 const isResponding = computed(() => chatStore.isResponding(sessionId.value));
 const isNewSession = computed(() => sessionId.value !== route.params.id);
 const scrollContainerRef = computed(() => scrollableRef.value?.parentElement ?? null);
+const scrollContainerSize = useElementSize(scrollContainerRef);
 const currentConversation = computed(() =>
 	sessionId.value ? chatStore.sessions.byId[sessionId.value] : undefined,
 );
@@ -270,6 +276,25 @@ const { credentialsByProvider, selectCredential } = useChatCredentials(
 );
 
 const chatMessages = computed(() => chatStore.getActiveMessages(sessionId.value));
+const currentDocuments = computed(() => chatStore.documentsBySession.get(sessionId.value) ?? []);
+const selectedDocument = computed(() => {
+	const docs = currentDocuments.value;
+	if (docs.length === 0) return null;
+	const index = Math.min(selectedDocumentIndex.value, docs.length - 1);
+	return docs[index];
+});
+const isDocumentVisible = computed(
+	() => currentDocuments.value.length > 0 && !isDocumentViewerCollapsed.value,
+);
+const isMainPanelNarrow = computed(() => scrollContainerSize.width.value < 600);
+
+const documentViewerResizer = useResizablePanel('N8N_CHAT_DOCUMENT_VIEWER_WIDTH', {
+	container: computed(() => chatLayoutRef.value?.$el),
+	defaultSize: (size) => size * 0.6,
+	minSize: 300,
+	maxSize: (size) => size - 300,
+	allowFullSize: true,
+});
 const credentialsForSelectedProvider = computed<ChatHubSendMessageRequest['credentials'] | null>(
 	() => {
 		const provider = selectedModel.value?.model.provider;
@@ -512,6 +537,15 @@ watch(
 	{ immediate: true },
 );
 
+// Reset collapsed state when documents change
+watch(currentDocuments, (newDocs, oldDocs) => {
+	if (newDocs.length > 0 && newDocs.length !== oldDocs?.length) {
+		isDocumentViewerCollapsed.value = false;
+		// Reset to the latest document when new documents are added
+		selectedDocumentIndex.value = newDocs.length - 1;
+	}
+});
+
 function handleDismissCreditsCallout() {
 	showCreditsClaimedCallout.value = false;
 }
@@ -696,17 +730,59 @@ function onFilesDropped(files: File[]) {
 	const index = chatMessages.value.findIndex((message) => message.id === editingMessageId.value);
 	messageElementsRef.value?.[index]?.addFiles(files);
 }
+
+function handleDocumentViewerResizeEnd() {
+	if (documentViewerResizer.isFullSize.value) {
+		isDocumentViewerCollapsed.value = true;
+	}
+	documentViewerResizer.onResizeEnd();
+}
+
+function handleCloseDocumentViewer() {
+	isDocumentViewerCollapsed.value = true;
+}
+
+function handleReopenDocumentViewer() {
+	isDocumentViewerCollapsed.value = false;
+}
+
+function handleSelectDocument(index: number) {
+	selectedDocumentIndex.value = index;
+}
+
+function handleOpenDocument(title: string) {
+	selectedDocumentIndex.value = currentDocuments.value.findIndex((d) => d.title === title);
+	isDocumentViewerCollapsed.value = false;
+}
+
+function handleDownloadDocument() {
+	const doc = selectedDocument.value;
+	if (!doc) {
+		return;
+	}
+
+	const blob = new Blob([doc.content], { type: 'text/plain' });
+	const url = URL.createObjectURL(blob);
+	const a = document.createElement('a');
+	a.href = url;
+	a.download = `${doc.title}.${doc.type}`;
+	a.click();
+	URL.revokeObjectURL(url);
+}
 </script>
 
 <template>
 	<ChatLayout
 		v-if="showWelcomeScreen !== undefined"
+		ref="chatLayout"
 		:class="{
 			[$style.chatLayout]: true,
 			[$style.isNewSession]: isNewSession,
 			[$style.isExistingSession]: !isNewSession,
 			[$style.isMobileDevice]: isMobileDevice,
 			[$style.isDraggingFile]: fileDrop.isDragging.value,
+			[$style.hasDocument]: isDocumentVisible,
+			[$style.isMainPanelNarrow]: isMainPanelNarrow,
 		}"
 		@dragenter="fileDrop.handleDragEnter"
 		@dragleave="fileDrop.handleDragLeave"
@@ -719,97 +795,123 @@ function onFilesDropped(files: File[]) {
 				i18n.baseText('chatHub.chat.dropOverlay')
 			}}</N8nText>
 		</div>
-
-		<ChatConversationHeader
-			v-if="!showWelcomeScreen"
-			ref="headerRef"
-			:selected-model="selectedModel"
-			:credentials="credentialsByProvider"
-			:ready-to-show-model-selector="isNewSession || !!currentConversation"
-			@select-model="handleSelectModel"
-			@edit-custom-agent="handleEditAgent"
-			@create-custom-agent="openNewAgentCreator"
-			@select-credential="selectCredential"
-			@open-workflow="handleOpenWorkflow"
-		/>
-
-		<N8nScrollArea
-			type="scroll"
-			:enable-vertical-scroll="true"
-			:enable-horizontal-scroll="false"
-			as-child
-			:class="$style.scrollArea"
+		<N8nResizeWrapper
+			:class="$style.mainContentResizer"
+			:width="documentViewerResizer.size.value"
+			:style="{ width: isDocumentVisible ? `${documentViewerResizer.size.value}px` : '100%' }"
+			:supported-directions="['right']"
+			:is-resizing-enabled="true"
+			@resize="documentViewerResizer.onResize"
+			@resizeend="handleDocumentViewerResizeEnd"
 		>
-			<div ref="scrollable" :class="$style.scrollable">
-				<ChatGreetings v-if="isNewSession" :selected-agent="selectedModel" />
+			<div :class="$style.mainContent">
+				<ChatConversationHeader
+					v-if="!showWelcomeScreen"
+					ref="headerRef"
+					:selected-model="selectedModel"
+					:credentials="credentialsByProvider"
+					:ready-to-show-model-selector="isNewSession || !!currentConversation"
+					:show-document-icon="currentDocuments.length > 0 && isDocumentViewerCollapsed"
+					@select-model="handleSelectModel"
+					@edit-custom-agent="handleEditAgent"
+					@create-custom-agent="openNewAgentCreator"
+					@select-credential="selectCredential"
+					@open-workflow="handleOpenWorkflow"
+					@reopen-document="handleReopenDocumentViewer"
+				/>
 
-				<div v-else role="log" aria-live="polite" :class="$style.messageList">
-					<ChatMessage
-						v-for="(message, index) in chatMessages"
-						:key="message.id"
-						ref="messages"
-						:message="message"
-						:compact="isMobileDevice"
-						:is-editing="editingMessageId === message.id"
-						:is-edit-submitting="chatStore.streaming?.revisionOfMessageId === message.id"
-						:has-session-streaming="isResponding"
-						:cached-agent-display-name="selectedModel?.name ?? null"
-						:cached-agent-icon="selectedModel?.icon ?? null"
-						:min-height="
-							didSubmitInCurrentSession &&
-							message.type === 'ai' &&
-							index === chatMessages.length - 1 &&
-							scrollContainerRef
-								? scrollContainerRef.offsetHeight - 30 /* padding-top */ - 200 /* padding-bottom */
-								: undefined
-						"
-						@start-edit="handleStartEditMessage(message.id)"
-						@cancel-edit="handleCancelEditMessage"
-						@regenerate="handleRegenerateMessage"
-						@update="handleEditMessage"
-						@switch-alternative="handleSwitchAlternative"
-					/>
-				</div>
+				<N8nScrollArea
+					type="scroll"
+					:enable-vertical-scroll="true"
+					:enable-horizontal-scroll="false"
+					as-child
+					:class="$style.scrollArea"
+				>
+					<div ref="scrollable" :class="$style.scrollable">
+						<ChatGreetings v-if="isNewSession" :selected-agent="selectedModel" />
 
-				<div v-if="!showWelcomeScreen" :class="$style.promptContainer">
-					<N8nIconButton
-						v-if="!arrivedState.bottom && !isNewSession"
-						type="secondary"
-						icon="arrow-down"
-						:class="$style.scrollToBottomButton"
-						:title="i18n.baseText('chatHub.chat.scrollToBottom')"
-						@click="scrollToBottom(true)"
-					/>
+						<div v-else role="log" aria-live="polite" :class="$style.messageList">
+							<ChatMessage
+								v-for="(message, index) in chatMessages"
+								:key="message.id"
+								ref="messages"
+								:message="message"
+								:compact="isMainPanelNarrow"
+								:is-editing="editingMessageId === message.id"
+								:is-edit-submitting="chatStore.streaming?.revisionOfMessageId === message.id"
+								:has-session-streaming="isResponding"
+								:cached-agent-display-name="selectedModel?.name ?? null"
+								:cached-agent-icon="selectedModel?.icon ?? null"
+								:min-height="
+									didSubmitInCurrentSession &&
+									message.type === 'ai' &&
+									index === chatMessages.length - 1 &&
+									scrollContainerRef
+										? scrollContainerRef.offsetHeight -
+											30 /* padding-top */ -
+											200 /* padding-bottom */
+										: undefined
+								"
+								@start-edit="handleStartEditMessage(message.id)"
+								@cancel-edit="handleCancelEditMessage"
+								@regenerate="handleRegenerateMessage"
+								@update="handleEditMessage"
+								@switch-alternative="handleSwitchAlternative"
+								@open-document="handleOpenDocument"
+							/>
+						</div>
 
-					<ChatPrompt
-						ref="inputRef"
-						:class="$style.prompt"
-						:selected-model="selectedModel"
-						:selected-tools="selectedTools"
-						:messaging-state="messagingState"
-						:is-tools-selectable="canSelectTools"
-						:is-new-session="isNewSession"
-						:show-credits-claimed-callout="showCreditsClaimedCallout"
-						:ai-credits-quota="String(aiCreditsQuota)"
-						@submit="onSubmit"
-						@stop="onStop"
-						@select-model="handleConfigureModel"
-						@select-tools="handleUpdateTools"
-						@set-credentials="handleConfigureCredentials"
-						@edit-agent="handleEditAgent"
-						@dismiss-credits-callout="handleDismissCreditsCallout"
-					/>
-				</div>
+						<div v-if="!showWelcomeScreen" :class="$style.promptContainer">
+							<N8nIconButton
+								v-if="!arrivedState.bottom && !isNewSession"
+								type="secondary"
+								icon="arrow-down"
+								:class="$style.scrollToBottomButton"
+								:title="i18n.baseText('chatHub.chat.scrollToBottom')"
+								@click="scrollToBottom(true)"
+							/>
+
+							<ChatPrompt
+								ref="inputRef"
+								:class="$style.prompt"
+								:selected-model="selectedModel"
+								:selected-tools="selectedTools"
+								:messaging-state="messagingState"
+								:is-tools-selectable="canSelectTools"
+								:is-new-session="isNewSession"
+								:show-credits-claimed-callout="showCreditsClaimedCallout"
+								:ai-credits-quota="String(aiCreditsQuota)"
+								@submit="onSubmit"
+								@stop="onStop"
+								@select-model="handleConfigureModel"
+								@select-tools="handleUpdateTools"
+								@set-credentials="handleConfigureCredentials"
+								@edit-agent="handleEditAgent"
+								@dismiss-credits-callout="handleDismissCreditsCallout"
+							/>
+						</div>
+					</div>
+				</N8nScrollArea>
+
+				<ChatStarter
+					v-if="isNewSession"
+					:show-welcome-screen="showWelcomeScreen"
+					@start-new-chat="
+						welcomeScreenDismissed = true;
+						inputRef?.focus();
+					"
+				/>
 			</div>
-		</N8nScrollArea>
-
-		<ChatStarter
-			v-if="isNewSession"
-			:show-welcome-screen="showWelcomeScreen"
-			@start-new-chat="
-				welcomeScreenDismissed = true;
-				inputRef?.focus();
-			"
+		</N8nResizeWrapper>
+		<ChatDocumentViewer
+			v-if="isDocumentVisible"
+			:key="sessionId"
+			:class="$style.documentViewer"
+			:documents="currentDocuments"
+			:selected-index="selectedDocumentIndex"
+			@close="handleCloseDocumentViewer"
+			@select-document="handleSelectDocument"
+			@download="handleDownloadDocument"
 		/>
 	</ChatLayout>
 </template>
@@ -817,6 +919,44 @@ function onFilesDropped(files: File[]) {
 <style lang="scss" module>
 .chatLayout {
 	position: relative;
+	display: flex;
+	flex-direction: row;
+
+	&.hasDocument {
+		.mainContent {
+			flex: 1;
+			min-width: 0;
+		}
+	}
+
+	&:not(.hasDocument) {
+		.mainContent {
+			flex: 1;
+		}
+	}
+}
+
+.mainContentResizer {
+	overflow: hidden;
+	flex-shrink: 0;
+}
+
+.mainContent {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	height: 100%;
+	flex: 1;
+}
+
+.documentViewer {
+	flex: 1;
+	min-width: 300px;
+	overflow: hidden;
+
+	.isMobileDevice & {
+		display: none;
+	}
 }
 
 .scrollArea {
@@ -845,8 +985,6 @@ function onFilesDropped(files: File[]) {
 }
 
 .messageList {
-	width: 100%;
-	max-width: 78ch;
 	min-height: 100%;
 	align-self: center;
 	display: flex;
@@ -854,11 +992,6 @@ function onFilesDropped(files: File[]) {
 	gap: var(--spacing--xl);
 	padding-top: var(--spacing--2xl);
 	padding-bottom: 200px;
-	padding-inline: var(--spacing--xl);
-
-	.isMobileDevice & {
-		padding-inline: var(--spacing--md);
-	}
 }
 
 .promptContainer {
@@ -876,12 +1009,13 @@ function onFilesDropped(files: File[]) {
 	}
 }
 
+.messageList,
 .prompt {
 	width: 100%;
-	max-width: 55rem;
+	max-width: 88ch;
 	padding-inline: 64px;
 
-	.isMobileDevice & {
+	.isMainPanelNarrow & {
 		padding-inline: var(--spacing--md);
 	}
 }

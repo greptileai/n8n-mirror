@@ -542,3 +542,38 @@ export interface ChatReconnectResponse {
 	/** Last sequence number received by client (for gap detection) */
 	lastSequenceNumber: number;
 }
+
+/**
+ * Document generated during chat interaction
+ */
+export interface ChatDocument {
+	title: string;
+	/**
+	 * Mime-type of the document
+	 */
+	type: string;
+	content: string;
+	/**
+	 * Whether the document is complete or not (for streaming)
+	 */
+	isIncomplete: boolean;
+	/**
+	 * ID of the message that last updated this document
+	 */
+	updatedIn: ChatMessageId;
+}
+
+export interface ChatDocCreateCommand {
+	title: string;
+	type: string;
+	content: string;
+	isIncomplete: boolean;
+}
+
+export interface ChatDocEditCommand {
+	title: string;
+	oldString: string;
+	newString: string;
+	replaceAll: boolean;
+	isIncomplete: boolean;
+}

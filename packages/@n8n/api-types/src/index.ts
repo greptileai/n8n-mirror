@@ -56,6 +56,9 @@ export {
 	type ChatSendMessageResponse,
 	type ChatReconnectResponse,
 	ChatReconnectRequest,
+	type ChatDocument,
+	type ChatDocCreateCommand,
+	type ChatDocEditCommand,
 } from './chat-hub';
 
 export type {

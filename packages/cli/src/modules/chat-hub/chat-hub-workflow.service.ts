@@ -66,6 +66,7 @@ import {
 } from './chat-hub.types';
 import { getMaxContextWindowTokens } from './context-limits';
 import { inE2ETests } from '../../constants';
+import { reconstructDocument } from '@n8n/chat-hub';
 
 @Service()
 export class ChatHubWorkflowService {
@@ -119,7 +120,7 @@ export class ChatHubWorkflowService {
 				attachments,
 				credentials,
 				model,
-				systemMessage: systemMessage ?? this.getBaseSystemMessage(timeZone),
+				systemMessage: systemMessage ?? this.getBaseSystemMessage(history, timeZone),
 				tools,
 				executionMetadata,
 			});
@@ -485,18 +486,84 @@ export class ChatHubWorkflowService {
 		const now = inE2ETests ? DateTime.fromISO('2025-01-15T12:00:00.000Z') : DateTime.now();
 		const isoTime = now.setZone(timeZone).toISO({ includeOffset: true });
 
-		return `The user's current local date and time is: ${isoTime} (timezone: ${timeZone}).
+		return `
+## Current Date and Time
+
+The user's current local date and time is: ${isoTime} (timezone: ${timeZone}).
 When you need to reference "now", use this date and time.
+
+## Content Capabilities
 
 You can only produce text responses.
 You cannot create, generate, edit, or display images, videos, or other non-text content.
-If the user asks you to generate or edit an image (or other media), explain that you are not able to do that and, if helpful, describe in words what the image could look like or how they could create it using external tools.`;
+If the user asks you to generate or edit an image (or other media), explain that you are not able to do that and, if helpful, describe in words what the image could look like or how they could create it using external tools.
+
+## Document Generation
+
+You can create and edit documents for the user using special XML-like commands. When you use these commands, documents appear in a side panel next to this chat where users can view them in real-time. You can create multiple documents in a conversation, and users can switch between them using a dropdown selector.
+
+Write these commands DIRECTLY in your response - do NOT wrap them in code fences or backticks.
+
+### Creating a Document
+
+To create a new document, include this command directly in your response:
+
+<command:doc-create>
+<title>Document Title</title>
+<type>md</type>
+<content>
+Document content here...
+</content>
+</command:doc-create>
+
+The type can be:
+- html for HTML documents
+- md for Markdown documents
+- A code language like typescript, python, json, etc. for code files
+
+Example response:
+"I'll create an RFC document for you.
+
+<command:doc-create>
+<title>RFC: New Feature</title>
+<type>md</type>
+<content>
+# RFC: New Feature
+
+## Summary
+This feature will...
+</content>
+</command:doc-create>
+
+I've created the RFC above. Let me know if you'd like any changes!"
+
+### Editing a Document
+
+To make targeted edits to a document, you must specify the exact title of the document you want to edit:
+
+<command:doc-edit>
+<title>Document Title</title>
+<oldString>text to find</oldString>
+<newString>replacement text</newString>
+<replaceAll>false</replaceAll>
+</command:doc-edit>
+
+- <title> is required and must match the exact title of an existing document.
+- Set replaceAll to true to replace all occurrences, or false to replace only the first occurrence.
+- If the document title doesn't exist, the edit command will be ignored.
+
+IMPORTANT:
+- Write these commands directly in your response text, NOT inside code blocks or fences.
+- ALWAYS include conversational text before and/or after document commands. Never send a message with only commands and no explanation.
+`;
 	}
 
-	private getBaseSystemMessage(timeZone: string) {
+	private getBaseSystemMessage(history: ChatHubMessage[], timeZone: string) {
+		const documentContext = this.buildDocumentContext(history);
+
 		return `You are a helpful assistant.
 
-${this.getSystemMessageMetadata(timeZone)}`;
+${this.getSystemMessageMetadata(timeZone) + documentContext}`;
 	}
 
 	private buildToolsAgentNode(
@@ -1087,7 +1154,9 @@ Respond the title only:`,
 			throw new BadRequestError('Credentials not set for agent');
 		}
 
-		const systemMessage = agent.systemPrompt + '\n\n' + this.getSystemMessageMetadata(timeZone);
+		const documentContext = this.buildDocumentContext(history);
+		const systemMessage =
+			agent.systemPrompt + '\n\n' + this.getSystemMessageMetadata(timeZone) + documentContext;
 
 		const model: ChatHubBaseLLMModel = {
 			provider: agent.provider,
@@ -1226,5 +1295,36 @@ Respond the title only:`,
 			executionData,
 			responseMode,
 		};
+	}
+
+	private buildDocumentContext(history: ChatHubMessage[]): string {
+		const documents = reconstructDocument(history);
+		if (documents.length === 0) {
+			return '';
+		}
+
+		// Multiple documents - show all of them
+		const documentsText = documents
+			.map(
+				(doc, index) => `
+
+### Document ${index + 1}: ${doc.title}
+
+Type: ${doc.type}
+Content:
+\`\`\`${doc.type}
+${doc.content}
+\`\`\`
+`,
+			)
+			.join('\n');
+
+		return `
+
+## Current Documents
+
+${documentsText}
+
+You can update the most recent document using the commands described above, or create a new document.`;
 	}
 }
