@@ -5,14 +5,11 @@ import { SupportedProtocols, useSSOStore } from '../sso.store';
 import { useI18n } from '@n8n/i18n';
 import { captureMessage } from '@sentry/vue';
 
-import { ElCheckbox } from 'element-plus';
-import { N8nButton, N8nInput, N8nRadioButtons } from '@n8n/design-system';
+import { N8nButton, N8nCheckbox, N8nInput, N8nRadioButtons } from '@n8n/design-system';
 import { useToast } from '@/app/composables/useToast';
 import { useMessage } from '@/app/composables/useMessage';
 import { computed, onMounted, ref } from 'vue';
-import UserRoleProvisioningDropdown, {
-	type UserRoleProvisioningSetting,
-} from '../provisioning/components/UserRoleProvisioningDropdown.vue';
+import UserRoleProvisioningDropdown from '../provisioning/components/UserRoleProvisioningDropdown.vue';
 import { useUserRoleProvisioningForm } from '../provisioning/composables/useUserRoleProvisioningForm';
 import { useRootStore } from '@n8n/stores/useRootStore';
 import { useTelemetry } from '@/app/composables/useTelemetry';
@@ -24,7 +21,6 @@ const ssoStore = useSSOStore();
 const telemetry = useTelemetry();
 const toast = useToast();
 const message = useMessage();
-const instanceId = useRootStore().instanceId;
 
 const savingForm = ref<boolean>(false);
 
@@ -55,10 +51,12 @@ const entityId = ref();
 
 const showUserRoleProvisioningDialog = ref(false);
 
-const userRoleProvisioning = ref<UserRoleProvisioningSetting>('disabled');
-
-const { isUserRoleProvisioningChanged, saveProvisioningConfig } =
-	useUserRoleProvisioningForm(userRoleProvisioning);
+const {
+	formValue: userRoleProvisioning,
+	isUserRoleProvisioningChanged,
+	saveProvisioningConfig,
+	shouldPromptUserToConfirmUserRoleProvisioningChange,
+} = useUserRoleProvisioningForm(SupportedProtocols.SAML);
 
 async function loadSamlConfig() {
 	if (!ssoStore.isEnterpriseSamlEnabled) {
@@ -102,7 +100,7 @@ const isSaveEnabled = computed(() => {
 	};
 	const isSamlLoginEnabledChanged = ssoStore.isSamlLoginEnabled !== samlLoginEnabled.value;
 	return (
-		isUserRoleProvisioningChanged() || isIdentityProviderChanged() || isSamlLoginEnabledChanged
+		isUserRoleProvisioningChanged.value || isIdentityProviderChanged() || isSamlLoginEnabledChanged
 	);
 });
 
@@ -121,20 +119,12 @@ const sendTrackingEvent = (config?: SamlPreferences) => {
 		return;
 	}
 	const trackingMetadata = {
-		instance_id: instanceId,
+		instance_id: useRootStore().instanceId,
 		authentication_method: SupportedProtocols.SAML,
 		identity_provider: config.metadataUrl ? 'metadata' : 'xml',
 		is_active: config.loginEnabled ?? false,
 	};
 	telemetry.track('User updated single sign on settings', trackingMetadata);
-};
-
-const sendTrackingEventForUserProvisioning = () => {
-	telemetry.track('User updated provisioning settings', {
-		instance_id: instanceId,
-		authentication_method: SupportedProtocols.SAML,
-		updated_setting: userRoleProvisioning.value,
-	});
 };
 
 const promptConfirmDisablingSamlLogin = async () => {
@@ -190,7 +180,8 @@ const onSave = async (provisioningChangesConfirmed: boolean = false) => {
 		savingForm.value = true;
 		validateSamlInput();
 
-		const isDisablingSamlLogin = ssoStore.isSamlLoginEnabled && !samlLoginEnabled.value;
+		const loginEnabledChanged = samlLoginEnabled.value !== ssoStore.isSamlLoginEnabled;
+		const isDisablingSamlLogin = loginEnabledChanged && ssoStore.isSamlLoginEnabled === true;
 
 		if (isDisablingSamlLogin) {
 			const confirmDisablingSaml = await promptConfirmDisablingSamlLogin();
@@ -199,10 +190,17 @@ const onSave = async (provisioningChangesConfirmed: boolean = false) => {
 			}
 		}
 
-		if (!isDisablingSamlLogin && isUserRoleProvisioningChanged() && !provisioningChangesConfirmed) {
+		if (
+			!provisioningChangesConfirmed &&
+			shouldPromptUserToConfirmUserRoleProvisioningChange({
+				currentLoginEnabled: !!ssoStore.isSamlLoginEnabled,
+				loginEnabledFormValue: samlLoginEnabled.value,
+			})
+		) {
 			showUserRoleProvisioningDialog.value = true;
 			return;
 		}
+		showUserRoleProvisioningDialog.value = false;
 
 		const metaDataConfig: Partial<SamlPreferences> =
 			ipsType.value === IdentityProviderSettingsType.URL
@@ -226,11 +224,7 @@ const onSave = async (provisioningChangesConfirmed: boolean = false) => {
 			loginEnabled: samlLoginEnabled.value,
 		});
 
-		if (isUserRoleProvisioningChanged()) {
-			await saveProvisioningConfig();
-			sendTrackingEventForUserProvisioning();
-			showUserRoleProvisioningDialog.value = false;
-		}
+		await saveProvisioningConfig(isDisablingSamlLogin);
 
 		// Update store with saved protocol selection
 		ssoStore.selectedAuthProtocol = SupportedProtocols.SAML;
@@ -335,9 +329,11 @@ onMounted(async () => {
 				@cancel="showUserRoleProvisioningDialog = false"
 			/>
 			<div :class="[$style.group, $style.checkboxGroup]">
-				<ElCheckbox v-model="samlLoginEnabled" data-test-id="sso-toggle">{{
-					i18n.baseText('settings.sso.activated')
-				}}</ElCheckbox>
+				<N8nCheckbox
+					v-model="samlLoginEnabled"
+					data-test-id="sso-toggle"
+					:label="i18n.baseText('settings.sso.activated')"
+				/>
 			</div>
 		</div>
 		<div :class="$style.buttons">

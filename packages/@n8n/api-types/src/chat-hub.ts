@@ -1,7 +1,9 @@
+import type { Scope } from '@n8n/permissions';
 import {
-	type StructuredChunk,
 	type JINA_AI_TOOL_NODE_TYPE,
+	type SERP_API_TOOL_NODE_TYPE,
 	type INode,
+	type ChunkType,
 	INodeSchema,
 } from 'n8n-workflow';
 import { z } from 'zod';
@@ -27,6 +29,21 @@ export const chatHubLLMProviderSchema = z.enum([
 	'mistralCloud',
 ]);
 export type ChatHubLLMProvider = z.infer<typeof chatHubLLMProviderSchema>;
+
+/**
+ * Schema for icon or emoji representation
+ */
+export const agentIconOrEmojiSchema = z.discriminatedUnion('type', [
+	z.object({
+		type: z.literal('icon'),
+		value: z.string(),
+	}),
+	z.object({
+		type: z.literal('emoji'),
+		value: z.string(),
+	}),
+]);
+export type AgentIconOrEmoji = z.infer<typeof agentIconOrEmojiSchema>;
 
 export const chatHubProviderSchema = z.enum([
 	...chatHubLLMProviderSchema.options,
@@ -59,7 +76,7 @@ export const PROVIDER_CREDENTIAL_TYPE_MAP: Record<
 	mistralCloud: 'mistralCloudApi',
 };
 
-export type ChatHubAgentTool = typeof JINA_AI_TOOL_NODE_TYPE;
+export type ChatHubAgentTool = typeof JINA_AI_TOOL_NODE_TYPE | typeof SERP_API_TOOL_NODE_TYPE;
 
 /**
  * Chat Hub conversation model configuration
@@ -207,13 +224,28 @@ export const chatModelsRequestSchema = z.object({
 
 export type ChatModelsRequest = z.infer<typeof chatModelsRequestSchema>;
 
+export type ChatHubInputModality = 'text' | 'image' | 'audio' | 'video' | 'file';
+
+export interface ChatModelMetadataDto {
+	inputModalities: ChatHubInputModality[];
+	priority?: number; // Order on the model picker list, higher means first, default 0
+	capabilities: {
+		functionCalling: boolean;
+	};
+	available: boolean;
+	scopes?: Scope[];
+}
+
 export interface ChatModelDto {
 	model: ChatHubConversationModel;
 	name: string;
 	description: string | null;
+	icon: AgentIconOrEmoji | null;
 	updatedAt: string | null;
 	createdAt: string | null;
-	allowFileUploads?: boolean;
+	metadata: ChatModelMetadataDto;
+	groupName: string | null;
+	groupIcon: AgentIconOrEmoji | null;
 }
 
 /**
@@ -258,6 +290,27 @@ export const chatAttachmentSchema = z.object({
 	fileName: z.string(),
 });
 
+export const isValidTimeZone = (tz: string): boolean => {
+	try {
+		// Throws if invalid timezone
+		new Intl.DateTimeFormat('en-US', { timeZone: tz });
+		return true;
+	} catch {
+		return false;
+	}
+};
+
+export const StrictTimeZoneSchema = z
+	.string()
+	.min(1)
+	.max(50)
+	.regex(/^[A-Za-z0-9_/+-]+$/)
+	.refine(isValidTimeZone, {
+		message: 'Unknown or invalid time zone',
+	});
+
+export const TimeZoneSchema = StrictTimeZoneSchema.optional().catch(undefined);
+
 export type ChatAttachment = z.infer<typeof chatAttachmentSchema>;
 
 export class ChatHubSendMessageRequest extends Z.class({
@@ -274,6 +327,8 @@ export class ChatHubSendMessageRequest extends Z.class({
 	),
 	tools: z.array(INodeSchema),
 	attachments: z.array(chatAttachmentSchema),
+	agentName: z.string().optional(),
+	timeZone: TimeZoneSchema,
 }) {}
 
 export class ChatHubRegenerateMessageRequest extends Z.class({
@@ -284,6 +339,7 @@ export class ChatHubRegenerateMessageRequest extends Z.class({
 			name: z.string(),
 		}),
 	),
+	timeZone: TimeZoneSchema,
 }) {}
 
 export class ChatHubEditMessageRequest extends Z.class({
@@ -296,20 +352,25 @@ export class ChatHubEditMessageRequest extends Z.class({
 			name: z.string(),
 		}),
 	),
+	newAttachments: z.array(chatAttachmentSchema),
+	keepAttachmentIndices: z.array(z.number()),
+	timeZone: TimeZoneSchema,
 }) {}
 
 export class ChatHubUpdateConversationRequest extends Z.class({
 	title: z.string().optional(),
 	credentialId: z.string().max(36).optional(),
-	provider: chatHubProviderSchema.optional(),
-	model: z.string().max(64).optional(),
-	workflowId: z.string().max(36).optional(),
-	agentId: z.string().uuid().optional(),
+	agent: z
+		.object({
+			model: chatHubConversationModelSchema,
+			name: z.string(),
+		})
+		.optional(),
 	tools: z.array(INodeSchema).optional(),
 }) {}
 
 export type ChatHubMessageType = 'human' | 'ai' | 'system' | 'tool' | 'generic';
-export type ChatHubMessageStatus = 'success' | 'error' | 'running' | 'cancelled';
+export type ChatHubMessageStatus = 'success' | 'error' | 'running' | 'cancelled' | 'waiting';
 
 export type ChatSessionId = string; // UUID
 export type ChatMessageId = string; // UUID
@@ -324,7 +385,8 @@ export interface ChatHubSessionDto {
 	model: string | null;
 	workflowId: string | null;
 	agentId: string | null;
-	agentName: string | null;
+	agentName: string;
+	agentIcon: AgentIconOrEmoji | null;
 	createdAt: string;
 	updatedAt: string;
 	tools: INode[];
@@ -376,6 +438,7 @@ export interface ChatHubAgentDto {
 	id: string;
 	name: string;
 	description: string | null;
+	icon: AgentIconOrEmoji | null;
 	systemPrompt: string;
 	ownerId: string;
 	credentialId: string | null;
@@ -389,6 +452,7 @@ export interface ChatHubAgentDto {
 export class ChatHubCreateAgentRequest extends Z.class({
 	name: z.string().min(1).max(128),
 	description: z.string().max(512).optional(),
+	icon: agentIconOrEmojiSchema,
 	systemPrompt: z.string().min(1),
 	credentialId: z.string(),
 	provider: chatHubLLMProviderSchema,
@@ -399,15 +463,19 @@ export class ChatHubCreateAgentRequest extends Z.class({
 export class ChatHubUpdateAgentRequest extends Z.class({
 	name: z.string().min(1).max(128).optional(),
 	description: z.string().max(512).optional(),
+	icon: agentIconOrEmojiSchema.optional(),
 	systemPrompt: z.string().min(1).optional(),
 	credentialId: z.string().optional(),
-	provider: chatHubProviderSchema.optional(),
+	provider: chatHubLLMProviderSchema.optional(),
 	model: z.string().max(64).optional(),
 	tools: z.array(INodeSchema).optional(),
 }) {}
 
-export interface EnrichedStructuredChunk extends StructuredChunk {
-	metadata: StructuredChunk['metadata'] & {
+export interface MessageChunk {
+	type: ChunkType;
+	content?: string;
+	metadata: {
+		timestamp: number;
 		messageId: ChatMessageId;
 		previousMessageId: ChatMessageId | null;
 		retryOfMessageId: ChatMessageId | null;
@@ -436,3 +504,41 @@ export type ChatProviderSettingsDto = z.infer<typeof chatProviderSettingsSchema>
 export class UpdateChatSettingsRequest extends Z.class({
 	payload: chatProviderSettingsSchema,
 }) {}
+
+export interface ChatHubModuleSettings {
+	enabled: boolean;
+	providers: Record<ChatHubLLMProvider, ChatProviderSettingsDto>;
+}
+
+/**
+ * Response returned immediately when sending a message via WebSocket streaming.
+ * Message IDs are not included as they come via WebSocket events (chatHubStreamBegin).
+ */
+export interface ChatSendMessageResponse {
+	/** Status indicating streaming has started */
+	status: 'streaming';
+}
+
+/**
+ * Request query parameters for reconnecting to a chat stream
+ */
+export class ChatReconnectRequest extends Z.class({
+	lastSequence: z.coerce.number().int().min(0).optional(),
+}) {}
+
+/**
+ * Response containing pending chunks for reconnection replay
+ */
+export interface ChatReconnectResponse {
+	/** Whether there is an active stream for this session */
+	hasActiveStream: boolean;
+	/** Current message ID being streamed, if any */
+	currentMessageId: ChatMessageId | null;
+	/** Pending chunks that were missed during disconnection */
+	pendingChunks: Array<{
+		sequenceNumber: number;
+		content: string;
+	}>;
+	/** Last sequence number received by client (for gap detection) */
+	lastSequenceNumber: number;
+}

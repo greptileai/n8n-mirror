@@ -19,11 +19,15 @@ export class WorkflowsConfig {
 	@Env('N8N_WORKFLOW_ACTIVATION_BATCH_SIZE')
 	activationBatchSize: number = 1;
 
-	/** Whether to enable workflow dependency indexing */
+	/** Whether to enable workflow dependency indexing.
+	 * NOTE: this feature is still under development.
+	 */
 	@Env('N8N_WORKFLOWS_INDEXING_ENABLED')
 	indexingEnabled: boolean = false;
 
-	/** DO NOT USE - Enable draft/publish workflow feature */
-	@Env('N8N_ENV_FEAT_WORKFLOWS_DRAFT_PUBLISH_ENABLED')
-	draftPublishEnabled: boolean = false;
+	/** Whether to use workflow publication service.
+	 * NOTE: this feature is still under development.
+	 */
+	@Env('N8N_USE_WORKFLOW_PUBLICATION_SERVICE')
+	useWorkflowPublicationService: boolean = false;
 }

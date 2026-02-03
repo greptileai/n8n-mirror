@@ -722,7 +722,7 @@ export function useCanvasMapping({
 					position: { x: node.position[0], y: node.position[1] },
 					data,
 					...additionalNodePropertiesById.value[node.id],
-					draggable: node.draggable ?? true,
+					draggable: node.draggable,
 				};
 			}),
 		];
@@ -803,7 +803,7 @@ export function useCanvasMapping({
 	}
 
 	function getConnectionLabel(connection: CanvasConnection): string {
-		const fromNode = nodes.value.find((node) => node.name === connection.data?.source.node);
+		const fromNode = nodesByName.value.get(connection.data?.source.node ?? '');
 		if (!fromNode) {
 			return '';
 		}

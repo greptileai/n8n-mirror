@@ -3,7 +3,9 @@ import SourceControlInitializationErrorMessage from '@/features/integrations/sou
 import { useExternalHooks } from '@/app/composables/useExternalHooks';
 import { useTelemetry } from '@/app/composables/useTelemetry';
 import { useToast } from '@/app/composables/useToast';
+import { LOCAL_STORAGE_DATA_WORKER } from '@/app/constants/localStorage';
 import { EnterpriseEditionFeature, VIEWS } from '@/app/constants';
+
 import type { UserManagementAuthenticationMethod } from '@/Interface';
 import {
 	registerModuleModals,
@@ -28,6 +30,7 @@ import { useRootStore } from '@n8n/stores/useRootStore';
 import { h } from 'vue';
 import { useRolesStore } from '@/app/stores/roles.store';
 import { useDataTableStore } from '@/features/core/dataTable/dataTable.store';
+import { hasPermission } from '@/app/utils/rbac/permissions';
 
 export const state = {
 	initialized: false,
@@ -44,7 +47,6 @@ export async function initializeCore() {
 	}
 
 	const settingsStore = useSettingsStore();
-	const versionsStore = useVersionsStore();
 	const usersStore = useUsersStore();
 	const ssoStore = useSSOStore();
 
@@ -79,8 +81,6 @@ export async function initializeCore() {
 			oidc: settingsStore.isEnterpriseFeatureEnabled[EnterpriseEditionFeature.Oidc],
 		},
 	});
-
-	versionsStore.initialize(settingsStore.settings.versionNotifications);
 
 	if (!settingsStore.isPreviewMode) {
 		await usersStore.initialize();
@@ -173,7 +173,10 @@ export async function initializeAuthenticatedFeatures(
 			});
 	}
 
-	if (settingsStore.isDataTableFeatureEnabled) {
+	if (
+		settingsStore.isDataTableFeatureEnabled &&
+		hasPermission(['rbac'], { rbac: { scope: 'dataTable:list' } })
+	) {
 		void dataTableStore
 			.fetchDataTableSize()
 			.then(({ quotaStatus }) => {
@@ -190,6 +193,7 @@ export async function initializeAuthenticatedFeatures(
 
 	// Don't check for new versions in preview mode or demo view (ex: executions iframe)
 	if (!settingsStore.isPreviewMode && routeName !== VIEWS.DEMO) {
+		versionsStore.initialize(settingsStore.settings.versionNotifications);
 		void versionsStore.checkForNewVersions();
 	}
 
@@ -205,6 +209,13 @@ export async function initializeAuthenticatedFeatures(
 	registerModuleProjectTabs();
 	registerModuleModals();
 	registerModuleSettingsPages();
+
+	// Initialize run data worker and load node types
+	if (window.localStorage.getItem(LOCAL_STORAGE_DATA_WORKER) === 'true') {
+		const coordinator = await import('@/app/workers');
+		await coordinator.initialize({ version: settingsStore.settings.versionCli });
+		await coordinator.loadNodeTypes(rootStore.baseUrl);
+	}
 
 	authenticatedFeaturesInitialized = true;
 }
