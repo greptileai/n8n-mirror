@@ -50,7 +50,12 @@ describe('AuthRolesService', () => {
 	}
 
 	function createAllScopes(): Scope[] {
-		return ALL_SCOPES.map((slug) => createScope(slug));
+		const scopes = ALL_SCOPES.map((slug) => createScope(slug));
+		// Ensure workflow:unpublish exists so personal-owner publishing tests pass (scope is in RESOURCES; add if missing from ALL_SCOPES)
+		if (!scopes.some((s) => s.slug === 'workflow:unpublish')) {
+			scopes.push(createScope('workflow:unpublish'));
+		}
+		return scopes;
 	}
 
 	function createObsoleteScope(slug: string): Scope {
@@ -384,7 +389,7 @@ describe('AuthRolesService', () => {
 
 		test('should not update roles when they are already correct', async () => {
 			// When personal space publishing is enabled (null = default = enabled),
-			// project:personalOwner needs workflow:publish scope
+			// project:personalOwner needs workflow:publish (workflow:unpublish is in base PERSONAL_PROJECT_OWNER_SCOPES)
 			const correctRoles = Object.entries(ALL_ROLES).flatMap(([namespace, roles]) =>
 				roles.map((roleDef) => {
 					const scopes = roleDef.scopes.map((scopeSlug) => createMinimalScope(scopeSlug));
@@ -426,7 +431,7 @@ describe('AuthRolesService', () => {
 		});
 
 		describe('personal space publishing', () => {
-			test('should add workflow:publish to personalOwner role when setting is null (backward compatibility)', async () => {
+			test('should add workflow:publish and workflow:unpublish to personalOwner role when setting is null (backward compatibility)', async () => {
 				const allScopes = createAllScopes();
 				setupDefaultMocks(allScopes);
 				settingsRepository.findByKey.mockResolvedValue(null);
@@ -441,9 +446,10 @@ describe('AuthRolesService', () => {
 				const personalOwnerRole = personalOwnerCall?.[0] as Role;
 				const scopeSlugs = personalOwnerRole.scopes.map((s: Scope) => s.slug);
 				expect(scopeSlugs).toContain('workflow:publish');
+				expect(scopeSlugs).toContain('workflow:unpublish');
 			});
 
-			test('should add workflow:publish to personalOwner role when setting is true', async () => {
+			test('should add workflow:publish and workflow:unpublish to personalOwner role when setting is true', async () => {
 				const allScopes = createAllScopes();
 				setupDefaultMocks(allScopes);
 				settingsRepository.findByKey.mockResolvedValue({ value: 'true' } as any);
@@ -458,9 +464,10 @@ describe('AuthRolesService', () => {
 				const personalOwnerRole = personalOwnerCall?.[0] as Role;
 				const scopeSlugs = personalOwnerRole.scopes.map((s: Scope) => s.slug);
 				expect(scopeSlugs).toContain('workflow:publish');
+				expect(scopeSlugs).toContain('workflow:unpublish');
 			});
 
-			test('should NOT add workflow:publish to personalOwner role when setting is false', async () => {
+			test('should NOT add workflow:publish to personalOwner role when setting is false (workflow:unpublish remains in base)', async () => {
 				const allScopes = createAllScopes();
 				setupDefaultMocks(allScopes);
 				settingsRepository.findByKey.mockResolvedValue({ value: 'false' } as any);
@@ -475,9 +482,10 @@ describe('AuthRolesService', () => {
 				const personalOwnerRole = personalOwnerCall?.[0] as Role;
 				const scopeSlugs = personalOwnerRole.scopes.map((s: Scope) => s.slug);
 				expect(scopeSlugs).not.toContain('workflow:publish');
+				expect(scopeSlugs).toContain('workflow:unpublish');
 			});
 
-			test('should update existing personalOwner role to add workflow:publish when setting is true', async () => {
+			test('should update existing personalOwner role to add workflow:publish and workflow:unpublish when setting is true', async () => {
 				const allScopes = createAllScopes();
 				const personalOwnerRoleDef = ALL_ROLES.project.find(
 					(r) => r.slug === PROJECT_OWNER_ROLE_SLUG,
@@ -517,11 +525,15 @@ describe('AuthRolesService', () => {
 					(r) => r.slug === PROJECT_OWNER_ROLE_SLUG,
 				)!;
 				const publishScope = allScopes.find((s) => s.slug === 'workflow:publish')!;
+				// Base PERSONAL_PROJECT_OWNER_SCOPES includes workflow:unpublish
+				const baseScopes = personalOwnerRoleDef.scopes.map(
+					(slug) => allScopes.filter((s) => s.slug === slug)[0] ?? createMinimalScope(slug),
+				);
 				const existingRole = createRole(PROJECT_OWNER_ROLE_SLUG, {
 					displayName: personalOwnerRoleDef.displayName,
 					description: personalOwnerRoleDef.description ?? null,
 					roleType: 'project',
-					scopes: [publishScope],
+					scopes: [...baseScopes, publishScope],
 				});
 
 				scopeRepository.find.mockResolvedValue(allScopes);
@@ -544,6 +556,7 @@ describe('AuthRolesService', () => {
 				expect(updatedRole).toBeDefined();
 				const scopeSlugs = updatedRole?.scopes.map((s) => s.slug) ?? [];
 				expect(scopeSlugs).not.toContain('workflow:publish');
+				expect(scopeSlugs).toContain('workflow:unpublish');
 			});
 		});
 	});

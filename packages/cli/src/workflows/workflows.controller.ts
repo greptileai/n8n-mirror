@@ -596,7 +596,7 @@ export class WorkflowsController {
 	}
 
 	@Post('/:workflowId/deactivate')
-	@ProjectScope('workflow:publish')
+	@ProjectScope('workflow:unpublish')
 	async deactivate(req: WorkflowRequest.Deactivate) {
 		const { workflowId } = req.params;
 
