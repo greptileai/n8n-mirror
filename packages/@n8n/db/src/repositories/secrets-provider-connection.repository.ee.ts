@@ -1,5 +1,5 @@
 import { Service } from '@n8n/di';
-import { DataSource, Repository, In, Not } from '@n8n/typeorm';
+import { DataSource, Repository, In } from '@n8n/typeorm';
 
 import { ProjectSecretsProviderAccess, SecretsProviderConnection } from '../entities';
 
@@ -17,30 +17,12 @@ export class SecretsProviderConnectionRepository extends Repository<SecretsProvi
 	 * Find all global connections (connections with no project access entries)
 	 */
 	async findGlobalConnections(): Promise<SecretsProviderConnection[]> {
-		// Get all connection IDs that have project access
-		const connectionsWithAccess = await this.manager
-			.createQueryBuilder(ProjectSecretsProviderAccess, 'access')
-			.select('DISTINCT access.secretsProviderConnectionId', 'connectionId')
-			.getRawMany<{ connectionId: number }>();
-
-		const connectionIds = connectionsWithAccess.map((r) => r.connectionId);
-
-		// If no connections have access, return all enabled connections
-		if (connectionIds.length === 0) {
-			return await this.find({
-				where: { isEnabled: true },
-				relations: ['projectAccess'],
-			});
-		}
-
-		// Return enabled connections that are NOT in the list of connections with access
-		return await this.find({
-			where: {
-				id: Not(In(connectionIds)),
-				isEnabled: true,
-			},
-			relations: ['projectAccess'],
-		});
+		return await this.manager
+			.createQueryBuilder(SecretsProviderConnection, 'connection')
+			.leftJoin('connection.projectAccess', 'access')
+			.where('access.secretsProviderConnectionId IS NULL')
+			.andWhere('connection.isEnabled = :isEnabled', { isEnabled: true })
+			.getMany();
 	}
 
 	/**
