@@ -290,7 +290,7 @@ export const ticketDescription: INodeProperties[] = [
 						displayName: 'Custom Field',
 						values: [
 							{
-								displayName: 'Field Name or ID',
+								displayName: 'Field Name',
 								name: 'name',
 								type: 'options',
 								typeOptions: {
@@ -298,7 +298,7 @@ export const ticketDescription: INodeProperties[] = [
 								},
 								default: '',
 								description:
-									'Name of the custom field to set. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+									'Internal name of the custom field to set. Choose from the list, or specify a name using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
 							},
 							{
 								displayName: 'Value',
@@ -334,18 +334,18 @@ export const ticketDescription: INodeProperties[] = [
 				description: 'Title of the ticket',
 			},
 			{
-				displayName: 'Group Name or ID',
-				name: 'group_id',
+				displayName: 'Group',
+				name: 'group',
 				type: 'options',
 				typeOptions: {
-					loadOptionsMethod: 'loadGroups',
+					loadOptionsMethod: 'loadGroupNames',
 				},
 				default: '',
 				description:
-					'Group that will own the ticket. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+					'Group that will own the ticket. Choose from the list, or specify a name using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
 			},
 			{
-				displayName: 'State Name or ID',
+				displayName: 'State',
 				name: 'state_id',
 				type: 'options',
 				typeOptions: {
@@ -364,7 +364,7 @@ export const ticketDescription: INodeProperties[] = [
 					'Date and time when the pending ticket should be activated (required for pending reminder, pending close, and snooze states)',
 			},
 			{
-				displayName: 'Priority Name or ID',
+				displayName: 'Priority',
 				name: 'priority_id',
 				type: 'options',
 				typeOptions: {
@@ -377,13 +377,16 @@ export const ticketDescription: INodeProperties[] = [
 			{
 				displayName: 'Owner',
 				name: 'owner_id',
-				type: 'string',
+				type: 'options',
+				typeOptions: {
+					loadOptionsMethod: 'loadUsers',
+				},
 				default: '',
 				description:
-					'Agent responsible for the ticket. Specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+					'Agent responsible for the ticket. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
 			},
 			{
-				displayName: 'Customer Name or ID',
+				displayName: 'Customer',
 				name: 'customer_id',
 				type: 'options',
 				typeOptions: {
@@ -416,7 +419,7 @@ export const ticketDescription: INodeProperties[] = [
 						displayName: 'Custom Field',
 						values: [
 							{
-								displayName: 'Field Name or ID',
+								displayName: 'Field Name',
 								name: 'name',
 								type: 'options',
 								typeOptions: {
@@ -424,7 +427,7 @@ export const ticketDescription: INodeProperties[] = [
 								},
 								default: '',
 								description:
-									'Name of the custom field to set. Choose from the list, or specify an ID using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
+									'Internal name of the custom field to set. Choose from the list, or specify a name using an <a href="https://docs.n8n.io/code/expressions/">expression</a>.',
 							},
 							{
 								displayName: 'Value',

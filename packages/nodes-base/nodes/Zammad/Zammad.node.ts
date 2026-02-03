@@ -153,7 +153,7 @@ export class Zammad implements INodeType {
 			async loadTicketCustomFields(this: ILoadOptionsFunctions) {
 				const allFields = await getAllFields.call(this);
 
-				return getTicketCustomFields(allFields).map((i) => ({ name: i.name, value: i.id }));
+				return getTicketCustomFields(allFields).map(fieldToLoadOption);
 			},
 
 			// ----------------------------------
@@ -690,12 +690,30 @@ export class Zammad implements INodeType {
 
 						// https://docs.zammad.org/en/latest/api/ticket/index.html#create
 
-						const body = {
+						const body: IDataObject = {
 							article: {},
 							title: this.getNodeParameter('title', i) as string,
 							group: this.getNodeParameter('group', i) as string,
 							customer: this.getNodeParameter('customer', i) as string,
 						};
+
+						const { customFieldsUi, ...additionalFields } = this.getNodeParameter(
+							'additionalFields',
+							i,
+						) as IDataObject;
+
+						if (customFieldsUi) {
+							const customFields = customFieldsUi as {
+								customFieldPairs: Array<{ name: string | number; value: string }>;
+							};
+
+							for (const pair of customFields.customFieldPairs) {
+								const resolvedName = pair.name;
+								body[resolvedName] = pair.value;
+							}
+						}
+
+						Object.assign(body, additionalFields);
 
 						const article = this.getNodeParameter('article', i) as ZammadTypes.Article;
 
@@ -737,7 +755,7 @@ export class Zammad implements INodeType {
 							throwOnEmptyUpdate.call(this, resource);
 						}
 
-						const { note, customFieldsUi, ...rest } = updateFields;
+						const { note, customFieldsUi, ...rest } = updateFields as IDataObject;
 
 						if (note) {
 							body.article = {
@@ -750,11 +768,12 @@ export class Zammad implements INodeType {
 
 						if (customFieldsUi) {
 							const customFields = customFieldsUi as {
-								customFieldPairs: Array<{ name: string; value: string }>;
+								customFieldPairs: Array<{ name: string | number; value: string }>;
 							};
-							customFields.customFieldPairs.forEach((pair) => {
-								body[pair.name] = pair.value;
-							});
+							for (const pair of customFields.customFieldPairs) {
+								const resolvedName = pair.name;
+								body[resolvedName] = pair.value;
+							}
 						}
 
 						Object.assign(body, rest);
