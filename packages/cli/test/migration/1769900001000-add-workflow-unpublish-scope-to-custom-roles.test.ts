@@ -152,6 +152,7 @@ describe('AddWorkflowUnpublishScopeToCustomRoles Migration', () => {
 				description: 'Allows reading workflows.',
 			});
 
+			// Use test-unique slugs to avoid UNIQUE constraint (project:admin / project:personalOwner may already exist)
 			// Custom role with workflow:publish → should get workflow:unpublish
 			await insertTestRole(context, {
 				slug: 'test1-custom-editor',
@@ -160,18 +161,10 @@ describe('AddWorkflowUnpublishScopeToCustomRoles Migration', () => {
 				systemRole: false,
 			});
 
-			// project:admin (system) with workflow:publish → should get workflow:unpublish
+			// Another role with workflow:publish → should get workflow:unpublish
 			await insertTestRole(context, {
-				slug: 'project:admin',
-				displayName: 'Project Admin',
-				roleType: 'project',
-				systemRole: true,
-			});
-
-			// project:personalOwner with workflow:publish → should NOT get workflow:unpublish (excluded)
-			await insertTestRole(context, {
-				slug: PERSONAL_OWNER_ROLE_SLUG,
-				displayName: 'Personal Owner',
+				slug: 'test1-project-admin',
+				displayName: 'Test1 Project Admin',
 				roleType: 'project',
 				systemRole: true,
 			});
@@ -189,17 +182,18 @@ describe('AddWorkflowUnpublishScopeToCustomRoles Migration', () => {
 				scopeSlug: 'workflow:publish',
 			});
 			await insertTestRoleScope(context, {
-				roleSlug: 'project:admin',
-				scopeSlug: 'workflow:publish',
-			});
-			await insertTestRoleScope(context, {
-				roleSlug: PERSONAL_OWNER_ROLE_SLUG,
+				roleSlug: 'test1-project-admin',
 				scopeSlug: 'workflow:publish',
 			});
 			await insertTestRoleScope(context, {
 				roleSlug: 'test1-custom-viewer',
 				scopeSlug: 'workflow:read',
 			});
+
+			// project:personalOwner may already exist from earlier migrations; migration must not add workflow:unpublish to it
+			const personalOwnerUnpublishCountBefore = (
+				await getRoleScopesByRole(context, PERSONAL_OWNER_ROLE_SLUG)
+			).filter((s) => s.scopeSlug === 'workflow:unpublish').length;
 
 			const unpublishScopesBefore = await getRoleScopesByScope(context, 'workflow:unpublish');
 			expect(unpublishScopesBefore).toHaveLength(0);
@@ -214,13 +208,15 @@ describe('AddWorkflowUnpublishScopeToCustomRoles Migration', () => {
 			const customEditorScopes = await getRoleScopesByRole(postContext, 'test1-custom-editor');
 			expect(customEditorScopes.map((s) => s.scopeSlug).sort()).toContain('workflow:unpublish');
 
-			// project:admin should have workflow:unpublish
-			const adminScopes = await getRoleScopesByRole(postContext, 'project:admin');
+			// test1-project-admin should have workflow:unpublish
+			const adminScopes = await getRoleScopesByRole(postContext, 'test1-project-admin');
 			expect(adminScopes.map((s) => s.scopeSlug).sort()).toContain('workflow:unpublish');
 
-			// project:personalOwner should NOT have workflow:unpublish (excluded by migration)
-			const personalOwnerScopes = await getRoleScopesByRole(postContext, PERSONAL_OWNER_ROLE_SLUG);
-			expect(personalOwnerScopes.map((s) => s.scopeSlug)).not.toContain('workflow:unpublish');
+			// project:personalOwner is excluded by migration: count of workflow:unpublish for it must be unchanged
+			const personalOwnerUnpublishCountAfter = (
+				await getRoleScopesByRole(postContext, PERSONAL_OWNER_ROLE_SLUG)
+			).filter((s) => s.scopeSlug === 'workflow:unpublish').length;
+			expect(personalOwnerUnpublishCountAfter).toBe(personalOwnerUnpublishCountBefore);
 
 			// test1-custom-viewer should NOT have workflow:unpublish
 			const viewerScopes = await getRoleScopesByRole(postContext, 'test1-custom-viewer');
