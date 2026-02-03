@@ -18,16 +18,38 @@ Given a Linear ticket (NODE-XXXX) for a trigger node, implement webhook signatur
 - `get_issue` - Read ticket details (node name, requirements, branch name)
 - `create_comment` - Report findings or blockers
 
+**Shared utility** (USE THIS):
+- `utils/webhook-signature-verification.ts` - reusable `verifySignature()` function
+- `utils/__tests__/webhook-signature-verification.test.ts` - test examples
+
 **Reference implementations** in `packages/nodes-base/`:
-- GitHub: `nodes/Github/GithubTrigger.node.ts` + `GithubTriggerHelpers.ts`
-- Zendesk: `nodes/Zendesk/ZendeskTrigger.node.ts` + `ZendeskTriggerHelpers.ts`
-- Slack: `nodes/Slack/SlackTrigger.node.ts` + `SlackTriggerHelpers.ts`
+- Typeform: `nodes/Typeform/TypeformTrigger.node.ts` + `TypeformTriggerHelpers.ts` (uses shared utility)
+- Slack: `nodes/Slack/SlackTrigger.node.ts` + `SlackTriggerHelpers.ts` (uses shared utility)
+- Currents: `nodes/Currents/CurrentsTrigger.node.ts` + `CurrentsTriggerHelpers.ts` (uses shared utility)
+- GitHub: `nodes/Github/GithubTrigger.node.ts` + `GithubTriggerHelpers.ts` (inline implementation)
 
 **Test examples** (study these for patterns):
-- `nodes/Github/__tests__/GithubTriggerHelpers.test.ts`
-- `nodes/Zendesk/__tests__/ZendeskTriggerHelpers.test.ts`
+- `nodes/Typeform/test/TypeformTriggerHelpers.test.ts`
+- `nodes/Slack/test/SlackTriggerHelpers.test.ts`
+- `nodes/Currents/test/CurrentsTriggerHelpers.test.ts`
 
-## Implementation Patterns
+## Shared Utility Usage
+
+Import from `utils/webhook-signature-verification.ts` and call with options:
+
+```typescript
+import { verifySignature } from '../../utils/webhook-signature-verification';
+```
+
+**Options:**
+- `getExpectedSignature`: Compute HMAC signature (return `null` if missing data)
+- `skipIfNoExpectedSignature`: Return `true` when no secret (backwards compatibility)
+- `getActualSignature`: Get signature from request header
+- `getTimestamp` (optional): Enable replay attack prevention
+- `skipIfNoTimestamp` (optional): Skip timestamp check if header missing
+- `maxTimestampAgeSeconds` (optional): Default 300 (5 minutes)
+
+## Secret Source Patterns
 
 | Pattern | When | Secret Source |
 |---------|------|---------------|
@@ -46,8 +68,8 @@ Given a Linear ticket (NODE-XXXX) for a trigger node, implement webhook signatur
 
 ## Key Requirements
 
-- Use `timingSafeEqual` for constant-time comparison (prevent timing attacks)
-- Backwards compatible: return `true` if no secret configured
+- **Use the shared utility** `utils/webhook-signature-verification.ts` (handles `timingSafeEqual` internally)
+- Backwards compatible: return `true` if no secret configured (use `skipIfNoExpectedSignature`)
 - Return 401 Unauthorized for invalid signatures
 - Store secret in `webhookData.webhookSecret` (workflow static data)
 - **All tests must pass before creating PR**
@@ -57,8 +79,8 @@ Given a Linear ticket (NODE-XXXX) for a trigger node, implement webhook signatur
 1. **Read Linear ticket** → get node name and requirements
 2. **Assign ticket to me** with `no-docs-needed` label
 3. **Create branch** per AGENTS.md conventions
-4. **Research API docs** → find signature header, format, algorithm
-5. **Implement** based on pattern that fits
+4. **Research API docs** → find signature header, format, algorithm (HMAC type, encoding)
+5. **Implement** using shared utility `utils/webhook-signature-verification.ts`
 6. **Write tests** for every changed file (study existing test files for patterns)
 7. **Run tests** → `pnpm test {NodeName}` - must all pass
 8. **Validate** → run from `packages/nodes-base/`: `pnpm lint`, `pnpm typecheck`
