@@ -38,6 +38,7 @@ import {
 	N8nIconButton,
 	N8nInfoTip,
 	N8nLink,
+	N8nNotice,
 	N8nOption,
 	N8nSelect,
 	N8nText,
@@ -106,6 +107,12 @@ const autoPublishOptions = computed(() => {
 const hasModifiedWorkflows = computed(() => {
 	return status.value.some(
 		(f) => f.type === SOURCE_CONTROL_FILE_TYPE.workflow && f.status === 'modified',
+	);
+});
+
+const hasModifiedCredentials = computed(() => {
+	return status.value.some(
+		(f) => f.type === SOURCE_CONTROL_FILE_TYPE.credential && f.status === 'modified',
 	);
 });
 
@@ -523,6 +530,12 @@ onMounted(() => {
 		</template>
 
 		<template #footer>
+			<N8nNotice v-if="hasModifiedCredentials" :compact="false" class="mt-0">
+				<N8nText size="small">
+					{{ i18n.baseText('settings.sourceControl.modals.pull.modifiedCredentialsNotice') }}
+				</N8nText>
+			</N8nNotice>
+
 			<div v-if="otherFiles.length" class="mb-xs">
 				<N8nText bold size="medium">Additional changes to be pulled:</N8nText>
 				<N8nText size="small">
