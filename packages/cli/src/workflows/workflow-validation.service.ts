@@ -5,6 +5,9 @@ import {
 	NodeHelpers,
 	ensureError,
 	mapConnectionsByDestination,
+	validateNodeCredentials,
+	isNodeConnected,
+	isTriggerLikeNode,
 } from 'n8n-workflow';
 import type { INode, INodes, IConnections, INodeType } from 'n8n-workflow';
 
@@ -61,22 +64,23 @@ export class WorkflowValidationService {
 						continue;
 					}
 
-					const isTriggerLikeNode =
-						nodeType.trigger !== undefined ||
-						nodeType.webhook !== undefined ||
-						nodeType.poll !== undefined;
+					const isNodeTriggerLike = isTriggerLikeNode(nodeType);
 
-					const isConnected = this.isNodeConnected(
-						node.name,
-						connections,
-						connectionsByDestination,
-					);
+					const isConnected = isNodeConnected(node.name, connections, connectionsByDestination);
 
-					if (!isConnected && !isTriggerLikeNode) continue;
+					if (!isConnected && !isNodeTriggerLike) continue;
 
 					const nodeIssues: string[] = [];
-					const credentialIssues = this.validateNodeCredentials(node, nodeType);
-					nodeIssues.push(...credentialIssues);
+					const credentialIssues = validateNodeCredentials(node, nodeType);
+
+					// Convert credential issues to error messages
+					for (const issue of credentialIssues) {
+						if (issue.type === 'missing') {
+							nodeIssues.push(`Missing required credential: ${issue.displayName}`);
+						} else if (issue.type === 'not-configured') {
+							nodeIssues.push(`Credential not configured: ${issue.displayName}`);
+						}
+					}
 
 					const parameterIssues = this.validateNodeParameters(node, nodeType);
 					nodeIssues.push(...parameterIssues);
@@ -118,67 +122,6 @@ export class WorkflowValidationService {
 				error: `Workflow validation failed: ${ensureError(error).message}`,
 			};
 		}
-	}
-
-	/**
-	 * Checks if a node has any incoming or outgoing connections.
-	 */
-	private isNodeConnected(
-		nodeName: string,
-		connections: IConnections,
-		connectionsByDestination: IConnections,
-	): boolean {
-		if (connections[nodeName] && Object.keys(connections[nodeName]).length > 0) {
-			return true;
-		}
-
-		if (
-			connectionsByDestination[nodeName] &&
-			Object.keys(connectionsByDestination[nodeName]).length > 0
-		) {
-			return true;
-		}
-
-		return false;
-	}
-
-	/**
-	 * Validates that all required credentials are set for a node.
-	 * Respects displayOptions to only validate credentials that should be shown.
-	 */
-	private validateNodeCredentials(node: INode, nodeType: INodeType): string[] {
-		const issues: string[] = [];
-		const credentialDescriptions = nodeType.description?.credentials || [];
-
-		for (const credDesc of credentialDescriptions) {
-			if (!credDesc.required) continue;
-
-			// Check if this credential should be displayed based on displayOptions
-			const shouldDisplay = NodeHelpers.displayParameter(
-				node.parameters,
-				credDesc,
-				node,
-				nodeType.description,
-			);
-
-			if (!shouldDisplay) continue;
-
-			const credentialName = credDesc.name;
-			const nodeCredential = node.credentials?.[credentialName];
-
-			if (!nodeCredential) {
-				const displayName = credDesc.displayName || credentialName;
-				issues.push(`Missing required credential: ${displayName}`);
-				continue;
-			}
-
-			if (!nodeCredential.id) {
-				const displayName = credDesc.displayName || credentialName;
-				issues.push(`Credential not configured: ${displayName}`);
-			}
-		}
-
-		return issues;
 	}
 
 	/**
