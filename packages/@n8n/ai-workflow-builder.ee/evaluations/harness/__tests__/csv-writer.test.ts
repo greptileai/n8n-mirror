@@ -83,11 +83,22 @@ describe('writeResultsCsv', () => {
 		expect(lines[1]).toContain('[CRITICAL] Missing trigger');
 	});
 
-	it('escapes commas and quotes in values', () => {
+	it.each([
+		{
+			description: 'commas and quotes',
+			prompt: 'Workflow with "quotes" and, commas',
+			expected: '"Workflow with ""quotes"" and, commas"',
+		},
+		{
+			description: 'newlines',
+			prompt: 'Workflow with\nnewline',
+			expected: '"Workflow with\nnewline"',
+		},
+	])('escapes $description in values', ({ prompt, expected }) => {
 		const results: ExampleResult[] = [
 			{
 				index: 1,
-				prompt: 'Workflow with "quotes" and, commas',
+				prompt,
 				status: 'pass',
 				score: 0.8,
 				feedback: [],
@@ -99,28 +110,7 @@ describe('writeResultsCsv', () => {
 		writeResultsCsv(results, outputPath);
 
 		const content = readFileSync(outputPath, 'utf-8');
-		// Should escape the prompt value
-		expect(content).toContain('"Workflow with ""quotes"" and, commas"');
-	});
-
-	it('escapes newlines in values', () => {
-		const results: ExampleResult[] = [
-			{
-				index: 1,
-				prompt: 'Workflow with\nnewline',
-				status: 'pass',
-				score: 0.8,
-				feedback: [],
-				durationMs: 1000,
-			},
-		];
-
-		const outputPath = join(tempDir, 'results.csv');
-		writeResultsCsv(results, outputPath);
-
-		const content = readFileSync(outputPath, 'utf-8');
-		// Should escape the prompt value containing newline
-		expect(content).toContain('"Workflow with\nnewline"');
+		expect(content).toContain(expected);
 	});
 
 	it('writes pairwise evaluation results with correct columns', () => {

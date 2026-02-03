@@ -49,48 +49,47 @@ describe('evaluation-helpers', () => {
 			expect(result).toEqual({});
 		});
 
-		it('should include nodeCount when provided', () => {
-			const result = extractSubgraphMetrics(undefined, 5);
-			expect(result).toEqual({ nodeCount: 5 });
+		it.each([
+			{ nodeCount: 5, expected: { nodeCount: 5 } },
+			{ nodeCount: 0, expected: { nodeCount: 0 } },
+		])('should include nodeCount of $nodeCount when provided', ({ nodeCount, expected }) => {
+			const result = extractSubgraphMetrics(undefined, nodeCount);
+			expect(result).toEqual(expected);
 		});
 
-		it('should include nodeCount of 0', () => {
-			const result = extractSubgraphMetrics(undefined, 0);
-			expect(result).toEqual({ nodeCount: 0 });
-		});
-
-		it('should calculate discovery duration from in_progress to completed', () => {
-			const coordinationLog = [
-				{ phase: 'discovery' as const, status: 'in_progress' as const, timestamp: 1000 },
-				{ phase: 'discovery' as const, status: 'completed' as const, timestamp: 1500 },
-			];
-			const result = extractSubgraphMetrics(coordinationLog, undefined);
-			expect(result).toEqual({ discoveryDurationMs: 500 });
-		});
-
-		it('should calculate builder duration from in_progress to completed', () => {
-			const coordinationLog = [
-				{ phase: 'builder' as const, status: 'in_progress' as const, timestamp: 2000 },
-				{ phase: 'builder' as const, status: 'completed' as const, timestamp: 3500 },
-			];
-			const result = extractSubgraphMetrics(coordinationLog, undefined);
-			expect(result).toEqual({ builderDurationMs: 1500 });
-		});
-
-		it('should calculate both discovery and builder durations', () => {
-			const coordinationLog = [
-				{ phase: 'discovery' as const, status: 'in_progress' as const, timestamp: 1000 },
-				{ phase: 'discovery' as const, status: 'completed' as const, timestamp: 1500 },
-				{ phase: 'builder' as const, status: 'in_progress' as const, timestamp: 2000 },
-				{ phase: 'builder' as const, status: 'completed' as const, timestamp: 3000 },
-			];
-			const result = extractSubgraphMetrics(coordinationLog, 10);
-			expect(result).toEqual({
-				nodeCount: 10,
-				discoveryDurationMs: 500,
-				builderDurationMs: 1000,
-			});
-		});
+		it.each([
+			{
+				phase: 'discovery' as const,
+				metricKey: 'discoveryDurationMs',
+				startTs: 1000,
+				endTs: 1500,
+				expectedDuration: 500,
+			},
+			{
+				phase: 'builder' as const,
+				metricKey: 'builderDurationMs',
+				startTs: 2000,
+				endTs: 3500,
+				expectedDuration: 1500,
+			},
+			{
+				phase: 'responder' as const,
+				metricKey: 'responderDurationMs',
+				startTs: 5000,
+				endTs: 5800,
+				expectedDuration: 800,
+			},
+		])(
+			'should calculate $phase duration from in_progress to completed',
+			({ phase, metricKey, startTs, endTs, expectedDuration }) => {
+				const coordinationLog = [
+					{ phase, status: 'in_progress' as const, timestamp: startTs },
+					{ phase, status: 'completed' as const, timestamp: endTs },
+				];
+				const result = extractSubgraphMetrics(coordinationLog, undefined);
+				expect(result).toEqual({ [metricKey]: expectedDuration });
+			},
+		);
 
 		it('should calculate duration from first to last entry when no in_progress status', () => {
 			const coordinationLog = [
@@ -123,16 +122,7 @@ describe('evaluation-helpers', () => {
 			expect(result).toEqual({});
 		});
 
-		it('should calculate responder duration from in_progress to completed', () => {
-			const coordinationLog = [
-				{ phase: 'responder' as const, status: 'in_progress' as const, timestamp: 5000 },
-				{ phase: 'responder' as const, status: 'completed' as const, timestamp: 5800 },
-			];
-			const result = extractSubgraphMetrics(coordinationLog, undefined);
-			expect(result).toEqual({ responderDurationMs: 800 });
-		});
-
-		it('should calculate all three phase durations together', () => {
+		it('should calculate all phase durations together with nodeCount', () => {
 			const coordinationLog = [
 				{ phase: 'discovery' as const, status: 'in_progress' as const, timestamp: 1000 },
 				{ phase: 'discovery' as const, status: 'completed' as const, timestamp: 1500 },
