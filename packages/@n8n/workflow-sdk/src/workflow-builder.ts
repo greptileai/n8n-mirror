@@ -188,6 +188,163 @@ function normalizeResourceLocators(params: unknown): unknown {
 }
 
 /**
+ * Check if a '/' at position i could be the start of a regex literal.
+ * Uses heuristic based on preceding non-whitespace character.
+ */
+function couldBeRegexStart(code: string, i: number): boolean {
+	// Find the previous non-whitespace character
+	let j = i - 1;
+	while (j >= 0 && /\s/.test(code[j])) {
+		j--;
+	}
+	if (j < 0) return true; // Start of string, likely regex
+
+	const prevChar = code[j];
+	// Characters that can precede a regex literal
+	// (not an identifier char or closing bracket/paren that would make it division)
+	const regexPreceders = '(,=:[!&|?;{}><%+-*/^~';
+	return regexPreceders.includes(prevChar);
+}
+
+/**
+ * Escape raw newlines inside double/single quoted strings within JavaScript code.
+ * Skip backtick template literals (they allow raw newlines).
+ * Skip regex literals (to avoid misinterpreting quotes inside them).
+ * Don't double-escape already escaped \n.
+ */
+function escapeNewlinesInStringLiterals(code: string): string {
+	let result = '';
+	let i = 0;
+
+	while (i < code.length) {
+		const char = code[i];
+
+		// Check for template literal (backtick) - skip entirely
+		if (char === '`') {
+			const start = i;
+			i++; // skip opening backtick
+			while (i < code.length) {
+				if (code[i] === '\\' && i + 1 < code.length) {
+					i += 2; // skip escaped character
+				} else if (code[i] === '`') {
+					i++; // skip closing backtick
+					break;
+				} else {
+					i++;
+				}
+			}
+			// Append entire template literal unchanged
+			result += code.slice(start, i);
+			continue;
+		}
+
+		// Check for regex literal - skip entirely to avoid misinterpreting quotes inside
+		if (char === '/' && couldBeRegexStart(code, i)) {
+			// Make sure it's not a comment (// or /*)
+			const next = code[i + 1];
+			if (next !== '/' && next !== '*') {
+				const start = i;
+				i++; // skip opening /
+				while (i < code.length) {
+					if (code[i] === '\\' && i + 1 < code.length) {
+						i += 2; // skip escaped character
+					} else if (code[i] === '/') {
+						i++; // skip closing /
+						// Skip regex flags (g, i, m, s, u, y)
+						while (i < code.length && /[gimsuy]/.test(code[i])) {
+							i++;
+						}
+						break;
+					} else if (code[i] === '\n') {
+						// Newline before closing / means it's not a regex (or malformed)
+						// Just break and let normal processing continue
+						break;
+					} else {
+						i++;
+					}
+				}
+				// Append entire regex unchanged
+				result += code.slice(start, i);
+				continue;
+			}
+		}
+
+		// Check for double or single quote - process string literal
+		if (char === '"' || char === "'") {
+			const quote = char;
+			result += char;
+			i++; // skip opening quote
+
+			while (i < code.length) {
+				const c = code[i];
+
+				if (c === '\\' && i + 1 < code.length) {
+					// Escaped character - pass through as-is
+					result += c + code[i + 1];
+					i += 2;
+				} else if (c === quote) {
+					// End of string
+					result += c;
+					i++;
+					break;
+				} else if (c === '\n') {
+					// Raw newline - escape it
+					result += '\\n';
+					i++;
+				} else {
+					result += c;
+					i++;
+				}
+			}
+			continue;
+		}
+
+		// Any other character - pass through
+		result += char;
+		i++;
+	}
+
+	return result;
+}
+
+/**
+ * Escape raw newlines inside string literals within {{ }} expression blocks.
+ *
+ * Only processes strings starting with `=` (n8n expressions).
+ * Only escapes inside double/single quoted strings within {{ }}.
+ * Does NOT escape inside backtick template literals (they allow newlines).
+ * Does NOT double-escape already escaped \\n.
+ */
+function escapeNewlinesInExpressionStrings(value: unknown): unknown {
+	if (typeof value === 'string') {
+		// Only process n8n expressions (start with =)
+		if (!value.startsWith('=')) {
+			return value;
+		}
+
+		// Find {{ }} blocks and process string literals within them
+		return value.replace(/\{\{([\s\S]*?)\}\}/g, (_match, inner: string) => {
+			const escaped = escapeNewlinesInStringLiterals(inner);
+			return `{{${escaped}}}`;
+		});
+	}
+
+	if (Array.isArray(value)) {
+		return value.map(escapeNewlinesInExpressionStrings);
+	}
+
+	if (typeof value === 'object' && value !== null) {
+		const result: Record<string, unknown> = {};
+		for (const [key, val] of Object.entries(value)) {
+			result[key] = escapeNewlinesInExpressionStrings(val);
+		}
+		return result;
+	}
+
+	return value;
+}
+
+/**
  * Internal workflow builder implementation
  */
 class WorkflowBuilderImpl implements WorkflowBuilder {
@@ -758,11 +915,17 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 			const isFromJson = '_originalName' in config;
 
 			// Serialize parameters - for SDK-created nodes, also normalize resource locators
-			// (add __rl: true if missing). For fromJSON nodes, preserve parameters as-is.
+			// (add __rl: true if missing) and escape newlines in expression strings.
+			// For fromJSON nodes, preserve parameters as-is.
 			let serializedParams: IDataObject | undefined;
 			if (config.parameters) {
 				const parsed = JSON.parse(JSON.stringify(config.parameters));
-				serializedParams = isFromJson ? parsed : (normalizeResourceLocators(parsed) as IDataObject);
+				if (isFromJson) {
+					serializedParams = parsed;
+				} else {
+					const normalized = normalizeResourceLocators(parsed);
+					serializedParams = escapeNewlinesInExpressionStrings(normalized) as IDataObject;
+				}
 			}
 
 			const n8nNode: NodeJSON = {
@@ -1562,7 +1725,8 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 	}
 
 	/**
-	 * Recursively find all string values containing .toISOString()
+	 * Recursively find string values containing .toISOString() used with Luxon DateTime objects.
+	 * Only flags when used with $now, $today, or Luxon-like method chains, not with new Date().
 	 */
 	private findInvalidDateMethods(
 		value: unknown,
@@ -1571,7 +1735,7 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 		const issues: Array<{ path: string; value: string }> = [];
 
 		if (typeof value === 'string') {
-			if (value.includes('.toISOString()')) {
+			if (this.hasLuxonToISOStringMisuse(value)) {
 				issues.push({ path, value });
 			}
 		} else if (Array.isArray(value)) {
@@ -1593,6 +1757,29 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 		}
 
 		return issues;
+	}
+
+	/**
+	 * Check if a string contains .toISOString() misused with Luxon DateTime objects.
+	 * Detects patterns like $now.toISOString(), $today.toISOString(), etc.
+	 * Does NOT flag valid JS Date usage like new Date().toISOString().
+	 */
+	private hasLuxonToISOStringMisuse(value: string): boolean {
+		if (!value.includes('.toISOString()')) {
+			return false;
+		}
+
+		// Patterns that indicate Luxon DateTime misuse:
+		// - $now.toISOString() or $now.something().toISOString()
+		// - $today.toISOString() or $today.something().toISOString()
+		// - DateTime.now().toISOString() or DateTime.local().toISOString()
+		const luxonPatterns = [
+			/\$now\b[^;]*\.toISOString\(\)/,
+			/\$today\b[^;]*\.toISOString\(\)/,
+			/DateTime\s*\.\s*(now|local|utc|fromISO|fromJSDate)\s*\([^)]*\)[^;]*\.toISOString\(\)/,
+		];
+
+		return luxonPatterns.some((pattern) => pattern.test(value));
 	}
 
 	/**

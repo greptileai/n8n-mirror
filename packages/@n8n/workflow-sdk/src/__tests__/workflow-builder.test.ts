@@ -1731,4 +1731,730 @@ describe('Workflow Builder', () => {
 			expect(formatResponseNodes).toHaveLength(1);
 		});
 	});
+
+	describe('toJSON - newline escaping in expressions', () => {
+		// Category 1: Basic Escaping (double/single quotes inside {{ }})
+		describe('basic escaping inside {{ }}', () => {
+			it('should escape raw newline in double-quoted string', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: '={{ "text\nmore" }}',
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				expect(setNode?.parameters?.text).toBe('={{ "text\\nmore" }}');
+			});
+
+			it('should escape raw newline in single-quoted string', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: "={{ 'text\nmore' }}",
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				expect(setNode?.parameters?.text).toBe("={{ 'text\\nmore' }}");
+			});
+
+			it('should escape multiple string literals in expression', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: '={{ "a\n" + $json.x + "b\n" }}',
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				expect(setNode?.parameters?.text).toBe('={{ "a\\n" + $json.x + "b\\n" }}');
+			});
+
+			it('should escape newline-only string', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: '={{ "\n" }}',
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				expect(setNode?.parameters?.text).toBe('={{ "\\n" }}');
+			});
+
+			it('should escape multiple consecutive newlines', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: '={{ "a\n\n\nb" }}',
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				expect(setNode?.parameters?.text).toBe('={{ "a\\n\\n\\nb" }}');
+			});
+		});
+
+		// Category 2: Already Escaped (DON'T double-escape)
+		describe('already escaped newlines', () => {
+			it('should NOT double-escape already escaped newline', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: '={{ "text\\nmore" }}',
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				expect(setNode?.parameters?.text).toBe('={{ "text\\nmore" }}');
+			});
+
+			it('should handle mix of escaped and raw newlines', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: '={{ "pre\\n\n" }}',
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				expect(setNode?.parameters?.text).toBe('={{ "pre\\n\\n" }}');
+			});
+
+			it('should handle double backslash + n (not a newline)', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: '={{ "a\\\\nb" }}',
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				// \\\\ in source = \\ in actual string, so \\n means backslash followed by n
+				expect(setNode?.parameters?.text).toBe('={{ "a\\\\nb" }}');
+			});
+		});
+
+		// Category 3: No `=` Prefix (DON'T escape)
+		describe('no expression prefix', () => {
+			it('should NOT escape plain text without = prefix', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: 'plain text\nwith newlines',
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				expect(setNode?.parameters?.text).toBe('plain text\nwith newlines');
+			});
+
+			it('should NOT escape {{ }} without = prefix', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: '{{ "text\n" }}',
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				expect(setNode?.parameters?.text).toBe('{{ "text\n" }}');
+			});
+		});
+
+		// Category 4: Backticks / Template Literals (DON'T escape)
+		describe('template literals', () => {
+			it('should NOT escape newlines inside backtick strings', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: '={{ `text\nmore` }}',
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				expect(setNode?.parameters?.text).toBe('={{ `text\nmore` }}');
+			});
+
+			it('should NOT escape newlines in template literal with expression', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: '={{ `${$json.x}\n` }}',
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				expect(setNode?.parameters?.text).toBe('={{ `${$json.x}\n` }}');
+			});
+		});
+
+		// Category 5: Outside `{{ }}` (DON'T escape)
+		describe('newlines outside expression blocks', () => {
+			it('should NOT escape newlines outside {{ }}', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: '=\n{{ "a" }}\ntext',
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				expect(setNode?.parameters?.text).toBe('=\n{{ "a" }}\ntext');
+			});
+
+			it('should escape inside but not outside {{ }}', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: '=prefix\n{{ "inner\n" }}\nsuffix',
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				expect(setNode?.parameters?.text).toBe('=prefix\n{{ "inner\\n" }}\nsuffix');
+			});
+		});
+
+		// Category 6: No String Literals Inside `{{ }}`
+		describe('expressions without string literals', () => {
+			it('should NOT modify expression with only variable reference', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: '={{ $json.output }}',
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				expect(setNode?.parameters?.text).toBe('={{ $json.output }}');
+			});
+
+			it('should NOT modify expression with numbers', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								value: '={{ 123 }}',
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				expect(setNode?.parameters?.value).toBe('={{ 123 }}');
+			});
+		});
+
+		// Category 7: Empty/Null/Undefined Values
+		describe('empty and null values', () => {
+			it('should NOT modify empty string', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: '',
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				expect(setNode?.parameters?.text).toBe('');
+			});
+
+			it('should NOT modify empty expression', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: '={{  }}',
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				expect(setNode?.parameters?.text).toBe('={{  }}');
+			});
+		});
+
+		// Category 8: Multiple `{{ }}` Blocks
+		describe('multiple expression blocks', () => {
+			it('should escape in multiple {{ }} blocks', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: '={{ "a\n" }}{{ "b\n" }}',
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				expect(setNode?.parameters?.text).toBe('={{ "a\\n" }}{{ "b\\n" }}');
+			});
+
+			it('should escape in multiple separated {{ }} blocks', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: '={{ "a\n" }} and {{ "b\n" }}',
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				expect(setNode?.parameters?.text).toBe('={{ "a\\n" }} and {{ "b\\n" }}');
+			});
+		});
+
+		// Category 9: Escaped Quotes Inside Strings
+		describe('escaped quotes inside strings', () => {
+			it('should escape newline after escaped quote in double-quoted string', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: '={{ "say \\"hi\n\\"" }}',
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				expect(setNode?.parameters?.text).toBe('={{ "say \\"hi\\n\\"" }}');
+			});
+
+			it('should escape newline after escaped quote in single-quoted string', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: "={{ 'it\\'s\n' }}",
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				expect(setNode?.parameters?.text).toBe("={{ 'it\\'s\\n' }}");
+			});
+		});
+
+		// Category 10: Mixed Quote Types
+		describe('mixed quote types', () => {
+			it('should escape in single quotes inside double quotes', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: '={{ "it\'s\n" }}',
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				expect(setNode?.parameters?.text).toBe('={{ "it\'s\\n" }}');
+			});
+
+			it('should escape in both double and single quoted strings', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: '={{ "a\n" + \'b\n\' }}',
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				expect(setNode?.parameters?.text).toBe('={{ "a\\n" + \'b\\n\' }}');
+			});
+		});
+
+		// Category 11: Complex Expressions
+		describe('complex expressions', () => {
+			it('should escape in string argument to function', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: '={{ $json.x.split("\n") }}',
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				expect(setNode?.parameters?.text).toBe('={{ $json.x.split("\\n") }}');
+			});
+
+			it('should escape in ternary expression', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: '={{ cond ? "a\n" : "b\n" }}',
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				expect(setNode?.parameters?.text).toBe('={{ cond ? "a\\n" : "b\\n" }}');
+			});
+
+			it('should escape in array literal', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: '={{ ["a\n", "b\n"] }}',
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				expect(setNode?.parameters?.text).toBe('={{ ["a\\n", "b\\n"] }}');
+			});
+
+			it('should escape in object literal', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: '={{ { key: "val\n" } }}',
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				expect(setNode?.parameters?.text).toBe('={{ { key: "val\\n" } }}');
+			});
+		});
+
+		// Category 12: Nested Object/Array Parameters
+		describe('nested parameters', () => {
+			it('should escape in deeply nested object', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								outer: {
+									inner: {
+										text: '={{ "x\n" }}',
+									},
+								},
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				const params = setNode?.parameters as Record<string, unknown> | undefined;
+				const outer = params?.outer as Record<string, unknown> | undefined;
+				const inner = outer?.inner as Record<string, unknown> | undefined;
+				expect(inner?.text).toBe('={{ "x\\n" }}');
+			});
+
+			it('should escape in array items', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								items: ['={{ "a\n" }}', '={{ "b\n" }}'],
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				const params = setNode?.parameters as Record<string, unknown> | undefined;
+				expect(params?.items).toEqual(['={{ "a\\n" }}', '={{ "b\\n" }}']);
+			});
+		});
+
+		// Category 13: Special Characters (DON'T escape)
+		describe('special characters', () => {
+			it('should NOT escape tab characters', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: '={{ "a\tb" }}',
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				expect(setNode?.parameters?.text).toBe('={{ "a\tb" }}');
+			});
+
+			it('should NOT modify backslashes without newlines', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: '={{ "path\\\\to\\\\file" }}',
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				expect(setNode?.parameters?.text).toBe('={{ "path\\\\to\\\\file" }}');
+			});
+		});
+
+		// Category 14: Boundary/Edge Cases
+		describe('edge cases', () => {
+			it('should NOT modify expression without newlines', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: '={{ "x" }}',
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				expect(setNode?.parameters?.text).toBe('={{ "x" }}');
+			});
+
+			it('should NOT modify just equals sign', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: '=',
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				expect(setNode?.parameters?.text).toBe('=');
+			});
+
+			it('should only escape last string with newline when others have none', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: '={{ "a" + "b" + "c\n" }}',
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				expect(setNode?.parameters?.text).toBe('={{ "a" + "b" + "c\\n" }}');
+			});
+		});
+
+		// Category 15: Real-World Example from Bug
+		describe('real-world examples', () => {
+			it('should escape newlines in multi-part prompt expression', () => {
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: '={{ "Convert the following report into clean, professional HTML suitable for email: \n" + $json.output + "\nRequirements:" }}',
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				expect(setNode?.parameters?.text).toBe(
+					'={{ "Convert the following report into clean, professional HTML suitable for email: \\n" + $json.output + "\\nRequirements:" }}',
+				);
+			});
+
+			it('should NOT escape newlines in regex literals containing quotes', () => {
+				// Regression test: regex /\"/g contains a quote that should not start a string
+				const wf = workflow('test', 'Test').add(
+					node({
+						type: 'n8n-nodes-base.set',
+						version: 3.4,
+						config: {
+							name: 'Set',
+							parameters: {
+								text: '={{ $json.text.replace(/\\"/g, "escaped")\n}}',
+							},
+						},
+					}),
+				);
+				const json = wf.toJSON();
+				const setNode = json.nodes.find((n) => n.name === 'Set');
+				// The newline after the .replace() call is outside any string, should NOT be escaped
+				expect(setNode?.parameters?.text).toBe('={{ $json.text.replace(/\\"/g, "escaped")\n}}');
+			});
+		});
+	});
 });
