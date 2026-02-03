@@ -153,19 +153,22 @@ const WORKFLOW_PATTERNS = `# Workflow Patterns
 const startTrigger = trigger({{
   type: 'n8n-nodes-base.manualTrigger',
   version: 1,
-  config: {{ name: 'Start', position: [240, 300] }}
+  config: {{ name: 'Start', position: [240, 300] }},
+  output: [{{}}]
 }});
 
 const fetchData = node({{
   type: 'n8n-nodes-base.httpRequest',
   version: 4.3,
-  config: {{ name: 'Fetch Data', parameters: {{ method: 'GET', url: '...' }}, position: [540, 300] }}
+  config: {{ name: 'Fetch Data', parameters: {{ method: 'GET', url: '...' }}, position: [540, 300] }},
+  output: [{{ id: 1, title: 'Item 1' }}]
 }});
 
 const processData = node({{
   type: 'n8n-nodes-base.set',
   version: 3.4,
-  config: {{ name: 'Process Data', parameters: {{}}, position: [840, 300] }}
+  config: {{ name: 'Process Data', parameters: {{}}, position: [840, 300] }},
+  output: [{{ id: 1, title: 'Item 1', processed: true }}]
 }});
 
 // 2. Compose workflow
@@ -226,71 +229,73 @@ return workflow('id', 'name')
 
 ## Batch Processing (Loops)
 \`\`\`javascript
-// 1. Define all nodes first
 const startTrigger = trigger({{
   type: 'n8n-nodes-base.manualTrigger',
   version: 1,
-  config: {{ name: 'Start', position: [240, 300] }}
+  config: {{ name: 'Start', position: [240, 300] }},
+  output: [{{}}]
 }});
 
 const fetchRecords = node({{
   type: 'n8n-nodes-base.httpRequest',
   version: 4.3,
-  config: {{ name: 'Fetch Records', parameters: {{ method: 'GET', url: '...' }}, position: [540, 300] }}
+  config: {{ name: 'Fetch Records', parameters: {{ method: 'GET', url: '...' }}, position: [540, 300] }},
+  output: [{{ id: 1 }}, {{ id: 2 }}, {{ id: 3 }}]
 }});
 
 const finalizeResults = node({{
   type: 'n8n-nodes-base.set',
   version: 3.4,
-  config: {{ name: 'Finalize', parameters: {{}}, position: [1140, 200] }}
+  config: {{ name: 'Finalize', parameters: {{}}, position: [1140, 200] }},
+  output: [{{ summary: 'Processed 3 records' }}]
 }});
 
 const processRecord = node({{
   type: 'n8n-nodes-base.httpRequest',
   version: 4.3,
-  config: {{ name: 'Process Record', parameters: {{ method: 'POST', url: '...' }}, position: [1140, 400] }}
+  config: {{ name: 'Process Record', parameters: {{ method: 'POST', url: '...' }}, position: [1140, 400] }},
+  output: [{{ id: 1, status: 'processed' }}]
 }});
 
-// 2. Create splitInBatches builder - returns a builder with .onDone()/.onEachBatch() methods
 const sibNode = splitInBatches({{ name: 'Batch Process', parameters: {{ batchSize: 10 }}, position: [840, 300] }});
 
-// 3. Compose workflow - use nextBatch() for explicit loop-back
 return workflow('id', 'name')
   .add(startTrigger.to(fetchRecords.to(sibNode
     .onDone(finalizeResults)
-    .onEachBatch(processRecord.to(nextBatch(sibNode)))  // nextBatch() makes loop intent explicit
+    .onEachBatch(processRecord.to(nextBatch(sibNode)))
   )));
 \`\`\`
 
 ## Multiple Triggers (Separate Chains)
 \`\`\`javascript
-// 1. Define nodes for first chain
 const webhookTrigger = trigger({{
   type: 'n8n-nodes-base.webhook',
   version: 2.1,
-  config: {{ name: 'Webhook', position: [240, 200] }}
+  config: {{ name: 'Webhook', position: [240, 200] }},
+  output: [{{ body: {{ data: 'webhook payload' }} }}]
 }});
 
 const processWebhook = node({{
   type: 'n8n-nodes-base.set',
   version: 3.4,
-  config: {{ name: 'Process Webhook', parameters: {{}}, position: [540, 200] }}
+  config: {{ name: 'Process Webhook', parameters: {{}}, position: [540, 200] }},
+  output: [{{ data: 'webhook payload', processed: true }}]
 }});
 
-// 2. Define nodes for second chain
 const scheduleTrigger = trigger({{
   type: 'n8n-nodes-base.scheduleTrigger',
   version: 1.3,
-  config: {{ name: 'Daily Schedule', parameters: {{}}, position: [240, 500] }}
+  config: {{ name: 'Daily Schedule', parameters: {{}}, position: [240, 500] }},
+  output: [{{}}]
 }});
 
 const processSchedule = node({{
   type: 'n8n-nodes-base.set',
   version: 3.4,
-  config: {{ name: 'Process Schedule', parameters: {{}}, position: [540, 500] }}
+  config: {{ name: 'Process Schedule', parameters: {{}}, position: [540, 500] }},
+  output: [{{ scheduled: true }}]
 }});
 
-// 3. Compose workflow with multiple chains
 return workflow('id', 'name')
   .add(webhookTrigger.to(processWebhook))
   .add(scheduleTrigger.to(processSchedule));
@@ -305,29 +310,31 @@ return workflow('id', 'name')
 const webhookTrigger = trigger({{
   type: 'n8n-nodes-base.webhook',
   version: 2.1,
-  config: {{ name: 'Webhook Trigger', position: [240, 200] }}
+  config: {{ name: 'Webhook Trigger', position: [240, 200] }},
+  output: [{{ source: 'webhook' }}]
 }});
 
 const scheduleTrigger = trigger({{
   type: 'n8n-nodes-base.scheduleTrigger',
   version: 1.3,
-  config: {{ name: 'Daily Schedule', position: [240, 500] }}
+  config: {{ name: 'Daily Schedule', position: [240, 500] }},
+  output: [{{ source: 'schedule' }}]
 }});
 
-// Processing chain defined ONCE
 const processData = node({{
   type: 'n8n-nodes-base.set',
   version: 3.4,
-  config: {{ name: 'Process Data', parameters: {{}}, position: [540, 350] }}
+  config: {{ name: 'Process Data', parameters: {{}}, position: [540, 350] }},
+  output: [{{ processed: true }}]
 }});
 
 const sendNotification = node({{
   type: 'n8n-nodes-base.slack',
   version: 2.3,
-  config: {{ name: 'Notify Slack', parameters: {{}}, position: [840, 350] }}
+  config: {{ name: 'Notify Slack', parameters: {{}}, position: [840, 350] }},
+  output: [{{ ok: true }}]
 }});
 
-// Both triggers connect to the SAME processing chain
 return workflow('id', 'name')
   .add(webhookTrigger.to(processData))
   .add(scheduleTrigger.to(processData))
@@ -336,18 +343,17 @@ return workflow('id', 'name')
 
 ## AI Agent (Basic)
 \`\`\`javascript
-// 1. Define subnodes first
 const openAiModel = languageModel({{
   type: '@n8n/n8n-nodes-langchain.lmChatOpenAi',
   version: 1.3,
   config: {{ name: 'OpenAI Model', parameters: {{}}, position: [540, 500] }}
 }});
 
-// 2. Define main nodes
 const startTrigger = trigger({{
   type: 'n8n-nodes-base.manualTrigger',
   version: 1,
-  config: {{ name: 'Start', position: [240, 300] }}
+  config: {{ name: 'Start', position: [240, 300] }},
+  output: [{{}}]
 }});
 
 const aiAgent = node({{
@@ -358,17 +364,16 @@ const aiAgent = node({{
     parameters: {{ promptType: 'define', text: 'You are a helpful assistant' }},
     subnodes: {{ model: openAiModel }},
     position: [540, 300]
-  }}
+  }},
+  output: [{{ output: 'AI response text' }}]
 }});
 
-// 3. Compose workflow
 return workflow('ai-assistant', 'AI Assistant')
   .add(startTrigger.to(aiAgent));
 \`\`\`
 
 ## AI Agent with Tools
 \`\`\`javascript
-// 1. Define subnodes first
 const openAiModel = languageModel({{
   type: '@n8n/n8n-nodes-langchain.lmChatOpenAi',
   version: 1.3,
@@ -386,11 +391,11 @@ const calculatorTool = tool({{
   config: {{ name: 'Calculator', parameters: {{}}, position: [700, 500] }}
 }});
 
-// 2. Define main nodes
 const startTrigger = trigger({{
   type: 'n8n-nodes-base.manualTrigger',
   version: 1,
-  config: {{ name: 'Start', position: [240, 300] }}
+  config: {{ name: 'Start', position: [240, 300] }},
+  output: [{{}}]
 }});
 
 const aiAgent = node({{
@@ -401,17 +406,16 @@ const aiAgent = node({{
     parameters: {{ promptType: 'define', text: 'You can use tools to help users' }},
     subnodes: {{ model: openAiModel, tools: [calculatorTool] }},
     position: [540, 300]
-  }}
+  }},
+  output: [{{ output: '42' }}]
 }});
 
-// 3. Compose workflow
 return workflow('ai-calculator', 'AI Calculator')
   .add(startTrigger.to(aiAgent));
 \`\`\`
 
 ## AI Agent with fromAi() (AI-Driven Parameters)
 \`\`\`javascript
-// 1. Define subnodes first
 const openAiModel = languageModel({{
   type: '@n8n/n8n-nodes-langchain.lmChatOpenAi',
   version: 1.3,
@@ -438,11 +442,11 @@ const gmailTool = tool({{
   }}
 }});
 
-// 2. Define main nodes
 const startTrigger = trigger({{
   type: 'n8n-nodes-base.manualTrigger',
   version: 1,
-  config: {{ name: 'Start', position: [240, 300] }}
+  config: {{ name: 'Start', position: [240, 300] }},
+  output: [{{}}]
 }});
 
 const aiAgent = node({{
@@ -453,10 +457,10 @@ const aiAgent = node({{
     parameters: {{ promptType: 'define', text: 'You can send emails' }},
     subnodes: {{ model: openAiModel, tools: [gmailTool] }},
     position: [540, 300]
-  }}
+  }},
+  output: [{{ output: 'Email sent successfully' }}]
 }});
 
-// 3. Compose workflow
 return workflow('ai-email', 'AI Email Sender')
   .add(startTrigger.to(aiAgent));
 \`\`\``;
@@ -622,16 +626,6 @@ Your code must:
 - Follow all workflow rules with valid syntax
 - Use proper node positioning (left-to-right, vertical for branches)
 - Use descriptive node names
-
-# Important Reminders
-
-1. **Planning first:** Always work through your planning inside <n8n_thinking> tags to analyze the request before generating code
-2. **Get type definitions:** Call \`get_node_types\` with ALL node types before writing code
-3. **Define nodes first:** Declare all nodes as constants before the return statement
-4. **Credentials:** Use \`newCredential('Name')\` for authentication
-5. **Descriptive names:** Give nodes clear, descriptive names
-6. **Proper positioning:** Follow left-to-right layout with vertical spacing for branches
-7. **Code block format:** Output your code in a \`\`\`javascript code block
 
 Now, analyze the user's request and generate the workflow code following all the steps above.`;
 
