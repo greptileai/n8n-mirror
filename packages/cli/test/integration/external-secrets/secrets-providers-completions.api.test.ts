@@ -81,7 +81,7 @@ describe('Secret Providers Completions API', () => {
 	});
 
 	describe('GET /secret-providers/completions/secrets/global', () => {
-		describe('Authorisation', () => {
+		describe('Authorization', () => {
 			it('should authorize owner to list global secrets', async () => {
 				const response = await ownerAgent.get('/secret-providers/completions/secrets/global');
 				expect(response.status).toBe(200);
@@ -225,7 +225,7 @@ describe('Secret Providers Completions API', () => {
 	});
 
 	describe('GET /secret-providers/completions/secrets/project/:projectId', () => {
-		describe('Authorisation', () => {
+		describe('Authorization', () => {
 			it('should authorize owner to list project secrets', async () => {
 				const response = await ownerAgent.get('/secret-providers/completions/secrets/project/123');
 				expect(response.status).toBe(200);
