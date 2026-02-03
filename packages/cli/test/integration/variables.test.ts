@@ -57,9 +57,12 @@ describe('GET /variables', () => {
 
 	test('should return an empty array if there is nothing in the cache', async () => {
 		const cacheService = Container.get(CacheService);
-		const spy = jest.spyOn(cacheService, 'get').mockResolvedValueOnce(undefined);
+		const spy = jest
+			.spyOn(cacheService, 'get')
+			.mockResolvedValueOnce(undefined) // auth middleware: token not in invalid cache
+			.mockResolvedValueOnce(undefined); // variables controller: no cached variables
 		const response = await authOwnerAgent.get('/variables');
-		expect(spy).toHaveBeenCalledTimes(1);
+		expect(spy).toHaveBeenCalledTimes(2);
 		expect(response.statusCode).toBe(200);
 		expect(response.body.data.length).toBe(0);
 	});
