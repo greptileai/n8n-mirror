@@ -1,27 +1,33 @@
-import type { ChatDocCreateCommand, ChatDocEditCommand, ChatDocument } from '@n8n/api-types';
+import type {
+	ChatArtifactCreateCommand,
+	ChatArtifactEditCommand,
+	ChatArtifact,
+	ChatHubMessageType,
+} from '@n8n/api-types';
 
 export interface MessageWithContent {
+	type: ChatHubMessageType;
 	id: string;
 	content: string;
 }
 
 export type ParsedMessageItem =
 	| { type: 'text'; content: string }
-	| { type: 'doc-create'; command: ChatDocCreateCommand }
-	| { type: 'doc-edit'; command: ChatDocEditCommand };
+	| { type: 'artifact-create'; command: ChatArtifactCreateCommand }
+	| { type: 'artifact-edit'; command: ChatArtifactEditCommand };
 
 /**
- * Parse <command:doc-create> commands from message content
+ * Parse <command:artifact-create> commands from message content
  * Handles commands that may be wrapped in code fences
  */
-function parseDocCreateCommands(content: string): ChatDocCreateCommand[] {
-	const commands: ChatDocCreateCommand[] = [];
+function parseArtifactCreateCommands(content: string): ChatArtifactCreateCommand[] {
+	const commands: ChatArtifactCreateCommand[] = [];
 	// Strip code fences that might wrap commands (in case model ignores instructions)
 	const cleanedContent = content
-		.replace(/```[\s\S]*?<command:doc-create>/g, '<command:doc-create>')
-		.replace(/<\/command:doc-create>[\s\S]*?```/g, '</command:doc-create>');
+		.replace(/```[\s\S]*?<command:artifact-create>/g, '<command:artifact-create>')
+		.replace(/<\/command:artifact-create>[\s\S]*?```/g, '</command:artifact-create>');
 
-	const regex = /<command:doc-create>([\s\S]*?)<\/command:doc-create>/g;
+	const regex = /<command:artifact-create>([\s\S]*?)<\/command:artifact-create>/g;
 	let match;
 
 	while ((match = regex.exec(cleanedContent)) !== null) {
@@ -44,17 +50,17 @@ function parseDocCreateCommands(content: string): ChatDocCreateCommand[] {
 }
 
 /**
- * Parse <command:doc-edit> commands from message content
+ * Parse <command:artifact-edit> commands from message content
  * Handles commands that may be wrapped in code fences
  */
-function parseDocEditCommands(content: string): ChatDocEditCommand[] {
-	const commands: ChatDocEditCommand[] = [];
+function parseArtifactEditCommands(content: string): ChatArtifactEditCommand[] {
+	const commands: ChatArtifactEditCommand[] = [];
 	// Strip code fences that might wrap commands
 	const cleanedContent = content
-		.replace(/```[\s\S]*?<command:doc-edit>/g, '<command:doc-edit>')
-		.replace(/<\/command:doc-edit>[\s\S]*?```/g, '</command:doc-edit>');
+		.replace(/```[\s\S]*?<command:artifact-edit>/g, '<command:artifact-edit>')
+		.replace(/<\/command:artifact-edit>[\s\S]*?```/g, '</command:artifact-edit>');
 
-	const regex = /<command:doc-edit>([\s\S]*?)<\/command:doc-edit>/g;
+	const regex = /<command:artifact-edit>([\s\S]*?)<\/command:artifact-edit>/g;
 	let match;
 
 	while ((match = regex.exec(cleanedContent)) !== null) {
@@ -79,14 +85,14 @@ function parseDocEditCommands(content: string): ChatDocEditCommand[] {
 }
 
 /**
- * Parse incomplete/streaming <command:doc-create> command
- * Returns partial document even without closing tags for streaming support
+ * Parse incomplete/streaming <command:artifact-create> command
+ * Returns partial artifact even without closing tags for streaming support
  * Returns a minimal incomplete command even with just the opening tag to hide it during streaming
  */
-function parsePartialDocCreate(content: string): ChatDocCreateCommand | null {
+function parsePartialArtifactCreate(content: string): ChatArtifactCreateCommand | null {
 	// Check if there's an opening tag but no closing tag (streaming in progress)
-	const hasOpenTag = content.includes('<command:doc-create>');
-	const hasCloseTag = content.includes('</command:doc-create>');
+	const hasOpenTag = content.includes('<command:artifact-create>');
+	const hasCloseTag = content.includes('</command:artifact-create>');
 
 	if (!hasOpenTag) {
 		return null;
@@ -94,12 +100,12 @@ function parsePartialDocCreate(content: string): ChatDocCreateCommand | null {
 
 	// If complete, use the regular parser
 	if (hasCloseTag) {
-		const commands = parseDocCreateCommands(content);
+		const commands = parseArtifactCreateCommands(content);
 		return commands[commands.length - 1] ?? null;
 	}
 
 	// Parse partial/streaming content
-	const startIndex = content.lastIndexOf('<command:doc-create>');
+	const startIndex = content.lastIndexOf('<command:artifact-create>');
 	const partialContent = content.substring(startIndex);
 
 	const titleMatch = /<title>([\s\S]*?)(?:<\/title>|$)/.exec(partialContent);
@@ -117,14 +123,14 @@ function parsePartialDocCreate(content: string): ChatDocCreateCommand | null {
 }
 
 /**
- * Parse incomplete/streaming <command:doc-edit> command
+ * Parse incomplete/streaming <command:artifact-edit> command
  * Returns partial edit command even without closing tags for streaming support
  * Returns a minimal incomplete command even with just the opening tag to hide it during streaming
  */
-function parsePartialDocEdit(content: string): ChatDocEditCommand | null {
+function parsePartialArtifactEdit(content: string): ChatArtifactEditCommand | null {
 	// Check if there's an opening tag but no closing tag (streaming in progress)
-	const hasOpenTag = content.includes('<command:doc-edit>');
-	const hasCloseTag = content.includes('</command:doc-edit>');
+	const hasOpenTag = content.includes('<command:artifact-edit>');
+	const hasCloseTag = content.includes('</command:artifact-edit>');
 
 	if (!hasOpenTag) {
 		return null;
@@ -132,12 +138,12 @@ function parsePartialDocEdit(content: string): ChatDocEditCommand | null {
 
 	// If complete, use the regular parser
 	if (hasCloseTag) {
-		const commands = parseDocEditCommands(content);
+		const commands = parseArtifactEditCommands(content);
 		return commands[commands.length - 1] ?? null;
 	}
 
 	// Parse partial/streaming content
-	const startIndex = content.lastIndexOf('<command:doc-edit>');
+	const startIndex = content.lastIndexOf('<command:artifact-edit>');
 	const partialContent = content.substring(startIndex);
 
 	const titleMatch = /<title>([\s\S]*?)(?:<\/title>|$)/.exec(partialContent);
@@ -161,43 +167,47 @@ function parsePartialDocEdit(content: string): ChatDocEditCommand | null {
  * Returns an array of parsed items in order, including text segments
  * Incomplete commands (without closing tags) are marked as isComplete: false
  */
-export function parseMessage(content: string): ParsedMessageItem[] {
+export function parseMessage(message: MessageWithContent): ParsedMessageItem[] {
+	if (message.type !== 'ai') {
+		return [{ type: 'text' as const, content: message.content }];
+	}
+
 	const items: ParsedMessageItem[] = [];
 
 	// Check for incomplete commands (only one can exist at a time during streaming)
-	const partialCreate = parsePartialDocCreate(content);
-	const partialEdit = parsePartialDocEdit(content);
+	const partialCreate = parsePartialArtifactCreate(message.content);
+	const partialEdit = parsePartialArtifactEdit(message.content);
 
 	// Determine which incomplete command appears last (if any)
-	const createStart = content.lastIndexOf('<command:doc-create>');
-	const editStart = content.lastIndexOf('<command:doc-edit>');
+	const createStart = message.content.lastIndexOf('<command:artifact-create>');
+	const editStart = message.content.lastIndexOf('<command:artifact-edit>');
 
 	if (partialCreate?.isIncomplete && createStart > editStart) {
-		// Incomplete doc-create command
+		// Incomplete artifact-create command
 		if (createStart > 0) {
-			const textBefore = content.substring(0, createStart).trim();
+			const textBefore = message.content.substring(0, createStart).trim();
 			if (textBefore) {
 				items.push({ type: 'text', content: textBefore });
 			}
 		}
 
 		items.push({
-			type: 'doc-create',
+			type: 'artifact-create',
 			command: partialCreate,
 		});
 
 		return items;
 	} else if (partialEdit?.isIncomplete && editStart > createStart) {
-		// Incomplete doc-edit command
+		// Incomplete artifact-edit command
 		if (editStart > 0) {
-			const textBefore = content.substring(0, editStart).trim();
+			const textBefore = message.content.substring(0, editStart).trim();
 			if (textBefore) {
 				items.push({ type: 'text', content: textBefore });
 			}
 		}
 
 		items.push({
-			type: 'doc-edit',
+			type: 'artifact-edit',
 			command: partialEdit,
 		});
 
@@ -207,26 +217,26 @@ export function parseMessage(content: string): ParsedMessageItem[] {
 	// Find all command blocks (both valid and invalid) to skip them
 	const commandBlocks: Array<{ start: number; end: number; item: ParsedMessageItem | null }> = [];
 
-	// Find all doc-create command blocks
-	const createRegex = /<command:doc-create>([\s\S]*?)<\/command:doc-create>/g;
+	// Find all artifact-create command blocks
+	const createRegex = /<command:artifact-create>([\s\S]*?)<\/command:artifact-create>/g;
 	let match;
-	while ((match = createRegex.exec(content)) !== null) {
-		const commands = parseDocCreateCommands(match[0]);
+	while ((match = createRegex.exec(message.content)) !== null) {
+		const commands = parseArtifactCreateCommands(match[0]);
 		commandBlocks.push({
 			start: match.index,
 			end: match.index + match[0].length,
-			item: commands.length > 0 ? { type: 'doc-create', command: commands[0] } : null,
+			item: commands.length > 0 ? { type: 'artifact-create', command: commands[0] } : null,
 		});
 	}
 
-	// Find all doc-edit command blocks
-	const editRegex = /<command:doc-edit>([\s\S]*?)<\/command:doc-edit>/g;
-	while ((match = editRegex.exec(content)) !== null) {
-		const commands = parseDocEditCommands(match[0]);
+	// Find all artifact-edit command blocks
+	const editRegex = /<command:artifact-edit>([\s\S]*?)<\/command:artifact-edit>/g;
+	while ((match = editRegex.exec(message.content)) !== null) {
+		const commands = parseArtifactEditCommands(match[0]);
 		commandBlocks.push({
 			start: match.index,
 			end: match.index + match[0].length,
-			item: commands.length > 0 ? { type: 'doc-edit', command: commands[0] } : null,
+			item: commands.length > 0 ? { type: 'artifact-edit', command: commands[0] } : null,
 		});
 	}
 
@@ -238,7 +248,7 @@ export function parseMessage(content: string): ParsedMessageItem[] {
 	for (const { start, end, item } of commandBlocks) {
 		// Add text before this command block
 		if (start > currentPos) {
-			const text = content.substring(currentPos, start).trim();
+			const text = message.content.substring(currentPos, start).trim();
 			if (text) {
 				items.push({ type: 'text', content: text });
 			}
@@ -254,8 +264,8 @@ export function parseMessage(content: string): ParsedMessageItem[] {
 	}
 
 	// Add remaining text after all commands
-	if (currentPos < content.length) {
-		const text = content.substring(currentPos).trim();
+	if (currentPos < message.content.length) {
+		const text = message.content.substring(currentPos).trim();
 		if (text) {
 			items.push({ type: 'text', content: text });
 		}
@@ -263,7 +273,7 @@ export function parseMessage(content: string): ParsedMessageItem[] {
 
 	// Strip any trailing incomplete or complete opening tag during streaming
 	// This prevents flickering when tags arrive character by character
-	// e.g., "<com", "<command:", "<command:doc-c", "<command:doc-create>", etc.
+	// e.g., "<com", "<command:", "<command:artifact-c", "<command:artifact-create>", etc.
 	// We only check for "<com" or longer to avoid stripping legitimate content like "a < b"
 	if (items.length > 0) {
 		const lastItem = items[items.length - 1];
@@ -274,10 +284,10 @@ export function parseMessage(content: string): ParsedMessageItem[] {
 				// Check if it's a command tag prefix (incomplete or complete opening tag)
 				const isCommandPrefix =
 					afterBracket.length >= 4 && // At least "<com"
-					(afterBracket === '<command:doc-create>' ||
-						afterBracket === '<command:doc-edit>' ||
-						'<command:doc-create>'.startsWith(afterBracket) ||
-						'<command:doc-edit>'.startsWith(afterBracket));
+					(afterBracket === '<command:artifact-create>' ||
+						afterBracket === '<command:artifact-edit>' ||
+						'<command:artifact-create>'.startsWith(afterBracket) ||
+						'<command:artifact-edit>'.startsWith(afterBracket));
 
 				if (isCommandPrefix) {
 					const trimmedContent = lastItem.content.substring(0, lastOpenBracket).trim();
@@ -296,29 +306,29 @@ export function parseMessage(content: string): ParsedMessageItem[] {
 }
 
 /**
- * Reconstruct all documents from message history
+ * Reconstruct all artifacts from message history
  * Supports streaming by parsing partial commands in the last message
- * Returns an array of all documents created in the conversation
+ * Returns an array of all artifacts created in the conversation
  */
-export function reconstructDocument(messages: MessageWithContent[]): ChatDocument[] {
-	const docs: ChatDocument[] = [];
+export function reconstructArtifacts(messages: MessageWithContent[]): ChatArtifact[] {
+	const artifacts: ChatArtifact[] = [];
 
 	for (const message of messages) {
 		// Parse all commands in this message
-		const items = parseMessage(message.content);
+		const items = parseMessage(message);
 
 		for (const item of items) {
-			if (item.type === 'doc-create') {
-				docs.push({
+			if (item.type === 'artifact-create') {
+				artifacts.push({
 					title: item.command.title,
 					type: item.command.type,
 					content: item.command.content,
 					isIncomplete: item.command.isIncomplete,
 					updatedIn: message.id,
 				});
-			} else if (item.type === 'doc-edit') {
+			} else if (item.type === 'artifact-edit') {
 				// Find document by title
-				const targetDoc = docs.find((doc) => doc.title === item.command.title);
+				const targetDoc = artifacts.find((doc) => doc.title === item.command.title);
 
 				if (targetDoc) {
 					if (item.command.replaceAll) {
@@ -337,5 +347,5 @@ export function reconstructDocument(messages: MessageWithContent[]): ChatDocumen
 		}
 	}
 
-	return docs;
+	return artifacts;
 }

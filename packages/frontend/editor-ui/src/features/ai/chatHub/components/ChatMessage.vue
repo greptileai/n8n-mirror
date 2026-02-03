@@ -61,7 +61,7 @@ const emit = defineEmits<{
 	update: [content: string, keptAttachmentIndices: number[], newFiles: File[]];
 	regenerate: [message: ChatMessage];
 	switchAlternative: [messageId: ChatMessageId];
-	openDocument: [title: string];
+	openArtifact: [title: string];
 }>();
 
 const chatStore = useChatStore();
@@ -101,7 +101,7 @@ const activeCodeBlockTeleport = computed<{
 	return null;
 });
 
-const parsedContent = computed(() => parseMessage(message.content));
+const parsedContent = computed(() => parseMessage(message));
 const messageChunks = computed(() =>
 	parsedContent.value.flatMap<ParsedMessageItem>((chunk, index, arr) => {
 		if (chunk.type !== 'text') {
@@ -383,7 +383,7 @@ onBeforeMount(() => {
 							ref="markdownChunk"
 							:key="index"
 							:source="chunk"
-							@open-document="emit('openDocument', $event)"
+							@open-artifact="emit('openArtifact', $event)"
 						/>
 						<Teleport v-if="activeCodeBlockTeleport" :to="activeCodeBlockTeleport.target">
 							<CopyButton :content="activeCodeBlockTeleport.content" />
@@ -401,7 +401,7 @@ onBeforeMount(() => {
 					@edit="handleEdit"
 					@regenerate="handleRegenerate"
 					@read-aloud="handleReadAloud"
-					@switchAlternative="handleSwitchAlternative"
+					@switch-alternative="handleSwitchAlternative"
 				/>
 			</template>
 		</div>

@@ -544,33 +544,33 @@ export interface ChatReconnectResponse {
 }
 
 /**
- * Document generated during chat interaction
+ * Artifact generated during chat interaction
  */
-export interface ChatDocument {
+export interface ChatArtifact {
 	title: string;
 	/**
-	 * Mime-type of the document
+	 * Document type (html, md, csv, js etc.)
 	 */
 	type: string;
 	content: string;
 	/**
-	 * Whether the document is complete or not (for streaming)
+	 * Whether the artifact is complete or not (for streaming)
 	 */
 	isIncomplete: boolean;
 	/**
-	 * ID of the message that last updated this document
+	 * ID of the message that last updated this artifact
 	 */
 	updatedIn: ChatMessageId;
 }
 
-export interface ChatDocCreateCommand {
+export interface ChatArtifactCreateCommand {
 	title: string;
 	type: string;
 	content: string;
 	isIncomplete: boolean;
 }
 
-export interface ChatDocEditCommand {
+export interface ChatArtifactEditCommand {
 	title: string;
 	oldString: string;
 	newString: string;

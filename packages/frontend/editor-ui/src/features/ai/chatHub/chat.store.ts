@@ -50,7 +50,7 @@ import {
 	type ChatHubStreamError,
 	type ChatHubExecutionBegin,
 	type ChatHubExecutionEnd,
-	type ChatDocument,
+	type ChatArtifact,
 } from '@n8n/api-types';
 import type {
 	CredentialsMap,
@@ -75,7 +75,7 @@ import { deepCopy, type INode } from 'n8n-workflow';
 import { convertFileToBinaryData } from '@/app/utils/fileUtils';
 import { ResponseError } from '@n8n/rest-api-client';
 import { STORES } from '@n8n/stores/constants';
-import { reconstructDocument } from '@n8n/chat-hub';
+import { reconstructArtifacts } from '@n8n/chat-hub';
 
 export const useChatStore = defineStore(STORES.CHAT_HUB, () => {
 	const rootStore = useRootStore();
@@ -97,7 +97,7 @@ export const useChatStore = defineStore(STORES.CHAT_HUB, () => {
 	const settingsLoading = ref(false);
 	const settings = ref<Record<ChatHubLLMProvider, ChatProviderSettingsDto> | null>(null);
 	const conversationsBySession = ref<Map<ChatSessionId, ChatConversation>>(new Map());
-	const documentsBySession = ref<Map<ChatSessionId, ChatDocument[]>>(new Map());
+	const artifactsBySession = ref<Map<ChatSessionId, ChatArtifact[]>>(new Map());
 
 	const getConversation = (sessionId: ChatSessionId): ChatConversation | undefined =>
 		conversationsBySession.value.get(sessionId);
@@ -275,9 +275,9 @@ export const useChatStore = defineStore(STORES.CHAT_HUB, () => {
 		}
 
 		message.content += chunk;
-		documentsBySession.value.set(
+		artifactsBySession.value.set(
 			sessionId,
-			reconstructDocument(
+			reconstructArtifacts(
 				conversationsBySession.value
 					.get(sessionId)
 					?.activeMessageChain.map((c) => conversation.messages[c]) ?? [],
@@ -375,9 +375,9 @@ export const useChatStore = defineStore(STORES.CHAT_HUB, () => {
 			messages,
 			activeMessageChain,
 		});
-		documentsBySession.value?.set(
+		artifactsBySession.value?.set(
 			sessionId,
-			reconstructDocument(activeMessageChain.map((i) => messages[i])),
+			reconstructArtifacts(activeMessageChain.map((i) => messages[i])),
 		);
 		sessions.value.byId[sessionId] = session;
 	}
@@ -1204,7 +1204,7 @@ export const useChatStore = defineStore(STORES.CHAT_HUB, () => {
 		deleteSession,
 		updateToolsInSession,
 		conversationsBySession,
-		documentsBySession,
+		artifactsBySession,
 
 		/**
 		 * conversation

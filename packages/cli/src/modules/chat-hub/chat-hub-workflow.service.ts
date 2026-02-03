@@ -66,7 +66,7 @@ import {
 } from './chat-hub.types';
 import { getMaxContextWindowTokens } from './context-limits';
 import { inE2ETests } from '../../constants';
-import { reconstructDocument } from '@n8n/chat-hub';
+import { reconstructArtifacts } from '@n8n/chat-hub';
 
 @Service()
 export class ChatHubWorkflowService {
@@ -508,13 +508,13 @@ Write these commands DIRECTLY in your response - do NOT wrap them in code fences
 
 To create a new document, include this command directly in your response:
 
-<command:doc-create>
+<command:artifact-create>
 <title>Document Title</title>
 <type>md</type>
 <content>
 Document content here...
 </content>
-</command:doc-create>
+</command:artifact-create>
 
 The type can be:
 - html for HTML documents
@@ -524,7 +524,7 @@ The type can be:
 Example response:
 "I'll create an RFC document for you.
 
-<command:doc-create>
+<command:artifact-create>
 <title>RFC: New Feature</title>
 <type>md</type>
 <content>
@@ -533,7 +533,7 @@ Example response:
 ## Summary
 This feature will...
 </content>
-</command:doc-create>
+</command:artifact-create>
 
 I've created the RFC above. Let me know if you'd like any changes!"
 
@@ -541,12 +541,12 @@ I've created the RFC above. Let me know if you'd like any changes!"
 
 To make targeted edits to a document, you must specify the exact title of the document you want to edit:
 
-<command:doc-edit>
+<command:artifact-edit>
 <title>Document Title</title>
 <oldString>text to find</oldString>
 <newString>replacement text</newString>
 <replaceAll>false</replaceAll>
-</command:doc-edit>
+</command:artifact-edit>
 
 - <title> is required and must match the exact title of an existing document.
 - Set replaceAll to true to replace all occurrences, or false to replace only the first occurrence.
@@ -559,11 +559,11 @@ IMPORTANT:
 	}
 
 	private getBaseSystemMessage(history: ChatHubMessage[], timeZone: string) {
-		const documentContext = this.buildDocumentContext(history);
+		const artifactContext = this.buildArtifactContext(history);
 
 		return `You are a helpful assistant.
 
-${this.getSystemMessageMetadata(timeZone) + documentContext}`;
+${this.getSystemMessageMetadata(timeZone) + artifactContext}`;
 	}
 
 	private buildToolsAgentNode(
@@ -1154,9 +1154,9 @@ Respond the title only:`,
 			throw new BadRequestError('Credentials not set for agent');
 		}
 
-		const documentContext = this.buildDocumentContext(history);
+		const artifactContext = this.buildArtifactContext(history);
 		const systemMessage =
-			agent.systemPrompt + '\n\n' + this.getSystemMessageMetadata(timeZone) + documentContext;
+			agent.systemPrompt + '\n\n' + this.getSystemMessageMetadata(timeZone) + artifactContext;
 
 		const model: ChatHubBaseLLMModel = {
 			provider: agent.provider,
@@ -1297,23 +1297,23 @@ Respond the title only:`,
 		};
 	}
 
-	private buildDocumentContext(history: ChatHubMessage[]): string {
-		const documents = reconstructDocument(history);
-		if (documents.length === 0) {
+	private buildArtifactContext(history: ChatHubMessage[]): string {
+		const artifacts = reconstructArtifacts(history);
+		if (artifacts.length === 0) {
 			return '';
 		}
 
-		// Multiple documents - show all of them
-		const documentsText = documents
+		// Multiple artifacts - show all of them
+		const artifactsText = artifacts
 			.map(
-				(doc, index) => `
+				(artifact, index) => `
 
-### Document ${index + 1}: ${doc.title}
+### Document ${index + 1}: ${artifact.title}
 
-Type: ${doc.type}
+Type: ${artifact.type}
 Content:
-\`\`\`${doc.type}
-${doc.content}
+\`\`\`${artifact.type}
+${artifact.content}
 \`\`\`
 `,
 			)
@@ -1323,7 +1323,7 @@ ${doc.content}
 
 ## Current Documents
 
-${documentsText}
+${artifactsText}
 
 You can update the most recent document using the commands described above, or create a new document.`;
 	}

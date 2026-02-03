@@ -65,8 +65,8 @@ import { hasRole } from '@/app/utils/rbac/checks';
 import { useFreeAiCredits } from '@/app/composables/useFreeAiCredits';
 import ChatGreetings from './components/ChatGreetings.vue';
 import { useChatPushHandler } from './composables/useChatPushHandler';
-import ChatDocumentViewer from './components/ChatDocumentViewer.vue';
 import { useResizablePanel } from '@/app/composables/useResizablePanel';
+import ChatArtifactViewer from './components/ChatArtifactViewer.vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -98,8 +98,8 @@ const chatLayoutRef = useTemplateRef('chatLayout');
 const welcomeScreenDismissed = ref(false);
 const showCreditsClaimedCallout = ref(false);
 const hasAttemptedAutoClaim = ref(false);
-const isDocumentViewerCollapsed = ref(false);
-const selectedDocumentIndex = ref(0);
+const isArtifactViewerCollapsed = ref(false);
+const selectedArtifactIndex = ref(0);
 
 const { userCanClaimOpenAiCredits, aiCreditsQuota, claimCredits } = useFreeAiCredits();
 const sessionId = computed<string>(() =>
@@ -276,19 +276,19 @@ const { credentialsByProvider, selectCredential } = useChatCredentials(
 );
 
 const chatMessages = computed(() => chatStore.getActiveMessages(sessionId.value));
-const currentDocuments = computed(() => chatStore.documentsBySession.get(sessionId.value) ?? []);
-const selectedDocument = computed(() => {
-	const docs = currentDocuments.value;
-	if (docs.length === 0) return null;
-	const index = Math.min(selectedDocumentIndex.value, docs.length - 1);
-	return docs[index];
+const currentArtifacts = computed(() => chatStore.artifactsBySession.get(sessionId.value) ?? []);
+const selectedArtifact = computed(() => {
+	const artifacts = currentArtifacts.value;
+	if (artifacts.length === 0) return null;
+	const index = Math.min(selectedArtifactIndex.value, artifacts.length - 1);
+	return artifacts[index];
 });
-const isDocumentVisible = computed(
-	() => currentDocuments.value.length > 0 && !isDocumentViewerCollapsed.value,
+const isArtifactVisible = computed(
+	() => currentArtifacts.value.length > 0 && !isArtifactViewerCollapsed.value,
 );
 const isMainPanelNarrow = computed(() => scrollContainerSize.width.value < 600);
 
-const documentViewerResizer = useResizablePanel('N8N_CHAT_DOCUMENT_VIEWER_WIDTH', {
+const artifactViewerResizer = useResizablePanel('N8N_CHAT_ARTIFACT_VIEWER_WIDTH', {
 	container: computed(() => chatLayoutRef.value?.$el),
 	defaultSize: (size) => size * 0.6,
 	minSize: 300,
@@ -537,12 +537,12 @@ watch(
 	{ immediate: true },
 );
 
-// Reset collapsed state when documents change
-watch(currentDocuments, (newDocs, oldDocs) => {
-	if (newDocs.length > 0 && newDocs.length !== oldDocs?.length) {
-		isDocumentViewerCollapsed.value = false;
-		// Reset to the latest document when new documents are added
-		selectedDocumentIndex.value = newDocs.length - 1;
+// Reset collapsed state when artifacts change
+watch(currentArtifacts, (newArtifacts, oldArtifacts) => {
+	if (newArtifacts.length > 0 && newArtifacts.length !== oldArtifacts?.length) {
+		isArtifactViewerCollapsed.value = false;
+		// Reset to the latest artifact when new artifacts are added
+		selectedArtifactIndex.value = newArtifacts.length - 1;
 	}
 });
 
@@ -731,41 +731,41 @@ function onFilesDropped(files: File[]) {
 	messageElementsRef.value?.[index]?.addFiles(files);
 }
 
-function handleDocumentViewerResizeEnd() {
-	if (documentViewerResizer.isFullSize.value) {
-		isDocumentViewerCollapsed.value = true;
+function handleArtifactViewerResizeEnd() {
+	if (artifactViewerResizer.isFullSize.value) {
+		isArtifactViewerCollapsed.value = true;
 	}
-	documentViewerResizer.onResizeEnd();
+	artifactViewerResizer.onResizeEnd();
 }
 
-function handleCloseDocumentViewer() {
-	isDocumentViewerCollapsed.value = true;
+function handleCloseArtifactViewer() {
+	isArtifactViewerCollapsed.value = true;
 }
 
-function handleReopenDocumentViewer() {
-	isDocumentViewerCollapsed.value = false;
+function handleReopenArtifactViewer() {
+	isArtifactViewerCollapsed.value = false;
 }
 
-function handleSelectDocument(index: number) {
-	selectedDocumentIndex.value = index;
+function handleSelectArtifact(index: number) {
+	selectedArtifactIndex.value = index;
 }
 
-function handleOpenDocument(title: string) {
-	selectedDocumentIndex.value = currentDocuments.value.findIndex((d) => d.title === title);
-	isDocumentViewerCollapsed.value = false;
+function handleOpenArtifact(title: string) {
+	selectedArtifactIndex.value = currentArtifacts.value.findIndex((d) => d.title === title);
+	isArtifactViewerCollapsed.value = false;
 }
 
-function handleDownloadDocument() {
-	const doc = selectedDocument.value;
-	if (!doc) {
+function handleDownloadArtifact() {
+	const artifact = selectedArtifact.value;
+	if (!artifact) {
 		return;
 	}
 
-	const blob = new Blob([doc.content], { type: 'text/plain' });
+	const blob = new Blob([artifact.content], { type: 'text/plain' });
 	const url = URL.createObjectURL(blob);
 	const a = document.createElement('a');
 	a.href = url;
-	a.download = `${doc.title}.${doc.type}`;
+	a.download = `${artifact.title}.${artifact.type}`;
 	a.click();
 	URL.revokeObjectURL(url);
 }
@@ -781,7 +781,7 @@ function handleDownloadDocument() {
 			[$style.isExistingSession]: !isNewSession,
 			[$style.isMobileDevice]: isMobileDevice,
 			[$style.isDraggingFile]: fileDrop.isDragging.value,
-			[$style.hasDocument]: isDocumentVisible,
+			[$style.hasArtifact]: isArtifactVisible,
 			[$style.isMainPanelNarrow]: isMainPanelNarrow,
 		}"
 		@dragenter="fileDrop.handleDragEnter"
@@ -797,12 +797,12 @@ function handleDownloadDocument() {
 		</div>
 		<N8nResizeWrapper
 			:class="$style.mainContentResizer"
-			:width="documentViewerResizer.size.value"
-			:style="{ width: isDocumentVisible ? `${documentViewerResizer.size.value}px` : '100%' }"
+			:width="artifactViewerResizer.size.value"
+			:style="{ width: isArtifactVisible ? `${artifactViewerResizer.size.value}px` : '100%' }"
 			:supported-directions="['right']"
 			:is-resizing-enabled="true"
-			@resize="documentViewerResizer.onResize"
-			@resizeend="handleDocumentViewerResizeEnd"
+			@resize="artifactViewerResizer.onResize"
+			@resizeend="handleArtifactViewerResizeEnd"
 		>
 			<div :class="$style.mainContent">
 				<ChatConversationHeader
@@ -811,13 +811,13 @@ function handleDownloadDocument() {
 					:selected-model="selectedModel"
 					:credentials="credentialsByProvider"
 					:ready-to-show-model-selector="isNewSession || !!currentConversation"
-					:show-document-icon="currentDocuments.length > 0 && isDocumentViewerCollapsed"
+					:show-artifact-icon="currentArtifacts.length > 0 && isArtifactViewerCollapsed"
 					@select-model="handleSelectModel"
 					@edit-custom-agent="handleEditAgent"
 					@create-custom-agent="openNewAgentCreator"
 					@select-credential="selectCredential"
 					@open-workflow="handleOpenWorkflow"
-					@reopen-document="handleReopenDocumentViewer"
+					@reopen-artifact="handleReopenArtifactViewer"
 				/>
 
 				<N8nScrollArea
@@ -857,7 +857,7 @@ function handleDownloadDocument() {
 								@regenerate="handleRegenerateMessage"
 								@update="handleEditMessage"
 								@switch-alternative="handleSwitchAlternative"
-								@open-document="handleOpenDocument"
+								@open-artifact="handleOpenArtifact"
 							/>
 						</div>
 
@@ -903,15 +903,15 @@ function handleDownloadDocument() {
 				/>
 			</div>
 		</N8nResizeWrapper>
-		<ChatDocumentViewer
-			v-if="isDocumentVisible"
+		<ChatArtifactViewer
+			v-if="isArtifactVisible"
 			:key="sessionId"
-			:class="$style.documentViewer"
-			:documents="currentDocuments"
-			:selected-index="selectedDocumentIndex"
-			@close="handleCloseDocumentViewer"
-			@select-document="handleSelectDocument"
-			@download="handleDownloadDocument"
+			:class="$style.artifactViewer"
+			:artifacts="currentArtifacts"
+			:selected-index="selectedArtifactIndex"
+			@close="handleCloseArtifactViewer"
+			@select-artifact="handleSelectArtifact"
+			@download="handleDownloadArtifact"
 		/>
 	</ChatLayout>
 </template>
@@ -922,14 +922,14 @@ function handleDownloadDocument() {
 	display: flex;
 	flex-direction: row;
 
-	&.hasDocument {
+	&.hasArtifact {
 		.mainContent {
 			flex: 1;
 			min-width: 0;
 		}
 	}
 
-	&:not(.hasDocument) {
+	&:not(.hasArtifact) {
 		.mainContent {
 			flex: 1;
 		}
@@ -949,7 +949,7 @@ function handleDownloadDocument() {
 	flex: 1;
 }
 
-.documentViewer {
+.artifactViewer {
 	flex: 1;
 	min-width: 300px;
 	overflow: hidden;

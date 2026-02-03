@@ -9,7 +9,7 @@ const { source, singlePre = false } = defineProps<{
 	singlePre?: boolean;
 }>();
 
-const emit = defineEmits<{ openDocument: [title: string] }>();
+const emit = defineEmits<{ openArtifact: [title: string] }>();
 
 const styles = useCssModule();
 const markdown = useChatHubMarkdownOptions(styles.codeBlockActions, styles.tableContainer);
@@ -51,16 +51,16 @@ defineExpose({
 		@mouseleave="handleMouseLeave"
 	/>
 	<button
-		v-else-if="source.type === 'doc-edit' && !source.command.isIncomplete"
+		v-else-if="source.type === 'artifact-edit' && !source.command.isIncomplete"
 		:class="$style.command"
-		@click="emit('openDocument', source.command.title)"
+		@click="emit('openArtifact', source.command.title)"
 	>
 		Updated <b>{{ source.command.title }}</b>
 	</button>
 	<button
 		v-else-if="!source.command.isIncomplete"
 		:class="$style.command"
-		@click="emit('openDocument', source.command.title)"
+		@click="emit('openArtifact', source.command.title)"
 	>
 		Created <b>{{ source.command.title }}</b>
 	</button>

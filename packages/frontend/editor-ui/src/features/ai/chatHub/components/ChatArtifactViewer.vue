@@ -1,36 +1,36 @@
 <script setup lang="ts">
-import type { ChatDocument } from '@n8n/api-types';
+import type { ChatArtifact } from '@n8n/api-types';
 import { N8nIconButton, N8nSelect2 } from '@n8n/design-system';
 import { computed } from 'vue';
 import ChatMarkdownChunk from './ChatMarkdownChunk.vue';
 
 const props = defineProps<{
-	documents: ChatDocument[];
+	artifacts: ChatArtifact[];
 	selectedIndex: number;
 }>();
 
 const emit = defineEmits<{
 	close: [];
-	selectDocument: [title: number];
+	selectArtifact: [title: number];
 	download: [];
 }>();
 
-const selectedDocument = computed(() => props.documents[props.selectedIndex] ?? props.documents[0]);
+const selectedArtifact = computed(() => props.artifacts[props.selectedIndex] ?? props.artifacts[0]);
 
-const documentOptions = computed(() =>
-	props.documents.map((doc, index) => ({
+const options = computed(() =>
+	props.artifacts.map((artifact, index) => ({
 		value: index,
-		label: doc.title,
+		label: artifact.title,
 	})),
 );
 
-const isHtmlDocument = computed(() => selectedDocument.value?.type === 'html');
-const isMarkdownDocument = computed(() => selectedDocument.value?.type === 'md');
+const isHtml = computed(() => selectedArtifact.value?.type === 'html');
+const isMarkdown = computed(() => selectedArtifact.value?.type === 'md');
 const markdownContent = computed(() => ({
 	type: 'text' as const,
-	content: isMarkdownDocument.value
-		? selectedDocument.value?.content
-		: `\`\`\`${selectedDocument.value?.type}\n${selectedDocument.value?.content}\n\`\`\``,
+	content: isMarkdown.value
+		? selectedArtifact.value?.content
+		: `\`\`\`${selectedArtifact.value?.type}\n${selectedArtifact.value?.content}\n\`\`\``,
 }));
 </script>
 
@@ -42,8 +42,8 @@ const markdownContent = computed(() => ({
 					:model-value="selectedIndex"
 					size="medium"
 					variant="ghost"
-					:items="documentOptions"
-					@update:model-value="emit('selectDocument', $event)"
+					:items="options"
+					@update:model-value="emit('selectArtifact', $event)"
 				/>
 				<div :class="$style.headerActions">
 					<N8nIconButton type="tertiary" text icon="download" @click="emit('download')" />
@@ -53,18 +53,18 @@ const markdownContent = computed(() => ({
 
 			<div :class="$style.content">
 				<iframe
-					v-if="isHtmlDocument"
-					:srcdoc="selectedDocument?.content"
+					v-if="isHtml"
+					:srcdoc="selectedArtifact?.content"
 					:class="$style.iframe"
 					sandbox=""
-					:title="selectedDocument?.title"
+					:title="selectedArtifact?.title"
 				/>
 
 				<ChatMarkdownChunk
 					v-else-if="markdownContent"
 					ref="markdownChunk"
-					:class="isMarkdownDocument ? $style.markdown : ''"
-					:single-pre="!isMarkdownDocument"
+					:class="isMarkdown ? $style.markdown : ''"
+					:single-pre="!isMarkdown"
 					:source="markdownContent"
 				/>
 			</div>

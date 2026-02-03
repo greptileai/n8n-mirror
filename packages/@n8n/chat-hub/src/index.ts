@@ -1,1 +1,1 @@
-export * from './document-commands';
+export * from './artifact-commands';
