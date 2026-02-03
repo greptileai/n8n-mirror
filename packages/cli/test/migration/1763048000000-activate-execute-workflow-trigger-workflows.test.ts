@@ -597,6 +597,7 @@ describe('ActivateExecuteWorkflowTriggerWorkflows Migration', () => {
 
 		// PostgreSQL enforces strict JSON validation and won't allow invalid JSON to be inserted,
 		// so we skip this test for PostgreSQL
+		// eslint-disable-next-line n8n-local-rules/no-skipped-tests
 		const testFn = Container.get(GlobalConfig).database.type === 'postgresdb' ? it.skip : it;
 		testFn(
 			'should skip workflows with invalid JSON containing unescaped control characters',
