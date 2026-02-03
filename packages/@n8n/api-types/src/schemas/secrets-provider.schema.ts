@@ -91,16 +91,11 @@ export const secretProviderTypeResponseSchema = z.object({
 export type SecretProviderTypeResponse = z.infer<typeof secretProviderTypeResponseSchema>;
 
 /**
- * Secret completion item - represents completions for a single provider connection
+ * Secret completions response - maps providerKey to a list of secret names
+ * Example: { providerA: ["secret1", "secret2"], providerB: ["secret3"] }
  */
-export const secretCompletionResponseSchema = z.object({
-	type: secretsProviderTypeSchema,
-	providerKey: z.string(),
-	description: z.string().optional(),
-	secretCompletions: z.array(z.string()),
-	isGlobal: z.boolean(),
-});
-export type SecretCompletionsResponse = z.infer<typeof secretCompletionResponseSchema>;
+export const secretCompletionsResponseSchema = z.record(z.string(), z.array(z.string()));
+export type SecretCompletionsResponse = z.infer<typeof secretCompletionsResponseSchema>;
 
 /**
  * Test connection result

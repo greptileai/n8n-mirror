@@ -122,55 +122,22 @@ export class SecretsProvidersConnectionsService {
 		return await this.repository.findAll();
 	}
 
-	/**
-	 * Get secrets completions for autocomplete in expression editor.
-	 * Returns completion items based on query parameters:
-	 * - No projectId: returns only global secrets
-	 * - projectId only: returns only project secrets
-	 * - projectId + includeGlobal: returns both project and global secrets
-	 */
-	async getSecretsCompletions(options: {
-		projectId?: string;
-		includeGlobal?: boolean;
-	}): Promise<SecretCompletionsResponse[]> {
-		const { projectId, includeGlobal } = options;
-
-		if (!projectId) {
-			return await this.getGlobalCompletions();
-		}
-
-		if (!includeGlobal) {
-			return await this.getProjectCompletions(projectId);
-		}
-		const [projectSecrets, globalSecrets] = await Promise.all([
-			this.getProjectCompletions(projectId),
-			this.getGlobalCompletions(),
-		]);
-
-		return [...projectSecrets, ...globalSecrets];
-	}
-
-	async getGlobalCompletions(): Promise<SecretCompletionsResponse[]> {
+	async getGlobalCompletions(): Promise<SecretCompletionsResponse> {
 		const connections = await this.repository.findGlobalConnections();
-		return connections.map((connection) => this.toCompletionItem(connection, true));
+		return this.groupByProviderKey(connections);
 	}
 
-	async getProjectCompletions(projectId: string): Promise<SecretCompletionsResponse[]> {
+	async getProjectCompletions(projectId: string): Promise<SecretCompletionsResponse> {
 		const connections = await this.repository.findByProjectId(projectId);
-		return connections.map((connection) => this.toCompletionItem(connection, false));
+		return this.groupByProviderKey(connections);
 	}
 
-	private toCompletionItem(
-		connection: SecretsProviderConnection,
-		isGlobal: boolean,
-	): SecretCompletionsResponse {
-		const secretNames = this.externalSecretsManager.getSecretNames(connection.providerKey);
-		return {
-			type: connection.type as SecretsProviderType,
-			providerKey: connection.providerKey,
-			secretCompletions: secretNames,
-			isGlobal,
-		};
+	private groupByProviderKey(connections: SecretsProviderConnection[]): SecretCompletionsResponse {
+		return connections.reduce((acc, connection) => {
+			const secretNames = this.externalSecretsManager.getSecretNames(connection.providerKey);
+			acc[connection.providerKey] = secretNames;
+			return acc;
+		}, {} as SecretCompletionsResponse);
 	}
 
 	toPublicConnection(
