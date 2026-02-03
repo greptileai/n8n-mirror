@@ -97,6 +97,51 @@ describe('Secret Providers Completions API', () => {
 				expect(response.status).toBe(403);
 			});
 		});
+
+		describe('with global connections', () => {
+			it('should return global secrets', async () => {
+				const TestProvider = createDummyProvider({
+					name: 'global_test_provider',
+					secrets: { globalSecret1: 'value1', globalSecret2: 'value2' },
+				});
+
+				mockProvidersInstance.setProviders({
+					global_test_provider: TestProvider,
+				});
+
+				// Create a global connection (no project access)
+				await connectionRepository.save(
+					connectionRepository.create({
+						providerKey: 'global-connection',
+						type: 'global_test_provider',
+						isEnabled: true,
+						encryptedSettings: JSON.stringify({ mocked: 'mocked-encrypted-settings' }),
+					}),
+				);
+
+				await resetManager();
+
+				const response = await authOwnerAgent
+					.get('/secret-providers/completions/secrets/global')
+					.expect(200);
+
+				expect(response.body.data).toEqual({
+					'global-connection': ['globalSecret1', 'globalSecret2'],
+				});
+			});
+		});
+
+		describe('without global connections', () => {
+			it('should return an empty object', async () => {
+				await resetManager();
+
+				const response = await authOwnerAgent
+					.get('/secret-providers/completions/secrets/global')
+					.expect(200);
+
+				expect(response.body.data).toEqual({});
+			});
+		});
 	});
 
 	describe('GET /secret-providers/completions/secrets/project/:projectId', () => {
@@ -178,10 +223,29 @@ describe('Secret Providers Completions API', () => {
 			});
 		});
 
-		describe('with no project connections', () => {});
+		describe('with no project connections', () => {
+			it('should return an empty object', async () => {
+				await resetManager();
+
+				const response = await authOwnerAgent
+					.get(`/secret-providers/completions/secrets/project/${projectWithoutConnections.id}`)
+					.expect(200);
+
+				expect(response.body.data).toEqual({});
+			});
+		});
 
 		describe('with no project', () => {
-			it.todo('should return 404');
+			it('should return an empty object', async () => {
+				await resetManager();
+
+				const nonExistentProjectId = '00000000-0000-0000-0000-000000000000';
+				const response = await authOwnerAgent
+					.get(`/secret-providers/completions/secrets/project/${nonExistentProjectId}`)
+					.expect(200);
+
+				expect(response.body.data).toEqual({});
+			});
 		});
 	});
 });
