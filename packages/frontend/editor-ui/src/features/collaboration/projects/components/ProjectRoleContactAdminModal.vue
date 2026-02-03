@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { computed } from 'vue';
 import { ElDialog } from 'element-plus';
-import { N8nButton, N8nLink, N8nText } from '@n8n/design-system';
+import { N8nLink, N8nText } from '@n8n/design-system';
 import { useI18n } from '@n8n/i18n';
 import { CUSTOM_ROLES_DOCS_URL } from '@/app/constants';
 
@@ -28,14 +28,10 @@ const bodyKey = computed(() =>
 		? 'projects.settings.role.contactAdmin.bodyWithRoles'
 		: 'projects.settings.role.contactAdmin.body',
 );
-
-const onClose = () => {
-	visible.value = false;
-};
 </script>
 
 <template>
-	<ElDialog v-model="visible" width="400" :show-close="true" @close="onClose">
+	<ElDialog v-model="visible" width="400" :show-close="true">
 		<template #header>
 			<N8nText tag="span" size="large" :bold="true">
 				{{ i18n.baseText(titleKey) }}
@@ -50,24 +46,11 @@ const onClose = () => {
 				</N8nLink>
 			</N8nText>
 		</div>
-
-		<template #footer>
-			<div :class="$style.footer">
-				<N8nButton type="secondary" @click="onClose">
-					{{ i18n.baseText('generic.cancel') }}
-				</N8nButton>
-			</div>
-		</template>
 	</ElDialog>
 </template>
 
 <style lang="scss" module>
 .content {
 	padding: var(--spacing--xs) 0;
-}
-
-.footer {
-	display: flex;
-	justify-content: flex-end;
 }
 </style>

@@ -1,7 +1,6 @@
 import { createComponentRenderer } from '@/__tests__/render';
 import { createPinia, setActivePinia } from 'pinia';
 import { vi } from 'vitest';
-import userEvent from '@testing-library/user-event';
 import ProjectRoleContactAdminModal from './ProjectRoleContactAdminModal.vue';
 
 vi.mock('vue-router', async () => {
@@ -19,7 +18,6 @@ const ElDialogStub = {
 		<div role="dialog">
 			<slot name="header" />
 			<slot />
-			<slot name="footer" />
 		</div>
 	`,
 };
@@ -52,23 +50,6 @@ describe('ProjectRoleContactAdminModal', () => {
 			const { getByText } = renderComponent();
 
 			expect(getByText('Documentation')).toBeInTheDocument();
-		});
-
-		it('should show Cancel button', () => {
-			const { getByText } = renderComponent();
-
-			expect(getByText('Cancel')).toBeInTheDocument();
-		});
-	});
-
-	describe('Modal controls', () => {
-		it('should emit update:modelValue when Cancel is clicked', async () => {
-			const user = userEvent.setup();
-			const { getByText, emitted } = renderComponent();
-
-			await user.click(getByText('Cancel'));
-
-			expect(emitted()['update:modelValue']).toBeTruthy();
 		});
 	});
 
