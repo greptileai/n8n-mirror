@@ -102,6 +102,20 @@ class ModulesHooksRegistry {
 						return await instance[methodName].call(instance, context);
 					});
 					break;
+
+				case 'workflowExecuteResume':
+					hooks.addHandler(eventName, async function (workflowInstance, executionData) {
+						const context = {
+							type: 'workflowExecuteResume',
+							workflow: this.workflowData,
+							workflowInstance,
+							executionData,
+							executionId: this.executionId,
+						};
+						// eslint-disable-next-line @typescript-eslint/no-unsafe-return
+						return await instance[methodName].call(instance, context);
+					});
+					break;
 			}
 		}
 	}
