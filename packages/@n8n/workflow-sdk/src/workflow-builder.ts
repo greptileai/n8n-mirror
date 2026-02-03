@@ -18,7 +18,10 @@ import type {
 	CredentialReference,
 	NewCredentialValue,
 	GeneratePinDataOptions,
+	WorkflowBuilderOptions,
 } from './types/base';
+import type { PluginRegistry } from './plugins/registry';
+import type { PluginContext, ValidationIssue } from './plugins/types';
 import { isNodeChain } from './types/base';
 import {
 	isInputTarget,
@@ -78,6 +81,7 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 	private _currentOutput: number;
 	private _pinData?: Record<string, IDataObject[]>;
 	private _meta?: { templateId?: string; instanceId?: string; [key: string]: unknown };
+	private _registry?: PluginRegistry;
 
 	constructor(
 		id: string,
@@ -87,6 +91,7 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 		currentNode?: string | null,
 		pinData?: Record<string, IDataObject[]>,
 		meta?: { templateId?: string; instanceId?: string; [key: string]: unknown },
+		registry?: PluginRegistry,
 	) {
 		this.id = id;
 		this.name = name;
@@ -96,6 +101,7 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 		this._currentOutput = 0;
 		this._pinData = pinData;
 		this._meta = meta;
+		this._registry = registry;
 	}
 
 	private clone(overrides: {
@@ -113,6 +119,7 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 			overrides.currentNode !== undefined ? overrides.currentNode : this._currentNode,
 			overrides.pinData ?? this._pinData,
 			this._meta,
+			this._registry,
 		);
 		builder._currentOutput = overrides.currentOutput ?? this._currentOutput;
 		return builder;
@@ -921,6 +928,48 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 			this.checkInvalidDateMethod(graphNode.instance, warnings, mapKey);
 		}
 
+		// Run plugin-based validators (if registry is provided)
+		if (this._registry) {
+			const pluginCtx: PluginContext = {
+				nodes: this._nodes,
+				workflowId: this.id,
+				workflowName: this.name,
+				settings: this._settings,
+				pinData: this._pinData,
+			};
+
+			// Run validators for each node
+			for (const [_mapKey, graphNode] of this._nodes) {
+				const nodeType = graphNode.instance.type;
+				const validators = this._registry.getValidatorsForNodeType(nodeType);
+
+				for (const validator of validators) {
+					const issues = validator.validateNode(graphNode.instance, graphNode, pluginCtx);
+					this.collectValidationIssues(
+						issues,
+						errors,
+						warnings,
+						ValidationError,
+						ValidationWarning,
+					);
+				}
+			}
+
+			// Run workflow-level validators
+			for (const validator of this._registry.getValidators()) {
+				if (validator.validateWorkflow) {
+					const issues = validator.validateWorkflow(pluginCtx);
+					this.collectValidationIssues(
+						issues,
+						errors,
+						warnings,
+						ValidationError,
+						ValidationWarning,
+					);
+				}
+			}
+		}
+
 		// Check: Subnode-only types used without proper AI connections
 		for (const [mapKey, graphNode] of this._nodes) {
 			const subnodeInfo = this.getRequiredSubnodeInfo(graphNode.instance.type);
@@ -973,6 +1022,28 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 			return `'${displayName}' (originally '${originalName}')${typeSuffix}`;
 		}
 		return `'${displayName}'${typeSuffix}`;
+	}
+
+	/**
+	 * Collect validation issues from plugins and add them to errors/warnings arrays
+	 */
+	private collectValidationIssues(
+		issues: ValidationIssue[],
+		errors: import('./validation/index').ValidationError[],
+		warnings: import('./validation/index').ValidationWarning[],
+		ValidationErrorClass: typeof import('./validation/index').ValidationError,
+		ValidationWarningClass: typeof import('./validation/index').ValidationWarning,
+	): void {
+		for (const issue of issues) {
+			// Cast code to ValidationErrorCode - plugins can use custom codes
+			// that extend the built-in set
+			const code = issue.code as import('./validation/index').ValidationErrorCode;
+			if (issue.severity === 'error') {
+				errors.push(new ValidationErrorClass(code, issue.message, issue.nodeName));
+			} else {
+				warnings.push(new ValidationWarningClass(code, issue.message, issue.nodeName));
+			}
+		}
 	}
 
 	/**
@@ -1694,6 +1765,29 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 
 	toString(): string {
 		return JSON.stringify(this.toJSON(), null, 2);
+	}
+
+	toFormat<T>(format: string): T {
+		const registry = this._registry;
+		if (!registry) {
+			throw new Error(
+				`No serializer registered for format '${format}'. Provide a registry with serializers when creating the workflow.`,
+			);
+		}
+		const serializer = registry.getSerializer(format);
+		if (!serializer) {
+			throw new Error(`No serializer registered for format '${format}'`);
+		}
+
+		const ctx: PluginContext = {
+			nodes: this._nodes,
+			workflowId: this.id,
+			workflowName: this.name,
+			settings: this._settings,
+			pinData: this._pinData,
+		};
+
+		return serializer.serialize(ctx) as T;
 	}
 
 	generatePinData(options?: GeneratePinDataOptions): WorkflowBuilder {
@@ -4131,10 +4225,38 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 }
 
 /**
+ * Helper to check if options is a WorkflowBuilderOptions object
+ */
+function isWorkflowBuilderOptions(
+	options: WorkflowSettings | WorkflowBuilderOptions | undefined,
+): options is WorkflowBuilderOptions {
+	if (!options) return false;
+	// WorkflowBuilderOptions has 'settings' or 'registry' as keys
+	// WorkflowSettings has keys like 'timezone', 'executionOrder', etc.
+	return 'settings' in options || 'registry' in options;
+}
+
+/**
  * Create a new workflow builder
  */
-function createWorkflow(id: string, name: string, settings?: WorkflowSettings): WorkflowBuilder {
-	return new WorkflowBuilderImpl(id, name, settings);
+function createWorkflow(
+	id: string,
+	name: string,
+	options?: WorkflowSettings | WorkflowBuilderOptions,
+): WorkflowBuilder {
+	if (isWorkflowBuilderOptions(options)) {
+		return new WorkflowBuilderImpl(
+			id,
+			name,
+			options.settings,
+			undefined,
+			undefined,
+			undefined,
+			undefined,
+			options.registry,
+		);
+	}
+	return new WorkflowBuilderImpl(id, name, options);
 }
 
 /**
