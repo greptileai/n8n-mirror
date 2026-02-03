@@ -44,12 +44,21 @@ export type WorkflowExecuteAfterContext = {
 	newStaticData: IDataObject;
 };
 
+export type WorkflowExecuteResumeContext = {
+	type: 'workflowExecuteResume';
+	workflow: IWorkflowBase;
+	workflowInstance: Workflow;
+	executionData: IRunExecutionData;
+	executionId: string;
+};
+
 /** Context arg passed to a lifecycle event handler method. */
 export type LifecycleContext =
 	| NodeExecuteBeforeContext
 	| NodeExecuteAfterContext
 	| WorkflowExecuteBeforeContext
-	| WorkflowExecuteAfterContext;
+	| WorkflowExecuteAfterContext
+	| WorkflowExecuteResumeContext;
 
 type LifecycleHandler = {
 	/** Class holding the method to call on a lifecycle event. */
