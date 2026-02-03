@@ -71,8 +71,8 @@ export function createTestMigrationContext(dataSource: DataSource): TestMigratio
 					// Use negative lookbehind to avoid matching PostgreSQL's :: cast operator
 					let paramIndex = 1;
 					const paramValues: unknown[] = [];
-					const convertedSql = sql.replace(/(?<!:):(\w+)/g, (_, paramName) => {
-						paramValues.push(namedParameters[paramName]);
+					const convertedSql = sql.replace(/(?<!:):(\w+)/g, (_, paramName: string) => {
+						paramValues.push(namedParameters[paramName] as unknown);
 						return `$${paramIndex++}`;
 					});
 					return (await queryRunner.query(convertedSql, paramValues)) as T;
