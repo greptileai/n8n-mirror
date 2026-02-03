@@ -22,14 +22,14 @@ import {
 import { useNodeSpecificationValues } from '../../composables/useNodeSpecificationValues';
 import {
 	N8nButton,
-	N8nDropdown,
+	N8nDropdownMenu,
 	N8nIcon,
 	N8nIconButton,
 	N8nInputLabel,
 	N8nText,
 	N8nTooltip,
 } from '@n8n/design-system';
-import type { N8nDropdownOption } from '@n8n/design-system';
+import type { DropdownMenuItemProps } from '@n8n/design-system';
 interface Props {
 	parameter: INodeProperties;
 	path: string;
@@ -118,11 +118,11 @@ const removedFields = computed<ResourceMapperField[]>(() => {
 	return props.fieldsToMap.filter((field) => field.removed === true && field.display);
 });
 
-const addFieldOptions = computed<Array<N8nDropdownOption<string>>>(() => {
+const addFieldOptions = computed<Array<DropdownMenuItemProps<string>>>(() => {
 	return removedFields.value.map((field) => {
 		return {
+			id: field.id,
 			label: field.displayName,
-			value: field.id,
 			disabled: false,
 		};
 	});
@@ -437,12 +437,13 @@ defineExpose({
 						interpolate: { fieldWord: singularFieldWord },
 					})
 				"
-				@click="addField(addFieldOptions[0].value)"
+				@click="addField(addFieldOptions[0].id)"
 			/>
-			<N8nDropdown
+			<N8nDropdownMenu
 				v-else-if="hasMultipleFieldOptions"
-				:options="addFieldOptions"
+				:items="addFieldOptions"
 				:class="$style.dropdown"
+				:extra-popper-class="$style.dropdownContent"
 				@select="addField"
 			>
 				<template #trigger>
@@ -456,7 +457,7 @@ defineExpose({
 						"
 					/>
 				</template>
-			</N8nDropdown>
+			</N8nDropdownMenu>
 		</div>
 	</div>
 </template>
@@ -509,5 +510,9 @@ defineExpose({
 
 .dropdown {
 	display: inline-flex;
+}
+
+.dropdownContent {
+	z-index: var(--ndv--z);
 }
 </style>
