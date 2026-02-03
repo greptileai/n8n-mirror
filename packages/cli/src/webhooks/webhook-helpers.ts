@@ -114,31 +114,6 @@ function isMcpListToolsRelay(value: unknown): value is McpListToolsRelayPayload 
 	);
 }
 
-// Type guard for new MCP tool job pattern (sendChunk-style, no workflow execution)
-interface McpToolJobPayload {
-	_mcpToolJob: true;
-	mcpSessionId: string;
-	mcpMessageId: string;
-	toolName: string;
-	arguments: Record<string, unknown>;
-	sourceNodeName: string;
-}
-
-function isMcpToolJob(value: unknown): value is McpToolJobPayload {
-	return (
-		typeof value === 'object' &&
-		value !== null &&
-		'_mcpToolJob' in value &&
-		(value as Record<string, unknown>)._mcpToolJob === true &&
-		'mcpSessionId' in value &&
-		typeof (value as Record<string, unknown>).mcpSessionId === 'string' &&
-		'toolName' in value &&
-		typeof (value as Record<string, unknown>).toolName === 'string' &&
-		'sourceNodeName' in value &&
-		typeof (value as Record<string, unknown>).sourceNodeName === 'string'
-	);
-}
-
 export function handleHostedChatResponse(
 	res: express.Response,
 	responseMode: WebhookResponseMode,
@@ -672,28 +647,6 @@ export async function executeWebhook(
 
 		const executionsConfig = Container.get(ExecutionsConfig);
 		if (workflowStartNode.type === MCP_TRIGGER_NODE_TYPE && executionsConfig.mode === 'queue') {
-			const firstItem = webhookResultData.workflowData?.[0]?.[0];
-
-			// New pattern: MCP tool job - enqueue directly without workflow execution
-			const mcpToolJobValue = firstItem && 'json' in firstItem ? firstItem.json : null;
-			if (isMcpToolJob(mcpToolJobValue)) {
-				const { ScalingService } = await import('@/scaling/scaling.service');
-				const scalingService = Container.get(ScalingService);
-
-				await scalingService.addMcpToolJob({
-					workflowId: workflowData.id,
-					sessionId: mcpToolJobValue.mcpSessionId,
-					messageId: mcpToolJobValue.mcpMessageId,
-					toolName: mcpToolJobValue.toolName,
-					arguments: mcpToolJobValue.arguments,
-					sourceNodeName: mcpToolJobValue.sourceNodeName,
-				});
-
-				// No execution created - tool will be invoked directly on worker
-				return undefined;
-			}
-
-			// Legacy pattern: full workflow execution for MCP
 			const querySessionId = req.query?.sessionId;
 			const headerSessionId = req.headers['mcp-session-id'];
 			const mcpSessionId =
@@ -703,6 +656,7 @@ export async function executeWebhook(
 						? headerSessionId
 						: '';
 
+			const firstItem = webhookResultData.workflowData?.[0]?.[0];
 			const mcpMessageId =
 				(firstItem && 'json' in firstItem && typeof firstItem.json?.mcpMessageId === 'string'
 					? firstItem.json.mcpMessageId

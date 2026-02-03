@@ -256,49 +256,6 @@ export class ScalingService {
 		return job;
 	}
 
-	/**
-	 * Add an MCP tool job to the queue.
-	 * This creates a job that invokes a tool directly without creating a workflow execution.
-	 */
-	async addMcpToolJob(data: {
-		workflowId: string;
-		sessionId: string;
-		messageId: string;
-		toolName: string;
-		arguments: Record<string, unknown>;
-		sourceNodeName: string;
-	}) {
-		const jobData: JobData = {
-			workflowId: data.workflowId,
-			executionId: `mcp-tool-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`, // Synthetic ID (not stored in DB)
-			loadStaticData: false,
-			jobType: 'mcp-tool',
-			mcpToolJobData: {
-				sessionId: data.sessionId,
-				messageId: data.messageId,
-				toolName: data.toolName,
-				arguments: data.arguments,
-				sourceNodeName: data.sourceNodeName,
-			},
-		};
-
-		const jobOptions: JobOptions = {
-			priority: 1, // High priority for interactive tool calls
-			removeOnComplete: true,
-			removeOnFail: true,
-		};
-
-		const job = await this.queue.add(JOB_TYPE_NAME, jobData, jobOptions);
-
-		this.logger.info(`Enqueued MCP tool job (job ${job.id})`, {
-			workflowId: data.workflowId,
-			toolName: data.toolName,
-			jobId: job.id,
-		});
-
-		return job;
-	}
-
 	async getJob(jobId: JobId) {
 		return await this.queue.getJob(jobId);
 	}
@@ -463,7 +420,7 @@ export class ScalingService {
 				case 'abort-job':
 					break; // only for worker
 				case 'mcp-response':
-					// Route to appropriate MCP handler based on type (legacy workflow-based pattern)
+					// Route to appropriate MCP handler based on type
 					// All mains receive this; only the one with the session/pending response will handle it
 					void this.handleMcpResponse(
 						msg.executionId,
@@ -472,11 +429,6 @@ export class ScalingService {
 						msg.messageId,
 						msg.response,
 					);
-					break;
-				case 'mcp-tool-result':
-					// Handle MCP tool result from worker (new sendChunk-style pattern)
-					// All mains receive this; only the one with the session/pending tool call will handle it
-					void this.handleMcpToolResult(msg.sessionId, msg.messageId, msg.result, msg.error);
 					break;
 				default:
 					assertNever(msg);
@@ -548,36 +500,6 @@ export class ScalingService {
 				executionId,
 				mcpType,
 				error: ensureError(error).message,
-			});
-		}
-	}
-
-	/**
-	 * Handle MCP tool result from worker (new sendChunk-style pattern).
-	 * Forwards the result to McpServerManager which resolves the pending tool call.
-	 */
-	private async handleMcpToolResult(
-		sessionId: string,
-		messageId: string,
-		result: unknown,
-		error?: { message: string; name: string },
-	): Promise<void> {
-		try {
-			const { McpServerManager } = await import(
-				'@n8n/n8n-nodes-langchain/dist/nodes/mcp/McpTrigger/McpServer'
-			);
-			const mcpServerManager = McpServerManager.instance(this.logger);
-
-			if (error) {
-				mcpServerManager.rejectToolCall(`${sessionId}_${messageId}`, new Error(error.message));
-			} else {
-				mcpServerManager.handleWorkerResponse(sessionId, messageId, result);
-			}
-		} catch (handlerError) {
-			this.logger.error('Failed to handle MCP tool result', {
-				sessionId,
-				messageId,
-				error: ensureError(handlerError).message,
 			});
 		}
 	}

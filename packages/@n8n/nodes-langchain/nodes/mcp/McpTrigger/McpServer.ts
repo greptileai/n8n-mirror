@@ -408,14 +408,6 @@ export class McpServerManager {
 		relaySessionId?: string;
 		/** True when this is a list tools request that needs to be relayed to another main */
 		needsListToolsRelay?: boolean;
-		/** True when an MCP tool job should be enqueued (new pattern without workflow execution) */
-		enqueueMcpToolJob?: boolean;
-		/** MCP tool job data for direct tool invocation on worker */
-		mcpToolJobData?: {
-			toolName: string;
-			arguments: Record<string, unknown>;
-			sourceNodeName: string;
-		};
 	}> {
 		// Session ID can be passed either as a query parameter (SSE transport)
 		// or in the header (StreamableHTTP transport).
@@ -489,11 +481,6 @@ export class McpServerManager {
 			};
 		}
 
-		let enqueueMcpToolJob: boolean | undefined;
-		let mcpToolJobData:
-			| { toolName: string; arguments: Record<string, unknown>; sourceNodeName: string }
-			| undefined;
-
 		if (sessionId && transport) {
 			// We need to add a promise here because the `handlePostMessage` will send something to the
 			// MCP Server, that will run in a different context. This means that the return will happen
@@ -505,34 +492,10 @@ export class McpServerManager {
 			this.tools[sessionId] = connectedTools;
 
 			try {
-				const resolveResult = await new Promise<unknown>((resolve) => {
+				await new Promise(async (resolve) => {
 					this.resolveFunctions[callId] = resolve;
-					void transport.handleRequest(req, resp, message as IncomingMessage);
+					await transport.handleRequest(req, resp, message as IncomingMessage);
 				});
-
-				// Check if the resolve result contains tool job data (queue mode new pattern)
-				if (
-					typeof resolveResult === 'object' &&
-					resolveResult !== null &&
-					'enqueueMcpToolJob' in resolveResult &&
-					(resolveResult as { enqueueMcpToolJob: boolean }).enqueueMcpToolJob
-				) {
-					enqueueMcpToolJob = true;
-					const jobData = resolveResult as {
-						mcpToolJobData?: {
-							toolName: string;
-							arguments: Record<string, unknown>;
-							sourceNodeName?: string;
-						};
-					};
-					if (jobData.mcpToolJobData?.sourceNodeName) {
-						mcpToolJobData = {
-							toolName: jobData.mcpToolJobData.toolName,
-							arguments: jobData.mcpToolJobData.arguments,
-							sourceNodeName: jobData.mcpToolJobData.sourceNodeName,
-						};
-					}
-				}
 			} finally {
 				delete this.resolveFunctions[callId];
 			}
@@ -549,8 +512,6 @@ export class McpServerManager {
 			wasToolCall: wasToolCall(rawBody),
 			toolCallInfo,
 			messageId,
-			enqueueMcpToolJob,
-			mcpToolJobData,
 		};
 	}
 
@@ -732,7 +693,7 @@ export class McpServerManager {
 	}
 
 	/**
-	 * Clean up all pending responses for a given session.
+	 * Clean up all pending responses and tool calls for a given session.
 	 * Called when a session is deleted or closed.
 	 */
 	cleanupSessionPendingResponses(sessionId: string): void {
@@ -750,6 +711,7 @@ export class McpServerManager {
 				delete this.resolveFunctions[callId];
 			}
 			delete this.pendingResponses[callId];
+			delete this.pendingToolCalls[callId];
 		}
 	}
 
@@ -935,17 +897,9 @@ export class McpServerManager {
 						// Store pending response for tracking
 						this.storePendingResponse(extra.sessionId, requestId);
 
-						// Resolve handlePostMessage with tool job data so webhook enqueues MCP tool job.
-						// This uses the new sendChunk-style pattern: no workflow execution, direct tool invoke.
+						// Resolve handlePostMessage so webhook can return and enqueue execution.
 						if (this.resolveFunctions[callId]) {
-							this.resolveFunctions[callId]({
-								enqueueMcpToolJob: true,
-								mcpToolJobData: {
-									toolName,
-									arguments: toolArguments,
-									sourceNodeName: requestedTool?.metadata?.sourceNodeName as string | undefined,
-								},
-							});
+							this.resolveFunctions[callId]();
 						}
 
 						// Queue mode: Wait for worker to execute and return the result.
@@ -970,6 +924,7 @@ export class McpServerManager {
 								error: error instanceof Error ? error.message : String(error),
 							});
 							this.removePendingResponse(extra.sessionId, requestId);
+							delete this.pendingToolCalls[callId];
 							throw error;
 						}
 

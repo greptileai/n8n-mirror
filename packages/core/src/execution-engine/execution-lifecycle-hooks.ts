@@ -50,17 +50,6 @@ export type ExecutionLifecycleHookHandlers = {
 	/** Used by nodes to send chunks to streaming responses */
 	sendChunk: Array<(this: ExecutionLifecycleHooks, chunk: StructuredChunk) => Promise<void> | void>;
 
-	/** Used to send MCP tool results from workers to main in queue mode */
-	sendMcpToolResult: Array<
-		(
-			this: ExecutionLifecycleHooks,
-			sessionId: string,
-			messageId: string,
-			result: unknown,
-			error?: { message: string; name: string },
-		) => Promise<void> | void
-	>;
-
 	/**
 	 * Executed after a node fetches data
 	 * - For a webhook node, after the node had been run.
@@ -100,7 +89,6 @@ export class ExecutionLifecycleHooks {
 		workflowExecuteAfter: [],
 		workflowExecuteBefore: [],
 		sendChunk: [],
-		sendMcpToolResult: [],
 	};
 
 	constructor(

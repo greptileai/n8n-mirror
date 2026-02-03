@@ -23,21 +23,7 @@ export type JobData = {
 	streamingEnabled?: boolean;
 	restartExecutionId?: string;
 
-	// Job type discriminator: 'workflow' (default) or 'mcp-tool'
-	// mcp-tool jobs invoke tool directly without creating workflow execution
-	jobType?: 'workflow' | 'mcp-tool';
-
-	// MCP tool job specific fields (only when jobType === 'mcp-tool')
-	mcpToolJobData?: {
-		sessionId: string;
-		messageId: string;
-		toolName: string;
-		arguments: Record<string, unknown>;
-		/** The n8n node name that provides this tool. */
-		sourceNodeName: string;
-	};
-
-	// Legacy MCP-specific fields for workflow-based queue mode support (deprecated)
+	// MCP-specific fields for queue mode support
 	/** Whether this execution was triggered by an MCP tool call. */
 	isMcpExecution?: boolean;
 	/** Type of MCP execution: 'service' for MCP Service, 'trigger' for MCP Trigger Node. */
@@ -75,8 +61,7 @@ export type JobMessage =
 	| JobFailedMessage
 	| AbortJobMessage
 	| SendChunkMessage
-	| McpResponseMessage
-	| McpToolResultMessage;
+	| McpResponseMessage;
 
 /** Message sent by worker to main to respond to a webhook. */
 export type RespondToWebhookMessage = {
@@ -123,7 +108,7 @@ export type SendChunkMessage = {
 	workerId: string;
 };
 
-/** Message sent by worker to main to respond to an MCP tool call (legacy workflow-based). */
+/** Message sent by worker to main to respond to an MCP tool call. */
 export type McpResponseMessage = {
 	kind: 'mcp-response';
 	executionId: string;
@@ -132,16 +117,6 @@ export type McpResponseMessage = {
 	sessionId: string;
 	messageId: string;
 	response: unknown;
-	workerId: string;
-};
-
-/** Message sent by worker to main with MCP tool result (new sendChunk-style pattern). */
-export type McpToolResultMessage = {
-	kind: 'mcp-tool-result';
-	sessionId: string;
-	messageId: string;
-	result: unknown;
-	error?: { message: string; name: string };
 	workerId: string;
 };
 

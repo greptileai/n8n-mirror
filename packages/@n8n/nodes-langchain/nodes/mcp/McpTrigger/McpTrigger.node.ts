@@ -200,29 +200,10 @@ export class McpTrigger extends Node {
 					// Session exists - either handle locally or recreate transport for StreamableHTTP
 					// For StreamableHTTP, if transport doesn't exist locally, it will be recreated
 					const connectedTools = await getConnectedTools(context, true);
-					const {
-						wasToolCall,
-						toolCallInfo,
-						messageId,
-						relaySessionId,
-						needsListToolsRelay,
-						enqueueMcpToolJob,
-						mcpToolJobData,
-					} = await mcpServerManager.handlePostMessage(req, resp, connectedTools, serverName);
-
-					// New pattern: MCP tool job should be enqueued directly (no workflow execution)
-					if (enqueueMcpToolJob && mcpToolJobData) {
-						const workflowData = {
-							_mcpToolJob: true,
-							mcpSessionId: sessionId,
-							mcpMessageId: messageId ?? '',
-							...mcpToolJobData,
-						};
-						return { noWebhookResponse: true, workflowData: [[{ json: workflowData }]] };
-					}
-
+					const { wasToolCall, toolCallInfo, messageId, relaySessionId, needsListToolsRelay } =
+						await mcpServerManager.handlePostMessage(req, resp, connectedTools, serverName);
 					if (wasToolCall) {
-						// Legacy pattern: Include tool call info and messageId in workflowData for queue mode execution
+						// Include tool call info and messageId in workflowData for queue mode execution
 						// The messageId is the JSONRPC request ID, needed to correlate worker responses
 						// Always include messageId when present for proper correlation, even without toolCallInfo
 						const workflowData = {
