@@ -26,7 +26,7 @@ licenseMock.isLicensed.mockReturnValue(true);
 Container.set(LicenseState, licenseMock);
 
 mockInstance(ExternalSecretsConfig, {
-	externalSecretsForProjects: false,
+	externalSecretsForProjects: true,
 	updateInterval: 300,
 	preferGet: false,
 });
@@ -62,14 +62,9 @@ describe('Secret Providers Types API', () => {
 		await testDb.terminate();
 	});
 
-	beforeAll(async () => {
-		const config = Container.get(ExternalSecretsConfig);
-		config.externalSecretsForProjects = true;
-	});
-
 	describe('GET /secret-providers/types', () => {
 		describe('Authorization', () => {
-			beforeAll(async () => {
+			beforeAll(() => {
 				mockProvidersInstance.setProviders({
 					dummy: DummyProvider,
 				});
@@ -147,7 +142,7 @@ describe('Secret Providers Types API', () => {
 				response = await ownerAgent.get('/secret-providers/types');
 			});
 
-			it('should return all available provider typesp', async () => {
+			it('should return all available provider types', () => {
 				const { data } = response.body as { data: SecretProviderTypeResponse[] };
 				expect(response.status).toBe(200);
 				expect(data).toBeInstanceOf(Array);
@@ -192,7 +187,7 @@ describe('Secret Providers Types API', () => {
 
 	describe('GET /secret-providers/types/:type', () => {
 		describe('Authorization', () => {
-			beforeAll(async () => {
+			beforeAll(() => {
 				mockProvidersInstance.setProviders({
 					dummy: DummyProvider,
 				});
