@@ -27,7 +27,7 @@ export function buildWorkflowSummary(workflow: SimpleWorkflow): string {
 }
 
 /**
- * Build workflow JSON block for Builder/Configurator
+ * Build workflow JSON block for Builder
  */
 export function buildWorkflowJsonBlock(workflow: SimpleWorkflow): string {
 	const trimmed = trimWorkflowJSON(workflow);
@@ -89,7 +89,7 @@ export function buildWorkflowIndicator(workflow: SimpleWorkflow): string {
 // ============================================================================
 
 /**
- * Build discovery context block for Builder/Configurator
+ * Build discovery context block for Builder
  * Includes nodes found, connection parameters, and optionally best practices
  */
 export function buildDiscoveryContextBlock(
@@ -106,7 +106,7 @@ export function buildDiscoveryContextBlock(
 			({ nodeName, version, reasoning, connectionChangingParameters, availableResources }) => {
 				const params =
 					connectionChangingParameters.length > 0
-						? ` [Connection params: ${connectionChangingParameters.map((p) => p.name).join(', ')}]`
+						? ` [Connection params: ${connectionChangingParameters.map((p) => `${p.name}=${p.possibleValues.join('|')}`).join(', ')}]`
 						: '';
 
 				// Format resource/operation info clearly to help LLM understand the structure
@@ -256,7 +256,7 @@ function capitalizeFirst(str: string): string {
 // ============================================================================
 
 /**
- * Build execution context block (data + schema) for Configurator
+ * Build execution context block (data + schema) for Builder
  * Includes both execution data and schema
  */
 export function buildExecutionContextBlock(
