@@ -3,6 +3,7 @@ export type {
 	// Workflow and node types
 	WorkflowBuilder,
 	WorkflowBuilderStatic,
+	WorkflowBuilderOptions,
 	WorkflowSettings,
 	WorkflowJSON,
 	NodeJSON,
@@ -164,3 +165,19 @@ export { parseWorkflowCode, parseWorkflowCodeToBuilder } from './parse-workflow-
 
 // Type generation utilities (for runtime type generation in CLI)
 export * from './generate-types';
+
+// Plugin system
+export {
+	// Registry
+	PluginRegistry,
+	pluginRegistry,
+	// Default registration
+	registerDefaultPlugins,
+	// Types
+	type ValidationIssue,
+	type PluginContext,
+	type MutablePluginContext,
+	type ValidatorPlugin,
+	type CompositeHandlerPlugin,
+	type SerializerPlugin,
+} from './plugins';

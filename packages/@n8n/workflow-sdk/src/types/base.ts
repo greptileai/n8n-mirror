@@ -977,6 +977,14 @@ export interface WorkflowBuilder {
 
 	toJSON(): WorkflowJSON;
 
+	/**
+	 * Serialize the workflow to a specific format using registered serializers.
+	 * @param format - The format identifier (e.g., 'json')
+	 * @returns The serialized workflow in the requested format
+	 * @throws Error if no serializer is registered for the format
+	 */
+	toFormat<T>(format: string): T;
+
 	toString(): string;
 
 	/**
@@ -1001,10 +1009,20 @@ export interface WorkflowBuilder {
 }
 
 /**
+ * Options for creating a workflow builder
+ */
+export interface WorkflowBuilderOptions {
+	/** Workflow settings */
+	settings?: WorkflowSettings;
+	/** Plugin registry to use (optional, defaults to global registry) */
+	registry?: import('../plugins/registry').PluginRegistry;
+}
+
+/**
  * Static workflow builder methods
  */
 export interface WorkflowBuilderStatic {
-	(id: string, name: string, settings?: WorkflowSettings): WorkflowBuilder;
+	(id: string, name: string, options?: WorkflowSettings | WorkflowBuilderOptions): WorkflowBuilder;
 	fromJSON(json: WorkflowJSON): WorkflowBuilder;
 }
 
