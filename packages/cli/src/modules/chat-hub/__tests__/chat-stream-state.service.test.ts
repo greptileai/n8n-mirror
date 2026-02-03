@@ -490,7 +490,7 @@ describe('ChatStreamStateService', () => {
 				const state = await service.getStreamState('session-1');
 
 				expect(state).toBeNull();
-				expect(logger.error).toHaveBeenCalledWith(
+				expect(logger.warn).toHaveBeenCalledWith(
 					'Failed to get Redis state for session session-1',
 					expect.any(Object),
 				);

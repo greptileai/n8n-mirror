@@ -302,7 +302,7 @@ export class ChatStreamStateService {
 			if (!data) return null;
 			return JSON.parse(data) as StreamState;
 		} catch (error) {
-			this.logger.error(`Failed to get Redis state for session ${sessionId}`, { error });
+			this.logger.warn(`Failed to get Redis state for session ${sessionId}`, { error });
 			return null;
 		}
 	}
