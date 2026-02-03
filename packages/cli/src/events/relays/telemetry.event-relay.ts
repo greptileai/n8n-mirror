@@ -1386,12 +1386,12 @@ export class TelemetryEventRelay extends EventRelay {
 	// #region Instance Policies
 
 	private instancePoliciesUpdated({
-		userId,
+		user,
 		settingName,
 		value,
 	}: RelayEventMap['instance-policies-updated']) {
 		this.telemetry.track('User updated instance policies', {
-			user_id: userId,
+			user_id: user.id,
 			[settingName]: value,
 		});
 	}

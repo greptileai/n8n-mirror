@@ -90,6 +90,7 @@ export class LogStreamingEventRelay extends EventRelay {
 			'job-enqueued': (event) => this.jobEnqueued(event),
 			'job-dequeued': (event) => this.jobDequeued(event),
 			'job-stalled': (event) => this.jobStalled(event),
+			'instance-policies-updated': (event) => this.instancePoliciesUpdated(event),
 		});
 	}
 
@@ -805,6 +806,33 @@ export class LogStreamingEventRelay extends EventRelay {
 			eventName: 'n8n.queue.job.stalled',
 			payload,
 		});
+	}
+
+	// #endregion
+
+	// #region Instance Policies
+
+	@Redactable()
+	private instancePoliciesUpdated({
+		user,
+		settingName,
+		value,
+	}: RelayEventMap['instance-policies-updated']) {
+		if (settingName === 'workflow_publishing') {
+			void this.eventBus.sendAuditEvent({
+				eventName: value
+					? 'n8n.audit.personal-publishing-restricted.disabled'
+					: 'n8n.audit.personal-publishing-restricted.enabled',
+				payload: user,
+			});
+		} else if (settingName === 'workflow_sharing') {
+			void this.eventBus.sendAuditEvent({
+				eventName: value
+					? 'n8n.audit.personal-sharing-restricted.disabled'
+					: 'n8n.audit.personal-sharing-restricted.enabled',
+				payload: user,
+			});
+		}
 	}
 
 	// #endregion

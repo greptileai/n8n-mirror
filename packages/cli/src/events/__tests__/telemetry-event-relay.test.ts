@@ -2071,7 +2071,7 @@ describe('TelemetryEventRelay', () => {
 	describe('instance policies events', () => {
 		it('should track workflow_publishing update', () => {
 			const event: RelayEventMap['instance-policies-updated'] = {
-				userId: 'user123',
+				user: { id: 'user123' },
 				settingName: 'workflow_publishing',
 				value: true,
 			};
@@ -2086,7 +2086,7 @@ describe('TelemetryEventRelay', () => {
 
 		it('should track 2fa_enforcement update', () => {
 			const event: RelayEventMap['instance-policies-updated'] = {
-				userId: 'user456',
+				user: { id: 'user456' },
 				settingName: '2fa_enforcement',
 				value: false,
 			};

@@ -39,7 +39,7 @@ export class MFAController {
 		await this.mfaService.enforceMFA(req.body.enforce);
 
 		this.eventService.emit('instance-policies-updated', {
-			userId: req.user.id,
+			user: req.user,
 			settingName: '2fa_enforcement',
 			value: req.body.enforce,
 		});
