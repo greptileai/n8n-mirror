@@ -85,6 +85,7 @@ const props = defineProps<Props>();
 **Service:**
 ```typescript
 import { Service } from '@n8n/di';
+import { Config } from '@n8n/config';
 
 @Service()
 export class MyService {
