@@ -71,8 +71,8 @@ export class AuthController {
 	): Promise<PublicUser | undefined> {
 		const { emailOrLdapLoginId, password, mfaCode, mfaRecoveryCode } = payload;
 
-		const usedAuthenticationMethod = getCurrentAuthenticationMethod();
-		this.validateEmailFormat(usedAuthenticationMethod, emailOrLdapLoginId);
+		const currentAuthenticationMethod = getCurrentAuthenticationMethod();
+		this.validateEmailFormat(currentAuthenticationMethod, emailOrLdapLoginId);
 
 		const emailHandler = this.authHandlerRegistry.get('email', 'password');
 		if (!emailHandler) {
@@ -83,8 +83,8 @@ export class AuthController {
 		const preliminaryUser = await emailHandler.handleLogin(emailOrLdapLoginId, password);
 		this.validateSsoRestrictions(preliminaryUser);
 
-		const user = await this.authenticateWithPassword(
-			usedAuthenticationMethod,
+		const { user, usedAuthenticationMethod } = await this.authenticateWithPassword(
+			currentAuthenticationMethod,
 			emailOrLdapLoginId,
 			password,
 			preliminaryUser,
@@ -114,10 +114,9 @@ export class AuthController {
 
 	private validateSsoRestrictions(preliminaryUser: User | undefined): void {
 		const shouldBlockSsoUser =
-			isSamlCurrentAuthenticationMethod() ||
-			(isOidcCurrentAuthenticationMethod() &&
-				preliminaryUser?.role.slug !== GLOBAL_OWNER_ROLE.slug &&
-				!preliminaryUser?.settings?.allowSSOManualLogin);
+			(isSamlCurrentAuthenticationMethod() || isOidcCurrentAuthenticationMethod()) &&
+			preliminaryUser?.role.slug !== GLOBAL_OWNER_ROLE.slug &&
+			!preliminaryUser?.settings?.allowSSOManualLogin;
 
 		if (shouldBlockSsoUser) {
 			throw new AuthError('SSO is enabled, please log in with SSO');
@@ -125,20 +124,23 @@ export class AuthController {
 	}
 
 	private async authenticateWithPassword(
-		usedAuthenticationMethod: AuthProviderType,
+		getCurrentAuthenticationMethod: AuthProviderType,
 		emailOrLdapLoginId: string,
 		password: string,
 		preliminaryUser: User | undefined,
-	): Promise<User> {
+	): Promise<{ user: User; usedAuthenticationMethod: AuthProviderType }> {
 		let user = preliminaryUser;
+		let usedAuthenticationMethod: AuthProviderType = 'email';
 
 		const shouldTryAlternativeAuth =
-			usedAuthenticationMethod !== 'email' && preliminaryUser?.role.slug !== GLOBAL_OWNER_ROLE.slug;
+			getCurrentAuthenticationMethod !== 'email' &&
+			preliminaryUser?.role.slug !== GLOBAL_OWNER_ROLE.slug;
 
 		if (shouldTryAlternativeAuth) {
-			const authHandler = this.authHandlerRegistry.get(usedAuthenticationMethod, 'password');
+			const authHandler = this.authHandlerRegistry.get(getCurrentAuthenticationMethod, 'password');
 			if (authHandler) {
 				user = await authHandler.handleLogin(emailOrLdapLoginId, password);
+				usedAuthenticationMethod = getCurrentAuthenticationMethod;
 			}
 		}
 
@@ -151,7 +153,7 @@ export class AuthController {
 			throw new AuthError('Wrong username or password. Do you have caps lock on?');
 		}
 
-		return user;
+		return { user, usedAuthenticationMethod };
 	}
 
 	private async validateMfa(
