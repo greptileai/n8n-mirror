@@ -82,19 +82,29 @@ describe('Secret Providers Completions API', () => {
 
 	describe('GET /secret-providers/completions/secrets/global', () => {
 		describe('Authorization', () => {
-			it('should authorize owner to list global secrets', async () => {
-				const response = await ownerAgent.get('/secret-providers/completions/secrets/global');
-				expect(response.status).toBe(200);
+			const FORBIDDEN_MESSAGE = 'User is missing a scope required to perform this action';
+			let agents: Record<string, SuperAgentTest>;
+
+			beforeAll(() => {
+				agents = {
+					owner: ownerAgent,
+					admin: adminAgent,
+					member: memberAgent,
+				};
 			});
 
-			it('should authorize global admin to list global secrets', async () => {
-				const response = await adminAgent.get('/secret-providers/completions/secrets/global');
-				expect(response.status).toBe(200);
-			});
+			test.each([
+				{ role: 'owner', allowed: true },
+				{ role: 'admin', allowed: true },
+				{ role: 'member', allowed: false },
+			])('should allow=$allowed for $role to list global secrets', async ({ role, allowed }) => {
+				const response = await agents[role]
+					.get('/secret-providers/completions/secrets/global')
+					.expect(allowed ? 200 : 403);
 
-			it('should refuse member to list global secrets', async () => {
-				const response = await memberAgent.get('/secret-providers/completions/secrets/global');
-				expect(response.status).toBe(403);
+				if (!allowed) {
+					expect(response.body.message).toBe(FORBIDDEN_MESSAGE);
+				}
 			});
 		});
 
@@ -226,19 +236,29 @@ describe('Secret Providers Completions API', () => {
 
 	describe('GET /secret-providers/completions/secrets/project/:projectId', () => {
 		describe('Authorization', () => {
-			it('should authorize owner to list project secrets', async () => {
-				const response = await ownerAgent.get('/secret-providers/completions/secrets/project/123');
-				expect(response.status).toBe(200);
+			const FORBIDDEN_MESSAGE = 'User is missing a scope required to perform this action';
+			let agents: Record<string, SuperAgentTest>;
+
+			beforeAll(() => {
+				agents = {
+					owner: ownerAgent,
+					admin: adminAgent,
+					member: memberAgent,
+				};
 			});
 
-			it('should authorize global admin to list project secrets', async () => {
-				const response = await adminAgent.get('/secret-providers/completions/secrets/project/123');
-				expect(response.status).toBe(200);
-			});
+			test.each([
+				{ role: 'owner', allowed: true },
+				{ role: 'admin', allowed: true },
+				{ role: 'member', allowed: false },
+			])('should allow=$allowed for $role to list project secrets', async ({ role, allowed }) => {
+				const response = await agents[role]
+					.get('/secret-providers/completions/secrets/project/123')
+					.expect(allowed ? 200 : 403);
 
-			it('should refuse member to list project secrets', async () => {
-				const response = await memberAgent.get('/secret-providers/completions/secrets/project/123');
-				expect(response.status).toBe(403);
+				if (!allowed) {
+					expect(response.body.message).toBe(FORBIDDEN_MESSAGE);
+				}
 			});
 		});
 
