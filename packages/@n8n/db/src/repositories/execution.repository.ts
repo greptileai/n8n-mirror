@@ -843,7 +843,7 @@ export class ExecutionRepository extends Repository<ExecutionEntity> {
 			}
 		>,
 	) {
-		const map = new Map<string, ExecutionSummary>();
+		const summariesById = new Map<string, ExecutionSummary>();
 
 		for (const {
 			annotation_id: _,
@@ -852,13 +852,16 @@ export class ExecutionRepository extends Repository<ExecutionEntity> {
 			annotation_tags_name: tagName,
 			...row
 		} of rawExecutionsWithTags) {
-			let execution = map.get(row.id);
+			let execution = summariesById.get(row.id);
 			if (!execution) {
 				execution = {
 					...row,
-					annotation: { vote, tags: tagId ? [{ id: tagId, name: tagName }] : [] },
+					annotation: {
+						vote,
+						tags: tagId ? [{ id: tagId, name: tagName }] : [],
+					},
 				};
-				map.set(row.id, execution);
+				summariesById.set(row.id, execution);
 			} else if (tagId) {
 				execution.annotation = execution.annotation ?? {
 					vote,
@@ -868,7 +871,7 @@ export class ExecutionRepository extends Repository<ExecutionEntity> {
 			}
 		}
 
-		return [...map.values()];
+		return [...summariesById.values()];
 	}
 
 	async findManyByRangeQuery(query: ExecutionSummaries.RangeQuery): Promise<ExecutionSummary[]> {
