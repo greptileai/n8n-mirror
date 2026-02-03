@@ -72,6 +72,11 @@ describe('getDomainBase should return protocol plus domain', () => {
 		expect(getDomainBase('https://localhost/path')).toBe('localhost');
 		expect(getDomainBase('https://example/path')).toBe('example');
 	});
+
+	test('should handle IP addresses', () => {
+		expect(getDomainBase('https://192.168.1.1/path')).toBe('192.168.1.1');
+		expect(getDomainBase('https://[::1]/path')).toBe('[::1]');
+	});
 });
 
 describe('getDomainPath should return pathname, excluding query string', () => {

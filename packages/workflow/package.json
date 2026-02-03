@@ -63,7 +63,6 @@
     "lodash": "catalog:",
     "luxon": "catalog:",
     "md5": "2.3.0",
-    "psl": "catalog:",
     "recast": "0.22.0",
     "title-case": "3.0.3",
     "transliteration": "2.3.5",

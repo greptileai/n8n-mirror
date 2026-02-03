@@ -64,7 +64,6 @@ catalog:
   nodemailer: 7.0.11
   pg: 8.17.0
   picocolors: 1.0.1
-  psl: 1.9.0
   reflect-metadata: 0.2.2
   rimraf: 6.0.1
   run-script-os: 1.1.6
