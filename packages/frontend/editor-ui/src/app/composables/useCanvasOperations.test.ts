@@ -135,11 +135,14 @@ vi.mock('@/app/composables/useToast', () => {
 	};
 });
 
-vi.mock('@/app/composables/useWorkflowState', async () => {
-	const actual = await vi.importActual('@/app/composables/useWorkflowState');
+// Use a mutable reference so the mock always returns the current workflowState
+const workflowStateRef: { current: WorkflowState | undefined } = { current: undefined };
+
+vi.mock('@/app/composables/useWorkflowState', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('@/app/composables/useWorkflowState')>();
 	return {
 		...actual,
-		injectWorkflowState: vi.fn(),
+		injectWorkflowState: () => workflowStateRef.current,
 	};
 });
 
@@ -197,7 +200,7 @@ describe('useCanvasOperations', () => {
 		setActivePinia(pinia);
 
 		workflowState = useWorkflowState();
-		vi.mocked(injectWorkflowState).mockReturnValue(workflowState);
+		workflowStateRef.current = workflowState;
 	});
 
 	describe('requireNodeTypeDescription', () => {
@@ -3063,11 +3066,10 @@ describe('useCanvasOperations', () => {
 			workflowsStore.getNodeById.mockReturnValueOnce(nodeA).mockReturnValueOnce(nodeB);
 
 			const updateNodeInputIssuesSpy = vi.fn();
-			const nodeHelpersOriginal = nodeHelpers.useNodeHelpers();
-			vi.spyOn(nodeHelpers, 'useNodeHelpers').mockImplementation(() => ({
-				...nodeHelpersOriginal,
+			workflowStateRef.current = {
+				...workflowState,
 				updateNodeInputIssues: updateNodeInputIssuesSpy,
-			}));
+			};
 
 			const { deleteConnection } = useCanvasOperations();
 			deleteConnection(connection);

@@ -67,6 +67,14 @@ vi.mock('@/app/composables/useNodeHelpers', async (importOriginal) => {
 	};
 });
 
+vi.mock('@/app/composables/useWorkflowState', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('@/app/composables/useWorkflowState')>();
+	return {
+		...actual,
+		injectWorkflowState: () => workflowStateRef.current,
+	};
+});
+
 describe('LogsPanel', () => {
 	const VIEWPORT_HEIGHT = 800;
 
