@@ -191,4 +191,123 @@ describe('mergeHandler', () => {
 			);
 		});
 	});
+
+	describe('addNodes with named input syntax', () => {
+		// Helper to create a merge composite with named input syntax
+		function createNamedInputMergeComposite(options: {
+			mergeNodeName?: string;
+			inputMapping: Map<number, NodeInstance<string, string, unknown>[]>;
+			allInputNodes: NodeInstance<string, string, unknown>[];
+		}): MergeComposite<NodeInstance<string, string, unknown>[]> {
+			return {
+				_isMergeComposite: true,
+				_isNamedInputSyntax: true,
+				mergeNode: createMockMergeNode(options.mergeNodeName),
+				branches: [],
+				mode: 'combine',
+				inputMapping: options.inputMapping,
+				_allInputNodes: options.allInputNodes,
+			} as unknown as MergeComposite<NodeInstance<string, string, unknown>[]>;
+		}
+
+		it('adds all nodes from _allInputNodes', () => {
+			const input0Node = createMockNode('Input 0');
+			const input1Node = createMockNode('Input 1');
+			const composite = createNamedInputMergeComposite({
+				inputMapping: new Map([
+					[0, [input0Node]],
+					[1, [input1Node]],
+				]),
+				allInputNodes: [input0Node, input1Node],
+			});
+			const ctx = createMockContext();
+
+			mergeHandler.addNodes(composite, ctx);
+
+			expect(ctx.addBranchToGraph).toHaveBeenCalledWith(input0Node);
+			expect(ctx.addBranchToGraph).toHaveBeenCalledWith(input1Node);
+		});
+
+		it('creates connections from tail nodes to merge at correct input indices', () => {
+			const input0Node = createMockNode('Input 0');
+			const input1Node = createMockNode('Input 1');
+			const composite = createNamedInputMergeComposite({
+				inputMapping: new Map([
+					[0, [input0Node]],
+					[1, [input1Node]],
+				]),
+				allInputNodes: [input0Node, input1Node],
+			});
+			const ctx = createMockContext();
+
+			mergeHandler.addNodes(composite, ctx);
+
+			// Input 0 should connect to merge at input 0
+			const input0GraphNode = ctx.nodes.get('Input 0');
+			const input0MainConns = input0GraphNode?.connections.get('main');
+			expect(input0MainConns?.get(0)).toContainEqual(
+				expect.objectContaining({ node: 'Merge Node', type: 'main', index: 0 }),
+			);
+
+			// Input 1 should connect to merge at input 1
+			const input1GraphNode = ctx.nodes.get('Input 1');
+			const input1MainConns = input1GraphNode?.connections.get('main');
+			expect(input1MainConns?.get(0)).toContainEqual(
+				expect.objectContaining({ node: 'Merge Node', type: 'main', index: 1 }),
+			);
+		});
+
+		it('handles multiple nodes mapping to same input index', () => {
+			const node1 = createMockNode('Node 1');
+			const node2 = createMockNode('Node 2');
+			const composite = createNamedInputMergeComposite({
+				inputMapping: new Map([[0, [node1, node2]]]),
+				allInputNodes: [node1, node2],
+			});
+			const ctx = createMockContext();
+
+			mergeHandler.addNodes(composite, ctx);
+
+			// Both nodes should connect to merge at input 0
+			const node1GraphNode = ctx.nodes.get('Node 1');
+			const node1MainConns = node1GraphNode?.connections.get('main');
+			expect(node1MainConns?.get(0)).toContainEqual(
+				expect.objectContaining({ node: 'Merge Node', type: 'main', index: 0 }),
+			);
+
+			const node2GraphNode = ctx.nodes.get('Node 2');
+			const node2MainConns = node2GraphNode?.connections.get('main');
+			expect(node2MainConns?.get(0)).toContainEqual(
+				expect.objectContaining({ node: 'Merge Node', type: 'main', index: 0 }),
+			);
+		});
+	});
+
+	describe('addNodes with nested MergeComposite', () => {
+		it('handles nested MergeComposite in branches', () => {
+			const nestedBranch1 = createMockNode('Nested Branch 1');
+			const nestedBranch2 = createMockNode('Nested Branch 2');
+			const nestedMerge = createMergeComposite({
+				mergeNodeName: 'Nested Merge',
+				branches: [nestedBranch1, nestedBranch2],
+			});
+
+			const outerBranch = createMockNode('Outer Branch');
+			const outerComposite = {
+				_isMergeComposite: true,
+				mergeNode: createMockMergeNode('Outer Merge'),
+				branches: [nestedMerge, outerBranch],
+				mode: 'combine',
+			} as unknown as MergeComposite<NodeInstance<string, string, unknown>[]>;
+
+			const ctx = createMockContext();
+
+			mergeHandler.addNodes(outerComposite, ctx);
+
+			// The nested merge should be added via addBranchToGraph
+			// The outer branch should also be added
+			expect(ctx.addBranchToGraph).toHaveBeenCalledWith(nestedMerge);
+			expect(ctx.addBranchToGraph).toHaveBeenCalledWith(outerBranch);
+		});
+	});
 });

@@ -67,6 +67,31 @@ function createMockContext(): MutablePluginContext {
 	};
 }
 
+// Helper to create a SwitchCaseBuilder
+function createSwitchCaseBuilder(
+	options: {
+		switchNodeName?: string;
+		cases?: Map<number, CaseValue>;
+	} = {},
+): {
+	_isSwitchCaseBuilder: true;
+	switchNode: NodeInstance<string, string, unknown>;
+	caseMapping: Map<number, CaseValue>;
+} {
+	const caseMapping =
+		options.cases ??
+		new Map<number, CaseValue>([
+			[0, createMockNode('Case 0')],
+			[1, createMockNode('Case 1')],
+		]);
+
+	return {
+		_isSwitchCaseBuilder: true,
+		switchNode: createMockSwitchNode(options.switchNodeName),
+		caseMapping,
+	};
+}
+
 describe('switchCaseHandler', () => {
 	describe('metadata', () => {
 		it('has correct id', () => {
@@ -99,6 +124,75 @@ describe('switchCaseHandler', () => {
 
 		it('returns false for undefined', () => {
 			expect(switchCaseHandler.canHandle(undefined)).toBe(false);
+		});
+
+		it('returns true for SwitchCaseBuilder (fluent API)', () => {
+			const builder = createSwitchCaseBuilder();
+			expect(switchCaseHandler.canHandle(builder)).toBe(true);
+		});
+	});
+
+	describe('addNodes with SwitchCaseBuilder', () => {
+		it('returns the Switch node name as head for SwitchCaseBuilder', () => {
+			const builder = createSwitchCaseBuilder({ switchNodeName: 'Builder Switch' });
+			const ctx = createMockContext();
+
+			const headName = switchCaseHandler.addNodes(builder as unknown as SwitchCaseComposite, ctx);
+
+			expect(headName).toBe('Builder Switch');
+		});
+
+		it('adds Switch node from SwitchCaseBuilder to context', () => {
+			const builder = createSwitchCaseBuilder();
+			const ctx = createMockContext();
+
+			switchCaseHandler.addNodes(builder as unknown as SwitchCaseComposite, ctx);
+
+			expect(ctx.nodes.has('Switch Node')).toBe(true);
+		});
+
+		it('creates connections from SwitchCaseBuilder caseMapping', () => {
+			const case0 = createMockNode('Builder Case 0');
+			const case1 = createMockNode('Builder Case 1');
+			const builder = createSwitchCaseBuilder({
+				cases: new Map([
+					[0, case0],
+					[1, case1],
+				]),
+			});
+			const ctx = createMockContext();
+
+			switchCaseHandler.addNodes(builder as unknown as SwitchCaseComposite, ctx);
+
+			const switchNode = ctx.nodes.get('Switch Node');
+			const mainConns = switchNode?.connections.get('main');
+
+			expect(mainConns?.get(0)).toContainEqual(
+				expect.objectContaining({ node: 'Builder Case 0', type: 'main', index: 0 }),
+			);
+			expect(mainConns?.get(1)).toContainEqual(
+				expect.objectContaining({ node: 'Builder Case 1', type: 'main', index: 0 }),
+			);
+		});
+
+		it('handles non-sequential case indices in SwitchCaseBuilder', () => {
+			const case0 = createMockNode('Case 0');
+			const case5 = createMockNode('Case 5');
+			const builder = createSwitchCaseBuilder({
+				cases: new Map([
+					[0, case0],
+					[5, case5], // Non-sequential index
+				]),
+			});
+			const ctx = createMockContext();
+
+			switchCaseHandler.addNodes(builder as unknown as SwitchCaseComposite, ctx);
+
+			const switchNode = ctx.nodes.get('Switch Node');
+			const mainConns = switchNode?.connections.get('main');
+
+			expect(mainConns?.get(0)).toContainEqual(expect.objectContaining({ node: 'Case 0' }));
+			expect(mainConns?.get(5)).toContainEqual(expect.objectContaining({ node: 'Case 5' }));
 		});
 	});
 

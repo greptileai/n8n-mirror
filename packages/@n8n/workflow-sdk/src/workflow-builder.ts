@@ -281,18 +281,18 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 
 		// Check for plugin composite handlers FIRST
 		// This allows registered handlers to intercept composites before built-in handling
-		if (this._registry) {
-			const handler = this._registry.findCompositeHandler(node);
-			if (handler) {
-				const ctx = this.createMutablePluginContext(newNodes);
-				const headName = handler.addNodes(node, ctx);
-				return this.clone({
-					nodes: newNodes,
-					currentNode: headName,
-					currentOutput: 0,
-					pinData: this._pinData,
-				});
-			}
+		// Always use global pluginRegistry as fallback (like we do for validators)
+		const addRegistry = this._registry ?? pluginRegistry;
+		const addHandler = addRegistry.findCompositeHandler(node);
+		if (addHandler) {
+			const ctx = this.createMutablePluginContext(newNodes);
+			const headName = addHandler.addNodes(node, ctx);
+			return this.clone({
+				nodes: newNodes,
+				currentNode: headName,
+				currentOutput: 0,
+				pinData: this._pinData,
+			});
 		}
 
 		// Check for fluent API builders FIRST (before composites)
@@ -449,32 +449,32 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 
 		// Check for plugin composite handlers
 		// This allows registered handlers to intercept composites before built-in handling
-		if (this._registry) {
-			const handler = this._registry.findCompositeHandler(nodeOrComposite);
-			if (handler) {
-				const newNodes = new Map(this._nodes);
-				const ctx = this.createMutablePluginContext(newNodes);
-				const headName = handler.addNodes(nodeOrComposite, ctx);
+		// Always use global pluginRegistry as fallback (like we do for validators)
+		const thenRegistry = this._registry ?? pluginRegistry;
+		const thenHandler = thenRegistry.findCompositeHandler(nodeOrComposite);
+		if (thenHandler) {
+			const newNodes = new Map(this._nodes);
+			const ctx = this.createMutablePluginContext(newNodes);
+			const headName = thenHandler.addNodes(nodeOrComposite, ctx);
 
-				// Connect current node to head of composite
-				if (this._currentNode) {
-					const currentGraphNode = newNodes.get(this._currentNode);
-					if (currentGraphNode) {
-						const mainConns = currentGraphNode.connections.get('main') || new Map();
-						const outputConns = mainConns.get(this._currentOutput) || [];
-						outputConns.push({ node: headName, type: 'main', index: 0 });
-						mainConns.set(this._currentOutput, outputConns);
-						currentGraphNode.connections.set('main', mainConns);
-					}
+			// Connect current node to head of composite
+			if (this._currentNode) {
+				const currentGraphNode = newNodes.get(this._currentNode);
+				if (currentGraphNode) {
+					const mainConns = currentGraphNode.connections.get('main') || new Map();
+					const outputConns = mainConns.get(this._currentOutput) || [];
+					outputConns.push({ node: headName, type: 'main', index: 0 });
+					mainConns.set(this._currentOutput, outputConns);
+					currentGraphNode.connections.set('main', mainConns);
 				}
-
-				return this.clone({
-					nodes: newNodes,
-					currentNode: headName,
-					currentOutput: 0,
-					pinData: this._pinData,
-				});
 			}
+
+			return this.clone({
+				nodes: newNodes,
+				currentNode: headName,
+				currentOutput: 0,
+				pinData: this._pinData,
+			});
 		}
 
 		// Handle merge composite
@@ -1587,8 +1587,36 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 	}
 
 	/**
+	 * Extract the main node name from a composite for deduplication checks.
+	 * Returns undefined if not a recognized composite type.
+	 */
+	private getCompositeMainNodeName(target: unknown): string | undefined {
+		if (isIfElseBuilder(target)) {
+			return (target as IfElseBuilder<unknown>).ifNode.name;
+		}
+		if (isSwitchCaseBuilder(target)) {
+			return (target as SwitchCaseBuilder<unknown>).switchNode.name;
+		}
+		if (isIfElseComposite(target)) {
+			return (target as IfElseComposite).ifNode.name;
+		}
+		if (isSwitchCaseComposite(target)) {
+			return (target as SwitchCaseComposite).switchNode.name;
+		}
+		if (isMergeComposite(target)) {
+			return (target as MergeComposite<NodeInstance<string, string, unknown>[]>).mergeNode.name;
+		}
+		if (isSplitInBatchesBuilder(target)) {
+			const builder = extractSplitInBatchesBuilder(target);
+			return builder?.sibNode.name;
+		}
+		return undefined;
+	}
+
+	/**
 	 * Add nodes from a branch target to the nodes map, recursively handling nested composites.
 	 * This ensures nested ifElse/switchCase composites get their internal connections set up.
+	 * Uses plugin dispatch for composite handling.
 	 */
 	private addBranchTargetNodes(nodes: Map<string, GraphNode>, target: unknown): void {
 		if (target === null || target === undefined) return;
@@ -1601,60 +1629,19 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 			return;
 		}
 
-		// Handle fluent API builders FIRST (before composites)
-		// IfElseBuilder and SwitchCaseBuilder have similar properties to their composite counterparts
-		// so we must check for builders first to avoid incorrect dispatch
-		if (isIfElseBuilder(target)) {
-			const builder = target as IfElseBuilder<unknown>;
-			// Only process if not already in the nodes map (prevent duplicate processing)
-			if (!nodes.has(builder.ifNode.name)) {
-				this.addIfElseBuilderNodes(nodes, builder);
+		// Try plugin dispatch for composites
+		const registry = this._registry ?? pluginRegistry;
+		const handler = registry.findCompositeHandler(target);
+		if (handler) {
+			// Check for duplicate processing using the main node name
+			const mainNodeName = this.getCompositeMainNodeName(target);
+			if (mainNodeName && nodes.has(mainNodeName)) {
+				return; // Already processed, skip to prevent duplicates
 			}
-			return;
-		}
 
-		if (isSwitchCaseBuilder(target)) {
-			const builder = target as SwitchCaseBuilder<unknown>;
-			// Only process if not already in the nodes map (prevent duplicate processing)
-			if (!nodes.has(builder.switchNode.name)) {
-				this.addSwitchCaseBuilderNodes(nodes, builder);
-			}
-			return;
-		}
-
-		// Handle nested IfElse composite - recursively add its nodes AND connections
-		if (isIfElseComposite(target)) {
-			const ifComposite = target as IfElseComposite;
-			// Only process if not already in the nodes map (prevent duplicate processing)
-			if (!nodes.has(ifComposite.ifNode.name)) {
-				this.addIfElseNodes(nodes, ifComposite);
-			}
-			return;
-		}
-
-		// Handle nested SwitchCase composite - recursively add its nodes AND connections
-		if (isSwitchCaseComposite(target)) {
-			const switchComposite = target as SwitchCaseComposite;
-			// Only process if not already in the nodes map (prevent duplicate processing)
-			if (!nodes.has(switchComposite.switchNode.name)) {
-				this.addSwitchCaseNodes(nodes, switchComposite);
-			}
-			return;
-		}
-
-		// Handle nested Merge composite
-		if (isMergeComposite(target)) {
-			const mergeComposite = target as MergeComposite<NodeInstance<string, string, unknown>[]>;
-			// Only process if not already in the nodes map (prevent duplicate processing)
-			if (!nodes.has(mergeComposite.mergeNode.name)) {
-				this.addMergeNodes(nodes, mergeComposite);
-			}
-			return;
-		}
-
-		// Handle SplitInBatches builder
-		if (isSplitInBatchesBuilder(target)) {
-			this.addSplitInBatchesChainNodes(nodes, target);
+			// Use plugin handler to add nodes
+			const ctx = this.createMutablePluginContext(nodes);
+			handler.addNodes(target, ctx);
 			return;
 		}
 

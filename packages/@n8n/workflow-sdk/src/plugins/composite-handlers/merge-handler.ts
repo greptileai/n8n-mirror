@@ -6,7 +6,7 @@
 
 import type { CompositeHandlerPlugin, MutablePluginContext } from '../types';
 import type { MergeComposite, NodeInstance, ConnectionTarget } from '../../types/base';
-import { isMergeComposite } from '../../workflow-builder/type-guards';
+import { isMergeComposite, isMergeNamedInputSyntax } from '../../workflow-builder/type-guards';
 
 /**
  * Handler for Merge composite structures.
@@ -37,6 +37,43 @@ export const mergeHandler: CompositeHandlerPlugin<
 			connections: mergeConns,
 		});
 
+		// Handle named input syntax: merge(node, { input0, input1, ... })
+		if (isMergeNamedInputSyntax(input)) {
+			const namedMerge = input as MergeComposite<NodeInstance<string, string, unknown>[]> & {
+				inputMapping: Map<number, NodeInstance<string, string, unknown>[]>;
+				_allInputNodes: NodeInstance<string, string, unknown>[];
+			};
+
+			// Track the actual key each node was added under (may differ from node.name if renamed)
+			const nodeActualKeys = new Map<NodeInstance<string, string, unknown>, string>();
+
+			// Add all input nodes
+			for (const inputNode of namedMerge._allInputNodes) {
+				const actualKey = ctx.addBranchToGraph(inputNode);
+				nodeActualKeys.set(inputNode, actualKey);
+			}
+
+			// Connect tail nodes to merge at their specified input indices
+			for (const [inputIndex, tailNodes] of namedMerge.inputMapping) {
+				for (const tailNode of tailNodes) {
+					const actualKey = nodeActualKeys.get(tailNode) ?? tailNode.name;
+					const tailGraphNode = ctx.nodes.get(actualKey);
+					if (tailGraphNode) {
+						const tailMainConns = tailGraphNode.connections.get('main') || new Map();
+						const existingConns = tailMainConns.get(0) || [];
+						tailMainConns.set(0, [
+							...existingConns,
+							{ node: input.mergeNode.name, type: 'main', index: inputIndex },
+						]);
+						tailGraphNode.connections.set('main', tailMainConns);
+					}
+				}
+			}
+
+			return input.mergeNode.name;
+		}
+
+		// Original behavior: merge([branch1, branch2], config)
 		// Add all branch nodes with connections TO the merge node at different input indices
 		input.branches.forEach((branch, index) => {
 			if (branch === null) {

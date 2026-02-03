@@ -71,6 +71,33 @@ function createMockContext(): MutablePluginContext {
 	};
 }
 
+// Helper to create an IfElseBuilder
+function createIfElseBuilder(
+	options: {
+		ifNodeName?: string;
+		trueBranch?:
+			| NodeInstance<string, string, unknown>
+			| NodeInstance<string, string, unknown>[]
+			| null;
+		falseBranch?:
+			| NodeInstance<string, string, unknown>
+			| NodeInstance<string, string, unknown>[]
+			| null;
+	} = {},
+): {
+	_isIfElseBuilder: true;
+	ifNode: NodeInstance<string, string, unknown>;
+	trueBranch: unknown;
+	falseBranch: unknown;
+} {
+	return {
+		_isIfElseBuilder: true,
+		ifNode: createMockIfNode(options.ifNodeName),
+		trueBranch: 'trueBranch' in options ? options.trueBranch : createMockNode('True Branch'),
+		falseBranch: 'falseBranch' in options ? options.falseBranch : createMockNode('False Branch'),
+	};
+}
+
 describe('ifElseHandler', () => {
 	describe('metadata', () => {
 		it('has correct id', () => {
@@ -108,6 +135,63 @@ describe('ifElseHandler', () => {
 		it('returns false for primitive values', () => {
 			expect(ifElseHandler.canHandle('string')).toBe(false);
 			expect(ifElseHandler.canHandle(123)).toBe(false);
+		});
+
+		it('returns true for IfElseBuilder (fluent API)', () => {
+			const builder = createIfElseBuilder();
+			expect(ifElseHandler.canHandle(builder)).toBe(true);
+		});
+	});
+
+	describe('addNodes with IfElseBuilder', () => {
+		it('returns the IF node name as head for IfElseBuilder', () => {
+			const builder = createIfElseBuilder({ ifNodeName: 'Builder If' });
+			const ctx = createMockContext();
+
+			const headName = ifElseHandler.addNodes(builder as unknown as IfElseComposite, ctx);
+
+			expect(headName).toBe('Builder If');
+		});
+
+		it('adds IF node from IfElseBuilder to context', () => {
+			const builder = createIfElseBuilder();
+			const ctx = createMockContext();
+
+			ifElseHandler.addNodes(builder as unknown as IfElseComposite, ctx);
+
+			expect(ctx.nodes.has('If Node')).toBe(true);
+		});
+
+		it('creates connections from IfElseBuilder true branch', () => {
+			const trueBranch = createMockNode('Builder True');
+			const builder = createIfElseBuilder({ trueBranch, falseBranch: null });
+			const ctx = createMockContext();
+
+			ifElseHandler.addNodes(builder as unknown as IfElseComposite, ctx);
+
+			const ifNode = ctx.nodes.get('If Node');
+			const mainConns = ifNode?.connections.get('main');
+			const output0Conns = mainConns?.get(0);
+
+			expect(output0Conns).toContainEqual(
+				expect.objectContaining({ node: 'Builder True', type: 'main', index: 0 }),
+			);
+		});
+
+		it('creates connections from IfElseBuilder false branch', () => {
+			const falseBranch = createMockNode('Builder False');
+			const builder = createIfElseBuilder({ trueBranch: null, falseBranch });
+			const ctx = createMockContext();
+
+			ifElseHandler.addNodes(builder as unknown as IfElseComposite, ctx);
+
+			const ifNode = ctx.nodes.get('If Node');
+			const mainConns = ifNode?.connections.get('main');
+			const output1Conns = mainConns?.get(1);
+
+			expect(output1Conns).toContainEqual(
+				expect.objectContaining({ node: 'Builder False', type: 'main', index: 0 }),
+			);
 		});
 	});
 

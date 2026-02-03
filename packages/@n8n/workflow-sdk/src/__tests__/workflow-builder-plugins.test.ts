@@ -424,6 +424,65 @@ describe('WorkflowBuilder plugin integration', () => {
 		});
 	});
 
+	describe('Phase 6.6.1: Unconditional composite handler dispatch', () => {
+		it('uses global pluginRegistry.findCompositeHandler when no registry is provided', () => {
+			// Import the global registry to spy on it
+			const { pluginRegistry } = require('../plugins/registry');
+
+			// Spy on the global registry's findCompositeHandler method
+			const findCompositeHandlerSpy = jest.spyOn(pluginRegistry, 'findCompositeHandler');
+
+			// Create a workflow WITHOUT explicitly passing a registry
+			// Use ifElse composite which should trigger findCompositeHandler
+			const trueBranch = node({
+				type: 'n8n-nodes-base.set',
+				version: 3.4,
+				config: { name: 'True Branch', parameters: {} },
+			});
+			const falseBranch = node({
+				type: 'n8n-nodes-base.set',
+				version: 3.4,
+				config: { name: 'False Branch', parameters: {} },
+			});
+
+			const composite = ifElse({
+				version: 2,
+				config: { name: 'If Node', parameters: {} },
+			}).onTrue!(trueBranch).onFalse(falseBranch);
+
+			// Create workflow without registry option
+			workflow('test', 'Test').add(composite);
+
+			// The global pluginRegistry.findCompositeHandler should have been called
+			expect(findCompositeHandlerSpy).toHaveBeenCalled();
+
+			// Restore the spy
+			findCompositeHandlerSpy.mockRestore();
+		});
+
+		it('uses global pluginRegistry.findCompositeHandler in then() when no registry is provided', () => {
+			const { pluginRegistry } = require('../plugins/registry');
+			const findCompositeHandlerSpy = jest.spyOn(pluginRegistry, 'findCompositeHandler');
+
+			const startTrigger = trigger({
+				type: 'n8n-nodes-base.manualTrigger',
+				version: 1,
+				config: { name: 'Start' },
+			});
+
+			const composite = ifElse({
+				version: 2,
+				config: { name: 'If Node', parameters: {} },
+			}).onTrue!(null).onFalse(null);
+
+			// Create workflow without registry option and use then()
+			workflow('test', 'Test').add(startTrigger).then(composite);
+
+			expect(findCompositeHandlerSpy).toHaveBeenCalled();
+			findCompositeHandlerSpy.mockRestore();
+		});
+	});
+
 	describe('Phase 6.5: No duplicate validation', () => {
 		it('validates each node exactly once per validator (no duplicates)', () => {
 			// This test verifies that validation is not duplicated
