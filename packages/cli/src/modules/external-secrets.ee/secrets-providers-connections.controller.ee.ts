@@ -50,7 +50,7 @@ export class SecretProvidersConnectionsController {
 		_req: AuthenticatedRequest,
 		_res: Response,
 		@Body body: CreateSecretsProviderConnectionDto,
-	): SecretsProvidersResponses.PublicConnection {
+	): Promise<SecretsProvidersResponses.PublicConnection> {
 		this.logger.debug('Creating new connection', {
 			providerKey: body.providerKey,
 			type: body.type,
@@ -66,7 +66,7 @@ export class SecretProvidersConnectionsController {
 		_res: Response,
 		@Param('providerKey') providerKey: string,
 		@Body body: UpdateSecretsProviderConnectionDto,
-	): SecretsProvidersResponses.PublicConnection {
+	): Promise<SecretsProvidersResponses.PublicConnection> {
 		this.logger.debug('Updating connection', { providerKey });
 		const connection = await this.connectionsService.updateConnection(providerKey, body);
 		return this.connectionsService.toPublicConnection(connection);
@@ -78,7 +78,7 @@ export class SecretProvidersConnectionsController {
 		_req: AuthenticatedRequest,
 		_res: Response,
 		@Param('providerKey') providerKey: string,
-	): SecretsProvidersResponses.PublicConnection {
+	): Promise<SecretsProvidersResponses.PublicConnection> {
 		this.logger.debug('Deleting connection', { providerKey });
 		const connection = await this.connectionsService.deleteConnection(providerKey);
 		return this.connectionsService.toPublicConnection(connection);
@@ -86,7 +86,7 @@ export class SecretProvidersConnectionsController {
 
 	@Get('/')
 	@GlobalScope('externalSecretsProvider:read')
-	async listConnections(): SecretsProvidersResponses.PublicConnectionList {
+	async listConnections(): Promise<SecretsProvidersResponses.PublicConnectionList> {
 		this.logger.debug('Listing all connections');
 		const connections = await this.connectionsService.listConnections();
 		return connections.map((connection) => this.connectionsService.toPublicConnection(connection));
@@ -98,7 +98,7 @@ export class SecretProvidersConnectionsController {
 		_req: AuthenticatedRequest,
 		_res: Response,
 		@Param('providerKey') providerKey: string,
-	): SecretsProvidersResponses.PublicConnection {
+	): Promise<SecretsProvidersResponses.PublicConnection> {
 		this.logger.debug('Getting connection', { providerKey });
 		const connection = await this.connectionsService.getConnection(providerKey);
 		return this.connectionsService.toPublicConnection(connection);
