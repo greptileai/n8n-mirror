@@ -46,7 +46,7 @@ describe('introspect.tool', () => {
 				'unclear_node_description',
 				'incomplete_example',
 				'other',
-			];
+			] as const;
 
 			for (const category of categories) {
 				const result = await tool.invoke({
@@ -88,6 +88,7 @@ describe('introspect.tool', () => {
 			await expect(
 				tool.invoke({
 					issue: 'Some issue',
+					// @ts-expect-error Testing invalid category
 					category: 'invalid_category',
 				}),
 			).rejects.toThrow();
@@ -96,6 +97,7 @@ describe('introspect.tool', () => {
 		it('should throw error for missing required fields', async () => {
 			const { tool } = createIntrospectTool();
 
+			// @ts-expect-error Testing missing required fields
 			await expect(tool.invoke({})).rejects.toThrow();
 		});
 	});
