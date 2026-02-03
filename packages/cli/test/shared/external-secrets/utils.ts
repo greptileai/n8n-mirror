@@ -1,27 +1,16 @@
 import type { IDataObject, INodeProperties } from 'n8n-workflow';
 
+import { ExternalSecretsProviders } from '@/modules/external-secrets.ee/external-secrets-providers.ee';
 import { SecretsProvider } from '@/modules/external-secrets.ee/types';
 import type { SecretsProviderSettings } from '@/modules/external-secrets.ee/types';
 
-export class MockProviders {
-	providers: Record<string, { new (): SecretsProvider }> = {
+export class MockProviders extends ExternalSecretsProviders {
+	override providers: Record<string, { new (): SecretsProvider }> = {
 		dummy: DummyProvider,
 	};
 
 	setProviders(providers: Record<string, { new (): SecretsProvider }>) {
 		this.providers = providers;
-	}
-
-	getProvider(name: string): { new (): SecretsProvider } {
-		return this.providers[name];
-	}
-
-	hasProvider(name: string) {
-		return name in this.providers;
-	}
-
-	getAllProviders() {
-		return this.providers;
 	}
 }
 
@@ -265,9 +254,13 @@ export class TestFailProvider extends SecretsProvider {
 export function createDummyProvider({
 	name,
 	secrets,
+	displayName,
+	properties,
 }: {
 	name: string;
+	displayName?: string;
 	secrets?: Record<string, string>;
+	properties?: INodeProperties[];
 }): { new (): SecretsProvider } {
 	const defaultSecrets = secrets ?? {
 		test1: 'value1',
@@ -276,9 +269,9 @@ export function createDummyProvider({
 
 	class FreshProvider extends SecretsProvider {
 		name = name;
-		displayName = name;
+		displayName = displayName ?? name;
 
-		properties: INodeProperties[] = [
+		properties: INodeProperties[] = properties ?? [
 			{
 				name: 'username',
 				displayName: 'Username',
