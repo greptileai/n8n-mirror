@@ -15,7 +15,7 @@ import { ExternalSecretsConfig } from '@/modules/external-secrets.ee/external-se
 import { MockProviders } from '../../shared/external-secrets/utils';
 import { createAdmin, createMember, createOwner } from '../shared/db/users';
 import type { SuperAgentTest } from '../shared/types';
-import * as utils from '../shared/utils';
+import { setupTestServer } from '../shared/utils';
 
 const mockProvidersInstance = new MockProviders();
 mockInstance(ExternalSecretsProviders, mockProvidersInstance);
@@ -29,7 +29,7 @@ mockInstance(ExternalSecretsConfig, {
 });
 
 describe('Secret Providers Project API', () => {
-	const testServer = utils.setupTestServer({
+	const testServer = setupTestServer({
 		endpointGroups: ['externalSecrets'],
 		enabledFeatures: ['feat:externalSecrets'],
 		modules: ['external-secrets'],

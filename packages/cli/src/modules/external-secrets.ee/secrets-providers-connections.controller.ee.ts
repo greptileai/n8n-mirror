@@ -19,7 +19,7 @@ import {
 } from '@n8n/decorators';
 import type { NextFunction, Request, Response } from 'express';
 
-import { BadRequestError } from '@/errors/response-errors/bad-request.error';
+import { NotFoundError } from '@/errors/response-errors/not-found.error';
 import { SecretsProvidersResponses } from '@/modules/external-secrets.ee/secrets-providers.responses.ee';
 
 import { ExternalSecretsConfig } from './external-secrets.config';
@@ -39,7 +39,8 @@ export class SecretProvidersConnectionsController {
 	checkFeatureFlag(_req: Request, _res: Response, next: NextFunction) {
 		if (!this.config.externalSecretsForProjects) {
 			this.logger.warn('External secrets for projects feature is not enabled');
-			throw new BadRequestError('External secrets for projects feature is not enabled');
+			_res.status(403).send('External secrets for projects feature is not enabled');
+			return;
 		}
 		next();
 	}
@@ -69,6 +70,9 @@ export class SecretProvidersConnectionsController {
 	): Promise<SecretsProvidersResponses.PublicConnection> {
 		this.logger.debug('Updating connection', { providerKey });
 		const connection = await this.connectionsService.updateConnection(providerKey, body);
+		if (!connection) {
+			throw new NotFoundError(`Connection "${providerKey}" not found`);
+		}
 		return this.connectionsService.toPublicConnection(connection);
 	}
 
@@ -81,6 +85,9 @@ export class SecretProvidersConnectionsController {
 	): Promise<SecretsProvidersResponses.PublicConnection> {
 		this.logger.debug('Deleting connection', { providerKey });
 		const connection = await this.connectionsService.deleteConnection(providerKey);
+		if (!connection) {
+			throw new NotFoundError(`Connection "${providerKey}" not found`);
+		}
 		return this.connectionsService.toPublicConnection(connection);
 	}
 
@@ -101,6 +108,9 @@ export class SecretProvidersConnectionsController {
 	): Promise<SecretsProvidersResponses.PublicConnection> {
 		this.logger.debug('Getting connection', { providerKey });
 		const connection = await this.connectionsService.getConnection(providerKey);
+		if (!connection) {
+			throw new NotFoundError(`Connection "${providerKey}" not found`);
+		}
 		return this.connectionsService.toPublicConnection(connection);
 	}
 

@@ -3,7 +3,7 @@ import type { AuthenticatedRequest } from '@n8n/db';
 import { Get, Middleware, Param, ProjectScope, RestController } from '@n8n/decorators';
 import type { NextFunction, Request, Response } from 'express';
 
-import { BadRequestError } from '@/errors/response-errors/bad-request.error';
+import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
 
 import { ExternalSecretsConfig } from './external-secrets.config';
 import { SecretsProvidersConnectionsService } from './secrets-providers-connections.service.ee';
@@ -23,7 +23,8 @@ export class SecretProvidersProjectController {
 	checkFeatureFlag(_req: Request, _res: Response, next: NextFunction) {
 		if (!this.config.externalSecretsForProjects) {
 			this.logger.warn('External secrets for projects feature is not enabled');
-			throw new BadRequestError('External secrets for projects feature is not enabled');
+			_res.status(403).send('External secrets for projects feature is not enabled');
+			return;
 		}
 		next();
 	}
