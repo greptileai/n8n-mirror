@@ -62,12 +62,63 @@ export function hasCredentialDataChanged(
 	data1: ICredentialDataDecryptedObject | undefined,
 	data2: ICredentialDataDecryptedObject | undefined,
 ): boolean {
-	// Both undefined = no change
 	if (!data1 && !data2) return false;
-	// One undefined, other not = change
 	if (!data1 || !data2) return true;
-	// Compare serialized JSON
 	return JSON.stringify(data1) !== JSON.stringify(data2);
+}
+
+/**
+ * Merges credential data from remote (source control) into local (database) data.
+ * - Expressions from remote overwrite local values (expressions are synced)
+ * - Empty strings in remote are ignored (these were plain values, keep local)
+ * - All other local values are preserved
+ *
+ * @param local - Decrypted credential data from the local database
+ * @param remote - Sanitized credential data from the source control file
+ * @returns Merged credential data
+ */
+export function mergeCredentialData(
+	local: ICredentialDataDecryptedObject,
+	remote: ICredentialDataDecryptedObject,
+): ICredentialDataDecryptedObject {
+	const merged = { ...local };
+
+	for (const key of Object.keys(remote)) {
+		const remoteValue = remote[key];
+
+		if (typeof remoteValue === 'string') {
+			if (stringContainsExpression(remoteValue)) {
+				// Expressions from the remote can be safely used to override local values
+				merged[key] = remoteValue;
+			}
+			// Empty string means it was a plain value - keep local
+		} else if (
+			typeof remoteValue === 'object' &&
+			remoteValue !== null &&
+			!Array.isArray(remoteValue)
+		) {
+			// Nested object - recursively merge
+			const localValue = local[key];
+			const isLocalValueObject =
+				typeof localValue === 'object' && localValue !== null && !Array.isArray(localValue);
+
+			if (isLocalValueObject) {
+				// Type assertion is safe here because we've verified localValue is a non-null, non-array object
+				merged[key] = mergeCredentialData(
+					localValue as ICredentialDataDecryptedObject,
+					remoteValue as ICredentialDataDecryptedObject,
+				);
+			} else {
+				// Local doesn't have this as an object, check if remote has expressions inside
+				// Type assertion is safe because we've verified remoteValue is a non-null, non-array object
+				merged[key] = mergeCredentialData({}, remoteValue as ICredentialDataDecryptedObject);
+			}
+		}
+
+		// Numbers, booleans, and arrays from remote are ignored - keep local values
+	}
+
+	return merged;
 }
 
 export function getWorkflowExportPath(workflowId: string, workflowExportFolder: string): string {

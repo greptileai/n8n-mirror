@@ -29,8 +29,14 @@ import { QueryDeepPartialEntity } from '@n8n/typeorm/query-builder/QueryPartialE
 import glob from 'fast-glob';
 import isEqual from 'lodash/isEqual';
 import { Credentials, ErrorReporter, InstanceSettings } from 'n8n-core';
-import { shouldAutoPublishWorkflow, type AutoPublishMode } from 'n8n-workflow';
-import { ensureError, jsonParse, UnexpectedError, UserError } from 'n8n-workflow';
+import type { AutoPublishMode } from 'n8n-workflow';
+import {
+	shouldAutoPublishWorkflow,
+	ensureError,
+	jsonParse,
+	UnexpectedError,
+	UserError,
+} from 'n8n-workflow';
 import { readFile as fsReadFile } from 'node:fs/promises';
 import path from 'path';
 
@@ -55,6 +61,7 @@ import {
 	getCredentialExportPath,
 	getProjectExportPath,
 	getWorkflowExportPath,
+	mergeCredentialData,
 	sanitizeCredentialData,
 } from './source-control-helper.ee';
 import { SourceControlScopedService } from './source-control-scoped.service';
@@ -900,15 +907,26 @@ export class SourceControlImportService {
 
 				const { name, type, data, id, isGlobal = false } = credential;
 				const newCredentialObject = new Credentials({ id, name }, type);
+
+				/**
+				 * Edge case: Do not import `oauthTokenData`, so that that the
+				 * pulling instance reconnects instead of trying to use stubbed values.
+				 */
+				const { oauthTokenData, ...remoteData } = data;
+
 				if (existingCredential?.data) {
-					newCredentialObject.data = existingCredential.data;
+					// Credential exists - merge expressions from remote while preserving local plain values
+					const existingDecrypted = new Credentials(
+						{ id: existingCredential.id, name: existingCredential.name },
+						existingCredential.type,
+						existingCredential.data,
+					);
+					const localData = existingDecrypted.getData();
+					const mergedData = mergeCredentialData(localData, remoteData);
+					newCredentialObject.setData(mergedData);
 				} else {
-					/**
-					 * Edge case: Do not import `oauthTokenData`, so that that the
-					 * pulling instance reconnects instead of trying to use stubbed values.
-					 */
-					const { oauthTokenData, ...rest } = data;
-					newCredentialObject.setData(rest);
+					// New credential - use stub data from file
+					newCredentialObject.setData(remoteData);
 				}
 
 				this.logger.debug(`Updating credential id ${newCredentialObject.id as string}`);
