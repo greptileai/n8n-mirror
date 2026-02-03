@@ -37,7 +37,9 @@ async function updatePublishingSetting(value: boolean) {
 			message: '',
 		});
 	} catch (error) {
-		if (state.value) state.value.personalSpacePublishing = !value;
+		if (state.value) {
+			state.value = { ...state.value, personalSpacePublishing: !value };
+		}
 		showError(error, i18n.baseText('settings.security.personalSpace.publishing.error'));
 	}
 }
@@ -55,7 +57,9 @@ async function updateSharingSetting(value: boolean) {
 			message: '',
 		});
 	} catch (error) {
-		if (state.value) state.value.personalSpaceSharing = !value;
+		if (state.value) {
+			state.value = { ...state.value, personalSpaceSharing: !value };
+		}
 		showError(error, i18n.baseText('settings.security.personalSpace.sharing.error' as BaseTextKey));
 	}
 }
@@ -74,7 +78,9 @@ const personalSpacePublishing = computed({
 			);
 			if (confirmed !== MODAL_CONFIRM) return;
 		}
-		if (state.value) state.value.personalSpacePublishing = value;
+		if (state.value) {
+			state.value = { ...state.value, personalSpacePublishing: value };
+		}
 		await updatePublishingSetting(value);
 	},
 });
@@ -97,7 +103,9 @@ const personalSpaceSharing = computed({
 			);
 			if (confirmed !== MODAL_CONFIRM) return;
 		}
-		if (state.value) state.value.personalSpaceSharing = value;
+		if (state.value) {
+			state.value = { ...state.value, personalSpaceSharing: value };
+		}
 		await updateSharingSetting(value);
 	},
 });
