@@ -41,6 +41,25 @@ const DEFAULT_PASS_THRESHOLD = 0.7;
 export type TokenUsageCollector = (usage: { inputTokens: number; outputTokens: number }) => void;
 
 /**
+ * Callback to collect subgraph metrics from generation.
+ * Called after each workflow generation with timing and node count data.
+ */
+export type SubgraphMetricsCollector = (metrics: {
+	discoveryDurationMs?: number;
+	builderDurationMs?: number;
+	responderDurationMs?: number;
+	nodeCount?: number;
+}) => void;
+
+/**
+ * Combined collectors for workflow generation metrics.
+ */
+export interface GenerationCollectors {
+	tokenUsage?: TokenUsageCollector;
+	subgraphMetrics?: SubgraphMetricsCollector;
+}
+
+/**
  * Run evaluators in parallel for a single workflow.
  * Handles errors gracefully - skip and continue.
  */
@@ -357,10 +376,7 @@ async function runLocalExample(args: {
 	index: number;
 	total: number;
 	testCase: TestCase;
-	generateWorkflow: (
-		prompt: string,
-		tokenUsageCollector?: TokenUsageCollector,
-	) => Promise<SimpleWorkflow>;
+	generateWorkflow: (prompt: string, collectors?: GenerationCollectors) => Promise<SimpleWorkflow>;
 	evaluators: Array<Evaluator<EvaluationContext>>;
 	globalContext?: GlobalRunContext;
 	passThreshold: number;
@@ -385,18 +401,31 @@ async function runLocalExample(args: {
 	lifecycle?.onExampleStart?.(index, total, testCase.prompt);
 
 	try {
-		// Generate workflow with token collection
+		// Generate workflow with metrics collection
 		const genStartTime = Date.now();
 		let genInputTokens: number | undefined;
 		let genOutputTokens: number | undefined;
-		const tokenCollector: TokenUsageCollector = (usage) => {
-			genInputTokens = usage.inputTokens;
-			genOutputTokens = usage.outputTokens;
+		let discoveryDurationMs: number | undefined;
+		let builderDurationMs: number | undefined;
+		let responderDurationMs: number | undefined;
+		let nodeCount: number | undefined;
+
+		const collectors: GenerationCollectors = {
+			tokenUsage: (usage) => {
+				genInputTokens = usage.inputTokens;
+				genOutputTokens = usage.outputTokens;
+			},
+			subgraphMetrics: (metrics) => {
+				discoveryDurationMs = metrics.discoveryDurationMs;
+				builderDurationMs = metrics.builderDurationMs;
+				responderDurationMs = metrics.responderDurationMs;
+				nodeCount = metrics.nodeCount;
+			},
 		};
 
 		const workflow = await runWithOptionalLimiter(async () => {
 			return await withTimeout({
-				promise: generateWorkflow(testCase.prompt, tokenCollector),
+				promise: generateWorkflow(testCase.prompt, collectors),
 				timeoutMs,
 				label: 'workflow_generation',
 			});
@@ -435,6 +464,13 @@ async function runLocalExample(args: {
 			evaluationDurationMs: evalDurationMs,
 			generationInputTokens: genInputTokens,
 			generationOutputTokens: genOutputTokens,
+			subgraphMetrics:
+				discoveryDurationMs !== undefined ||
+				builderDurationMs !== undefined ||
+				responderDurationMs !== undefined ||
+				nodeCount !== undefined
+					? { discoveryDurationMs, builderDurationMs, responderDurationMs, nodeCount }
+					: undefined,
 			workflow,
 		};
 
@@ -482,10 +518,7 @@ function createArtifactSaverIfRequested(args: {
 
 async function runLocalDataset(params: {
 	testCases: TestCase[];
-	generateWorkflow: (
-		prompt: string,
-		tokenUsageCollector?: TokenUsageCollector,
-	) => Promise<SimpleWorkflow>;
+	generateWorkflow: (prompt: string, collectors?: GenerationCollectors) => Promise<SimpleWorkflow>;
 	evaluators: Array<Evaluator<EvaluationContext>>;
 	globalContext?: GlobalRunContext;
 	passThreshold: number;
@@ -926,14 +959,14 @@ async function runLangsmith(config: LangsmithRunConfig): Promise<RunSummary> {
 	const traceableGenerateWorkflow = traceable(
 		async (args: {
 			prompt: string;
-			genFn: (prompt: string, tokenUsageCollector?: TokenUsageCollector) => Promise<SimpleWorkflow>;
-			tokenUsageCollector?: TokenUsageCollector;
+			genFn: (prompt: string, collectors?: GenerationCollectors) => Promise<SimpleWorkflow>;
+			collectors?: GenerationCollectors;
 			limiter?: LlmCallLimiter;
 			genTimeoutMs?: number;
 		}): Promise<SimpleWorkflow> => {
 			return await runWithOptionalLimiter(async () => {
 				return await withTimeout({
-					promise: args.genFn(args.prompt, args.tokenUsageCollector),
+					promise: args.genFn(args.prompt, args.collectors),
 					timeoutMs: args.genTimeoutMs,
 					label: 'workflow_generation',
 				});
@@ -969,19 +1002,32 @@ async function runLangsmith(config: LangsmithRunConfig): Promise<RunSummary> {
 		const startTime = Date.now();
 		const genStart = Date.now();
 
-		// Token collection for this example
+		// Metrics collection for this example
 		let genInputTokens: number | undefined;
 		let genOutputTokens: number | undefined;
-		const tokenCollector: TokenUsageCollector = (usage) => {
-			genInputTokens = usage.inputTokens;
-			genOutputTokens = usage.outputTokens;
+		let discoveryDurationMs: number | undefined;
+		let builderDurationMs: number | undefined;
+		let responderDurationMs: number | undefined;
+		let nodeCount: number | undefined;
+
+		const collectors: GenerationCollectors = {
+			tokenUsage: (usage) => {
+				genInputTokens = usage.inputTokens;
+				genOutputTokens = usage.outputTokens;
+			},
+			subgraphMetrics: (metrics) => {
+				discoveryDurationMs = metrics.discoveryDurationMs;
+				builderDurationMs = metrics.builderDurationMs;
+				responderDurationMs = metrics.responderDurationMs;
+				nodeCount = metrics.nodeCount;
+			},
 		};
 
 		try {
 			const workflow = await traceableGenerateWorkflow({
 				prompt,
 				genFn: generateWorkflow,
-				tokenUsageCollector: tokenCollector,
+				collectors,
 				limiter: effectiveGlobalContext.llmCallLimiter,
 				genTimeoutMs: timeoutMs,
 			});
@@ -1034,6 +1080,13 @@ async function runLangsmith(config: LangsmithRunConfig): Promise<RunSummary> {
 				evaluationDurationMs: evalDurationMs,
 				generationInputTokens: genInputTokens,
 				generationOutputTokens: genOutputTokens,
+				subgraphMetrics:
+					discoveryDurationMs !== undefined ||
+					builderDurationMs !== undefined ||
+					responderDurationMs !== undefined ||
+					nodeCount !== undefined
+						? { discoveryDurationMs, builderDurationMs, responderDurationMs, nodeCount }
+						: undefined,
 				workflow,
 			};
 

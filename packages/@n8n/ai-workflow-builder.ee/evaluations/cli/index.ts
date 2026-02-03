@@ -8,11 +8,13 @@
 import type { INodeTypeDescription } from 'n8n-workflow';
 import pLimit from 'p-limit';
 
+import type { CoordinationLogEntry } from '@/types/coordination';
 import type { SimpleWorkflow } from '@/types/workflow';
 import type { BuilderFeatureFlags } from '@/workflow-builder-agent';
 
+import { extractSubgraphMetrics } from '../harness/evaluation-helpers';
 import { createLogger } from '../harness/logger';
-import type { TokenUsageCollector } from '../harness/runner';
+import type { GenerationCollectors } from '../harness/runner';
 import { TokenUsageTrackingHandler } from '../harness/token-tracking-handler';
 import {
 	runEvaluation,
@@ -45,6 +47,17 @@ import { EVAL_TYPES, EVAL_USERS } from '../support/constants';
 import { setupTestEnvironment, createAgent, type ResolvedStageLLMs } from '../support/environment';
 
 /**
+ * Type guard to check if state values contain a coordination log.
+ */
+function hasCoordinationLog(
+	values: unknown,
+): values is { coordinationLog: CoordinationLogEntry[] } {
+	if (!values || typeof values !== 'object') return false;
+	const obj = values as Record<string, unknown>;
+	return Array.isArray(obj.coordinationLog);
+}
+
+/**
  * Create a workflow generator function.
  * LangSmith tracing is handled via traceable() in the runner.
  * Callbacks are passed explicitly from the runner to ensure correct trace context
@@ -54,11 +67,8 @@ function createWorkflowGenerator(
 	parsedNodeTypes: INodeTypeDescription[],
 	llms: ResolvedStageLLMs,
 	featureFlags?: BuilderFeatureFlags,
-): (prompt: string, tokenUsageCollector?: TokenUsageCollector) => Promise<SimpleWorkflow> {
-	return async (
-		prompt: string,
-		tokenUsageCollector?: TokenUsageCollector,
-	): Promise<SimpleWorkflow> => {
+): (prompt: string, collectors?: GenerationCollectors) => Promise<SimpleWorkflow> {
+	return async (prompt: string, collectors?: GenerationCollectors): Promise<SimpleWorkflow> => {
 		const runId = generateRunId();
 
 		const agent = createAgent({
@@ -69,7 +79,7 @@ function createWorkflowGenerator(
 
 		// Create token tracking handler to capture usage from all LLM calls
 		// (supervisor, discovery, builder, responder agents)
-		const tokenTracker = tokenUsageCollector ? new TokenUsageTrackingHandler() : undefined;
+		const tokenTracker = collectors?.tokenUsage ? new TokenUsageTrackingHandler() : undefined;
 
 		await consumeGenerator(
 			agent.chat(
@@ -91,15 +101,35 @@ function createWorkflowGenerator(
 			throw new Error('Invalid workflow state: workflow or messages missing');
 		}
 
+		const workflow = state.values.workflowJSON;
+
 		// Report accumulated token usage from all agents
-		if (tokenUsageCollector && tokenTracker) {
+		if (collectors?.tokenUsage && tokenTracker) {
 			const usage = tokenTracker.getUsage();
 			if (usage.inputTokens > 0 || usage.outputTokens > 0) {
-				tokenUsageCollector(usage);
+				collectors.tokenUsage(usage);
 			}
 		}
 
-		return state.values.workflowJSON;
+		// Extract and report subgraph metrics from coordination log
+		if (collectors?.subgraphMetrics) {
+			const coordinationLog = hasCoordinationLog(state.values)
+				? state.values.coordinationLog
+				: undefined;
+			const nodeCount = workflow.nodes?.length;
+			const metrics = extractSubgraphMetrics(coordinationLog, nodeCount);
+
+			if (
+				metrics.discoveryDurationMs !== undefined ||
+				metrics.builderDurationMs !== undefined ||
+				metrics.responderDurationMs !== undefined ||
+				metrics.nodeCount !== undefined
+			) {
+				collectors.subgraphMetrics(metrics);
+			}
+		}
+
+		return workflow;
 	};
 }
 

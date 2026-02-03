@@ -17,7 +17,7 @@ import { DiscoverySubgraph } from './subgraphs/discovery.subgraph';
 import type { BaseSubgraph } from './subgraphs/subgraph-interface';
 import type { ResourceLocatorCallback } from './types/callbacks';
 import type { SubgraphPhase } from './types/coordination';
-import { createErrorMetadata } from './types/coordination';
+import { createErrorMetadata, createResponderMetadata } from './types/coordination';
 import { getNextPhaseFromLog, hasErrorInLog } from './utils/coordination-log';
 import { processOperations } from './utils/operations-processor';
 import {
@@ -62,6 +62,7 @@ export interface MultiAgentSubgraphConfig {
 /**
  * Creates a subgraph node handler with standardized error handling.
  * Accepts RunnableConfig as second parameter to propagate callbacks for tracing.
+ * Logs in_progress entry at start and completed entry at end for timing metrics.
  */
 function createSubgraphNodeHandler<
 	TSubgraph extends BaseSubgraph<unknown, Record<string, unknown>, Record<string, unknown>>,
@@ -73,6 +74,12 @@ function createSubgraphNodeHandler<
 	recursionLimit?: number,
 ) {
 	return async (state: typeof ParentGraphState.State, config?: RunnableConfig) => {
+		// Extract phase from subgraph name (e.g., 'discovery_subgraph' → 'discovery')
+		const phase = name.replace('_subgraph', '') as SubgraphPhase;
+
+		// Record start time for timing metrics
+		const startTimestamp = Date.now();
+
 		try {
 			const input = subgraph.transformInput(state);
 			// Merge parent config (callbacks, metadata) with recursionLimit
@@ -83,16 +90,32 @@ function createSubgraphNodeHandler<
 			const result = await compiledGraph.invoke(input, invokeConfig);
 			const output = subgraph.transformOutput(result, state);
 
-			return output;
+			// Prepend in_progress entry to coordination log for timing calculation
+			const inProgressEntry = {
+				phase,
+				status: 'in_progress' as const,
+				timestamp: startTimestamp,
+				summary: `Starting ${phase}`,
+				metadata: { phase } as { phase: 'discovery' } | { phase: 'builder' },
+			};
+
+			// Extract coordination log from output, ensuring it's an array
+			const outputCoordinationLog = Array.isArray(output.coordinationLog)
+				? output.coordinationLog
+				: [];
+
+			return {
+				...output,
+				// Prepend in_progress entry before completed entry from transformOutput
+				coordinationLog: [inProgressEntry, ...outputCoordinationLog],
+			};
 		} catch (error) {
 			logger?.error(`[${name}] ERROR:`, { error });
 			const errorMessage =
 				error instanceof Error ? error.message : `An error occurred in ${name}: ${String(error)}`;
 
-			// Extract phase from subgraph name (e.g., 'discovery_subgraph' → 'discovery')
-			const phase = name.replace('_subgraph', '') as SubgraphPhase;
-
 			// Route to responder to report error (terminal)
+			// Include in_progress entry for timing even on errors
 			// Add error entry to coordination log so getNextPhaseFromLog routes to responder
 			return {
 				nextPhase: 'responder',
@@ -103,6 +126,13 @@ function createSubgraphNodeHandler<
 					}),
 				],
 				coordinationLog: [
+					{
+						phase,
+						status: 'in_progress' as const,
+						timestamp: startTimestamp,
+						summary: `Starting ${phase}`,
+						metadata: { phase } as { phase: 'discovery' } | { phase: 'builder' },
+					},
 					{
 						phase,
 						status: 'error' as const,
@@ -185,6 +215,9 @@ export function createMultiAgentWorkflowWithSubgraphs(config: MultiAgentSubgraph
 			// Add Responder Node (synthesizes final user-facing response)
 			// Accepts config as second param to propagate callbacks for tracing
 			.addNode('responder', async (state, config) => {
+				// Record start time for timing metrics
+				const startTimestamp = Date.now();
+
 				const response = await responderAgent.invoke(
 					{
 						messages: state.messages,
@@ -203,8 +236,30 @@ export function createMultiAgentWorkflowWithSubgraphs(config: MultiAgentSubgraph
 					});
 				}
 
+				// Calculate response length for metadata
+				const responseContent =
+					typeof response.content === 'string'
+						? response.content
+						: JSON.stringify(response.content);
+
 				return {
 					messages: [response], // Only responder adds to user messages
+					coordinationLog: [
+						{
+							phase: 'responder' as const,
+							status: 'in_progress' as const,
+							timestamp: startTimestamp,
+							summary: 'Starting responder',
+							metadata: createResponderMetadata({ responseLength: 0 }),
+						},
+						{
+							phase: 'responder' as const,
+							status: 'completed' as const,
+							timestamp: Date.now(),
+							summary: `Generated response (${responseContent.length} chars)`,
+							metadata: createResponderMetadata({ responseLength: responseContent.length }),
+						},
+					],
 				};
 			})
 			// Add process_operations node for hybrid operations approach

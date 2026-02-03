@@ -229,7 +229,7 @@ const FLAG_DEFS: Record<string, FlagDef> = {
 		key: 'outputCsv',
 		kind: 'string',
 		group: 'output',
-		desc: 'CSV file for evaluation results',
+		desc: 'CSV file for evaluation results - if pre-existing file found it will be overwritten',
 	},
 	'--verbose': { key: 'verbose', kind: 'boolean', group: 'output', desc: 'Verbose logging' },
 	'--webhook-url': {
