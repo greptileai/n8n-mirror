@@ -7,6 +7,7 @@ import type {
 	ChatMessageId,
 	ChatModelDto,
 } from '@n8n/api-types';
+import ChatMessageWithButtons from '@/features/ai/chatHub/components/ChatMessageWithButtons.vue';
 import { N8nButton, N8nIcon, N8nIconButton, N8nInput } from '@n8n/design-system';
 import { useSpeechSynthesis } from '@vueuse/core';
 import {
@@ -78,6 +79,10 @@ const newFiles = ref<File[]>([]);
 const removedExistingIndices = ref<Set<number>>(new Set());
 const fileInputRef = useTemplateRef<HTMLInputElement>('fileInputRef');
 const textareaRef = useTemplateRef<InstanceType<typeof N8nInput>>('textarea');
+const buttonMessage = computed(() => {
+	const chunk = message.content.find((c) => c.type === 'with-buttons');
+	return chunk?.type === 'with-buttons' ? chunk : null;
+});
 const markdownChunkRefs = useTemplateRef<
 	Array<ComponentPublicInstance<{
 		hoveredCodeBlockActions: HTMLElement | null;
@@ -111,7 +116,11 @@ const messageChunks = computed(() =>
 			return [];
 		}
 
-		if (chunk.type !== 'text') {
+		if (chunk.type === 'with-buttons') {
+			return [];
+		}
+
+		if (chunk.type === 'artifact-create' || chunk.type === 'artifact-edit') {
 			const prev = arr[index - 1];
 			return prev?.type === chunk.type && prev.command.title === chunk.command.title ? [] : [chunk]; // dedupe command
 		}
@@ -166,7 +175,7 @@ const mergedAttachments = computed(() => [
 ]);
 
 const hideMessage = computed(() => {
-	return message.status === 'success' && text.value === '';
+	return message.status === 'success' && text.value === '' && !buttonMessage.value;
 });
 
 const shouldShowTypingIndicator = computed(() => message.status === 'running');
@@ -384,6 +393,12 @@ onBeforeMount(() => {
 					<div v-if="message.type === 'human'">
 						{{ text }}
 					</div>
+					<ChatMessageWithButtons
+						v-else-if="buttonMessage"
+						:text="buttonMessage.content"
+						:buttons="buttonMessage.buttons"
+						:is-waiting="message.status === 'waiting'"
+					/>
 					<div v-else :class="$style.markdownContent">
 						<ChatMarkdownChunk
 							v-for="(chunk, index) in messageChunks"

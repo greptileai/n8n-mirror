@@ -311,6 +311,15 @@ const messagingState = computed<MessagingState>(() => {
 		return chatStore.streaming.messageId ? 'receiving' : 'waitingFirstChunk';
 	}
 
+	// Check if waiting for approval (button click)
+	const lastMsg = chatStore.lastMessage(sessionId.value);
+	if (lastMsg?.status === 'waiting') {
+		const buttonChunk = lastMsg.content.find((c) => c.type === 'with-buttons');
+		if (buttonChunk?.type === 'with-buttons' && buttonChunk.blockUserInput) {
+			return 'waitingForApproval';
+		}
+	}
+
 	if (chatStore.agentsReady && !selectedModel.value) {
 		return 'missingAgent';
 	}

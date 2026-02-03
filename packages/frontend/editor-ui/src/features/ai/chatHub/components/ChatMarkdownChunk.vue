@@ -59,7 +59,7 @@ defineExpose({
 		Updated <b>{{ source.command.title }}</b>
 	</button>
 	<button
-		v-else-if="!source.isIncomplete"
+		v-else-if="source.type === 'artifact-create' && !source.isIncomplete"
 		:class="$style.command"
 		@click="emit('openArtifact', source.command.title)"
 	>
