@@ -1,7 +1,7 @@
 import type { SecretCompletionsResponse } from '@n8n/api-types';
 import { Logger } from '@n8n/backend-common';
 import type { AuthenticatedRequest } from '@n8n/db';
-import { Get, GlobalScope, Middleware, Param, ProjectScope, RestController } from '@n8n/decorators';
+import { Get, GlobalScope, Middleware, Param, RestController } from '@n8n/decorators';
 import type { NextFunction, Request, Response } from 'express';
 
 import { BadRequestError } from '@/errors/response-errors/bad-request.error';
@@ -22,6 +22,7 @@ export class SecretProvidersCompletionsController {
 	@Middleware()
 	checkFeatureFlag(_req: Request, _res: Response, next: NextFunction) {
 		if (!this.config.externalSecretsForProjects) {
+			this.logger.warn('External secrets for projects feature is not enabled');
 			throw new BadRequestError('External secrets for projects feature is not enabled');
 		}
 		next();
