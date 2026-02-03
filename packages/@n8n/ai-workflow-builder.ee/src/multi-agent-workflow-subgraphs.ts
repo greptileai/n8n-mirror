@@ -125,9 +125,7 @@ function createSubgraphNodeHandler<
 			};
 
 			// Extract coordination log from output, filtering to valid entries using type guard
-			const outputLogRaw: unknown[] = Array.isArray(output.coordinationLog)
-				? (output.coordinationLog as unknown[])
-				: [];
+			const outputLogRaw = Array.isArray(output.coordinationLog) ? output.coordinationLog : [];
 			const outputCoordinationLog = outputLogRaw.filter(isCoordinationLogEntry);
 
 			return {
