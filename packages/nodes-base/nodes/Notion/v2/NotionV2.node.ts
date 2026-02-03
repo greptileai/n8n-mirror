@@ -716,7 +716,7 @@ export class NotionV2 implements INodeType {
 						const returnAll = this.getNodeParameter('returnAll', i);
 						const simple = this.getNodeParameter('simple', i) as boolean;
 						const body: IDataObject = {};
-						const limit = this.getNodeParameter('limit', i);
+						const limit = returnAll ? undefined : this.getNodeParameter('limit', i);
 
 						if (text) {
 							body.query = text;
