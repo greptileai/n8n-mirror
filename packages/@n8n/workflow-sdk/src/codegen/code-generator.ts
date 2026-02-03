@@ -236,7 +236,13 @@ function formatValue(value: unknown, ctx?: GenerationContext): string {
 	if (typeof value === 'object') {
 		const entries = Object.entries(value as Record<string, unknown>);
 		if (entries.length === 0) return '{}';
-		return `{ ${entries.map(([k, v]) => `${formatKey(k)}: ${formatValue(v, ctx)}`).join(', ')} }`;
+		const formatted = entries.map(([k, v]) => `${formatKey(k)}: ${formatValue(v, ctx)}`);
+		const result = formatted.join(', ');
+		// If result contains // comments (expression annotations), use multi-line format
+		if (result.includes('//')) {
+			return `{\n    ${formatted.join(',\n    ')}\n  }`;
+		}
+		return `{ ${result} }`;
 	}
 	return String(value);
 }
@@ -585,7 +591,16 @@ function generateNodeConfig(node: SemanticNode, ctx: GenerationContext): string 
 
 	// Always include config (required by parser), even if empty
 	if (configParts.length > 0) {
-		parts.push(`${innerIndent}config: { ${configParts.join(', ')} }`);
+		const configStr = configParts.join(', ');
+		// If config contains // comments (expression annotations), use multi-line format
+		if (configStr.includes('//')) {
+			const configIndent = getIndent({ ...ctx, indent: ctx.indent + 2 });
+			parts.push(
+				`${innerIndent}config: {\n${configParts.map((p) => `${configIndent}${p}`).join(',\n')}\n${innerIndent}}`,
+			);
+		} else {
+			parts.push(`${innerIndent}config: { ${configStr} }`);
+		}
 	} else {
 		parts.push(`${innerIndent}config: {}`);
 	}
