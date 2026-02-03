@@ -36,7 +36,7 @@ export class SecretProvidersCompletionsController {
 	}
 
 	@Get('/secrets/project/:projectId')
-	@ProjectScope('externalSecret:list')
+	@GlobalScope('externalSecret:list')
 	async listProjectSecrets(
 		_req: AuthenticatedRequest,
 		_res: Response,
