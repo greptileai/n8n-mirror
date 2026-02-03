@@ -17,7 +17,11 @@ import { DiscoverySubgraph } from './subgraphs/discovery.subgraph';
 import type { BaseSubgraph } from './subgraphs/subgraph-interface';
 import type { ResourceLocatorCallback } from './types/callbacks';
 import type { SubgraphPhase } from './types/coordination';
-import { createErrorMetadata, createResponderMetadata } from './types/coordination';
+import {
+	createErrorMetadata,
+	createResponderMetadata,
+	isSubgraphPhase,
+} from './types/coordination';
 import { getNextPhaseFromLog, hasErrorInLog } from './utils/coordination-log';
 import { processOperations } from './utils/operations-processor';
 import {
@@ -29,6 +33,23 @@ import {
 	handleDeleteMessages,
 } from './utils/state-modifier';
 import type { BuilderFeatureFlags, StageLLMs } from './workflow-builder-agent';
+
+/**
+ * Type guard to check if a value is a coordination log entry-like object.
+ * Validates the required fields without requiring the full CoordinationLogEntry type.
+ */
+function isCoordinationLogEntry(
+	value: unknown,
+): value is { phase: SubgraphPhase; status: string; timestamp: number; summary: string } {
+	if (typeof value !== 'object' || value === null) return false;
+	const obj = value as Record<string, unknown>;
+	return (
+		typeof obj.phase === 'string' &&
+		typeof obj.status === 'string' &&
+		typeof obj.timestamp === 'number' &&
+		typeof obj.summary === 'string'
+	);
+}
 
 /**
  * Maps routing decisions to graph node names.
@@ -75,7 +96,11 @@ function createSubgraphNodeHandler<
 ) {
 	return async (state: typeof ParentGraphState.State, config?: RunnableConfig) => {
 		// Extract phase from subgraph name (e.g., 'discovery_subgraph' → 'discovery')
-		const phase = name.replace('_subgraph', '') as SubgraphPhase;
+		const extractedPhase = name.replace('_subgraph', '');
+		if (!isSubgraphPhase(extractedPhase)) {
+			throw new Error(`Invalid subgraph phase extracted from name "${name}": "${extractedPhase}"`);
+		}
+		const phase: SubgraphPhase = extractedPhase;
 
 		// Record start time for timing metrics
 		const startTimestamp = Date.now();
@@ -99,10 +124,11 @@ function createSubgraphNodeHandler<
 				metadata: { phase } as { phase: 'discovery' } | { phase: 'builder' },
 			};
 
-			// Extract coordination log from output as properly typed array
-			// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-			const outputLogRaw = Array.isArray(output.coordinationLog) ? output.coordinationLog : [];
-			const outputCoordinationLog = outputLogRaw as Array<typeof inProgressEntry>;
+			// Extract coordination log from output, filtering to valid entries using type guard
+			const outputLogRaw: unknown[] = Array.isArray(output.coordinationLog)
+				? (output.coordinationLog as unknown[])
+				: [];
+			const outputCoordinationLog = outputLogRaw.filter(isCoordinationLogEntry);
 
 			return {
 				...output,

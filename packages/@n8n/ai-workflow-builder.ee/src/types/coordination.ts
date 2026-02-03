@@ -7,6 +7,20 @@
 
 export type SubgraphPhase = 'discovery' | 'builder' | 'state_management' | 'responder';
 
+const SUBGRAPH_PHASES: readonly SubgraphPhase[] = [
+	'discovery',
+	'builder',
+	'state_management',
+	'responder',
+];
+
+/**
+ * Type guard to check if a string is a valid SubgraphPhase.
+ */
+export function isSubgraphPhase(value: string): value is SubgraphPhase {
+	return SUBGRAPH_PHASES.includes(value as SubgraphPhase);
+}
+
 /**
  * Entry in the coordination log tracking subgraph completion.
  */

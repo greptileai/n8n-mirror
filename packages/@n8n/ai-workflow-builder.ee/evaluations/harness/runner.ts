@@ -118,6 +118,57 @@ function hasErrorFeedback(feedback: Feedback[]): boolean {
 }
 
 /**
+ * Create feedback items for subgraph metrics.
+ * These are reported to LangSmith as 'metrics' evaluator feedback.
+ */
+function createMetricsFeedback(args: {
+	discoveryDurationMs?: number;
+	builderDurationMs?: number;
+	responderDurationMs?: number;
+	nodeCount?: number;
+}): Feedback[] {
+	const feedback: Feedback[] = [];
+
+	if (args.discoveryDurationMs !== undefined) {
+		feedback.push({
+			evaluator: 'metrics',
+			metric: 'discovery_latency_ms',
+			score: args.discoveryDurationMs,
+			kind: 'metric',
+		});
+	}
+
+	if (args.builderDurationMs !== undefined) {
+		feedback.push({
+			evaluator: 'metrics',
+			metric: 'builder_latency_ms',
+			score: args.builderDurationMs,
+			kind: 'metric',
+		});
+	}
+
+	if (args.responderDurationMs !== undefined) {
+		feedback.push({
+			evaluator: 'metrics',
+			metric: 'responder_latency_ms',
+			score: args.responderDurationMs,
+			kind: 'metric',
+		});
+	}
+
+	if (args.nodeCount !== undefined) {
+		feedback.push({
+			evaluator: 'metrics',
+			metric: 'node_count',
+			score: args.nodeCount,
+			kind: 'metric',
+		});
+	}
+
+	return feedback;
+}
+
+/**
  * Build a typed evaluation context for evaluators.
  */
 function buildContext(args: {
@@ -1098,10 +1149,19 @@ async function runLangsmith(config: LangsmithRunConfig): Promise<RunSummary> {
 			capturedResults.push(result);
 			lifecycle?.onExampleComplete?.(index, result);
 
+			// Create metrics feedback for LangSmith (subgraph timing + node count)
+			const metricsFeedback = createMetricsFeedback({
+				discoveryDurationMs,
+				builderDurationMs,
+				responderDurationMs,
+				nodeCount,
+			});
+
 			return {
 				workflow,
 				prompt,
-				feedback,
+				// Include metrics feedback in the array sent to LangSmith
+				feedback: [...feedback, ...metricsFeedback],
 			};
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
