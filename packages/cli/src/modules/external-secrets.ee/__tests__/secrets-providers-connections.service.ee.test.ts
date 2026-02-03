@@ -119,29 +119,19 @@ describe('Secret Providers Connections Service', () => {
 			const result = await service.getGlobalCompletions();
 
 			expect(mockRepository.findGlobalConnections).toHaveBeenCalledTimes(1);
-			expect(result).toEqual([
-				{
-					type: 'awsSecretsManager',
-					providerKey: 'global-aws',
-					secretCompletions: ['aws-secret-1', 'aws-secret-2'],
-					isGlobal: true,
-				},
-				{
-					type: 'vault',
-					providerKey: 'global-vault',
-					secretCompletions: ['vault-secret-1'],
-					isGlobal: true,
-				},
-			]);
+			expect(result).toEqual({
+				'global-aws': ['aws-secret-1', 'aws-secret-2'],
+				'global-vault': ['vault-secret-1'],
+			});
 		});
 
-		it('should return empty array when no global connections exist', async () => {
+		it('should return empty object when no global connections exist', async () => {
 			mockRepository.findGlobalConnections.mockResolvedValue([]);
 
 			const result = await service.getGlobalCompletions();
 
 			expect(mockRepository.findGlobalConnections).toHaveBeenCalledTimes(1);
-			expect(result).toEqual([]);
+			expect(result).toEqual({});
 		});
 	});
 
@@ -166,23 +156,13 @@ describe('Secret Providers Connections Service', () => {
 
 			expect(mockRepository.findByProjectId).toHaveBeenCalledWith(projectId);
 			expect(mockRepository.findByProjectId).toHaveBeenCalledTimes(1);
-			expect(result).toEqual([
-				{
-					type: 'awsSecretsManager',
-					providerKey: 'project-aws',
-					secretCompletions: ['project-secret-1'],
-					isGlobal: false,
-				},
-				{
-					type: 'vault',
-					providerKey: 'project-vault',
-					secretCompletions: ['project-secret-2', 'project-secret-3'],
-					isGlobal: false,
-				},
-			]);
+			expect(result).toEqual({
+				'project-aws': ['project-secret-1'],
+				'project-vault': ['project-secret-2', 'project-secret-3'],
+			});
 		});
 
-		it('should return empty array when no project connections exist', async () => {
+		it('should return empty object when no project connections exist', async () => {
 			const projectId = 'project-456';
 			mockRepository.findByProjectId.mockResolvedValue([]);
 
@@ -190,7 +170,7 @@ describe('Secret Providers Connections Service', () => {
 
 			expect(mockRepository.findByProjectId).toHaveBeenCalledWith(projectId);
 			expect(mockRepository.findByProjectId).toHaveBeenCalledTimes(1);
-			expect(result).toEqual([]);
+			expect(result).toEqual({});
 		});
 	});
 });

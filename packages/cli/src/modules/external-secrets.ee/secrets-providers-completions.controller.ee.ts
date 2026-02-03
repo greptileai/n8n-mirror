@@ -1,3 +1,4 @@
+import type { SecretCompletionsResponse } from '@n8n/api-types';
 import { Logger } from '@n8n/backend-common';
 import type { AuthenticatedRequest } from '@n8n/db';
 import { Get, GlobalScope, Middleware, Param, RestController } from '@n8n/decorators';
@@ -7,7 +8,6 @@ import { BadRequestError } from '@/errors/response-errors/bad-request.error';
 
 import { ExternalSecretsConfig } from './external-secrets.config';
 import { SecretsProvidersConnectionsService } from './secrets-providers-connections.service.ee';
-import { SecretCompletionsResponse } from '@n8n/api-types';
 
 @RestController('/secret-providers/completions')
 export class SecretProvidersCompletionsController {
