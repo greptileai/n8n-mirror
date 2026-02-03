@@ -1,4 +1,4 @@
-import type { SecretProviderTypeResponse, SecretsProviderType } from '@n8n/api-types';
+import type { SecretProviderTypeResponse } from '@n8n/api-types';
 import { Logger } from '@n8n/backend-common';
 import type { AuthenticatedRequest } from '@n8n/db';
 import { Get, GlobalScope, Middleware, Param, RestController } from '@n8n/decorators';
@@ -9,7 +9,6 @@ import { NotFoundError } from '@/errors/response-errors/not-found.error';
 
 import { ExternalSecretsProviders } from './external-secrets-providers.ee';
 import { ExternalSecretsConfig } from './external-secrets.config';
-import { SecretsProvider } from './types';
 
 @RestController('/secret-providers/types')
 export class SecretProvidersTypesController {
@@ -34,9 +33,9 @@ export class SecretProvidersTypesController {
 	listSecretProviderTypes(): SecretProviderTypeResponse[] {
 		this.logger.debug('List provider connection types');
 		const allProviders = this.secretsProviders.getAllProviders();
-		return Object.entries(allProviders).map(([_name, providerClass]) => {
+		return Object.values(allProviders).map((providerClass) => {
 			const provider = new providerClass();
-			return this.mapProviderToSecretProviderTypeResponse(provider);
+			return this.secretsProviders.toProviderTypeResponse(provider);
 		});
 	}
 
@@ -53,17 +52,6 @@ export class SecretProvidersTypesController {
 		}
 		const providerClass = this.secretsProviders.getProvider(type);
 		const provider = new providerClass();
-		return this.mapProviderToSecretProviderTypeResponse(provider);
-	}
-
-	private mapProviderToSecretProviderTypeResponse(
-		provider: SecretsProvider,
-	): SecretProviderTypeResponse {
-		return {
-			type: provider.name as SecretsProviderType,
-			displayName: provider.displayName,
-			icon: provider.name,
-			properties: provider.properties,
-		};
+		return this.secretsProviders.toProviderTypeResponse(provider);
 	}
 }
