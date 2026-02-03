@@ -54,6 +54,10 @@ jobs:
         working-directory: packages/cli
         run: pnpm test:sqlite
 
+      - name: Test SQLite Pooled Migrations
+        working-directory: packages/cli
+        run: pnpm test:migrations:tc
+
   postgres:
     name: Postgres
     needs: build
