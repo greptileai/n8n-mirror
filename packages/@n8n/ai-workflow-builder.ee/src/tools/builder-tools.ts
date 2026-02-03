@@ -8,6 +8,7 @@ import { CONNECT_NODES_TOOL } from './connect-nodes.tool';
 import { GET_DOCUMENTATION_TOOL } from './get-documentation.tool';
 import { GET_NODE_PARAMETER_TOOL } from './get-node-parameter.tool';
 import { GET_WORKFLOW_EXAMPLES_TOOL } from './get-workflow-examples.tool';
+import { INTROSPECT_TOOL } from './introspect.tool';
 import { NODE_DETAILS_TOOL } from './node-details.tool';
 import { NODE_SEARCH_TOOL } from './node-search.tool';
 import { REMOVE_CONNECTION_TOOL } from './remove-connection.tool';
@@ -51,6 +52,11 @@ export function getBuilderToolsForDisplay({
 		VALIDATE_STRUCTURE_TOOL,
 		VALIDATE_CONFIGURATION_TOOL,
 	);
+
+	// Conditionally add introspection tool based on feature flag
+	if (featureFlags?.enableIntrospection === true) {
+		tools.push(INTROSPECT_TOOL);
+	}
 
 	return tools;
 }

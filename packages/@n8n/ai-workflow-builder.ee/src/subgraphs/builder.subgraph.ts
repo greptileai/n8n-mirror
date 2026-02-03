@@ -25,6 +25,10 @@ import {
 } from '../tools/get-node-examples.tool';
 import { createGetNodeParameterTool } from '../tools/get-node-parameter.tool';
 import { createGetResourceLocatorOptionsTool } from '../tools/get-resource-locator-options.tool';
+import {
+	createIntrospectTool,
+	extractIntrospectionEventsFromMessages,
+} from '../tools/introspect.tool';
 import { createRemoveConnectionTool } from '../tools/remove-connection.tool';
 import { createRemoveNodeTool } from '../tools/remove-node.tool';
 import { createRenameNodeTool } from '../tools/rename-node.tool';
@@ -54,6 +58,7 @@ import {
 	type RLCPrefetchResult,
 } from '../utils/rlc-prefetch';
 import { cachedTemplatesReducer } from '../utils/state-reducers';
+import type { BuilderTool } from '../utils/stream-processor';
 import {
 	executeSubgraphTools,
 	extractUserRequest,
@@ -162,12 +167,13 @@ export class BuilderSubgraph extends BaseSubgraph<
 
 		// Check if template examples are enabled
 		const includeExamples = config.featureFlags?.templateExamples === true;
+		const enableIntrospection = config.featureFlags?.enableIntrospection === true;
 
 		// Use separate LLM for parameter updater if provided
 		const parameterUpdaterLLM = config.llmParameterUpdater ?? config.llm;
 
-		// Create all tools (structure + configuration)
-		const baseTools = [
+		// Create base tools - explicitly typed to allow adding different tool types
+		const baseTools: BuilderTool[] = [
 			// Structure tools
 			createAddNodeTool(config.parsedNodeTypes),
 			createConnectNodesTool(config.parsedNodeTypes, config.logger),
@@ -196,6 +202,11 @@ export class BuilderSubgraph extends BaseSubgraph<
 				: []),
 		];
 
+		// Conditionally add introspect tool if feature flag is enabled
+		if (enableIntrospection) {
+			baseTools.push(createIntrospectTool());
+		}
+
 		// Conditionally add example tools if feature flag is enabled
 		const tools = includeExamples
 			? [
@@ -214,7 +225,7 @@ export class BuilderSubgraph extends BaseSubgraph<
 				[
 					{
 						type: 'text',
-						text: buildBuilderPrompt({ includeExamples }),
+						text: buildBuilderPrompt({ includeExamples, enableIntrospection }),
 					},
 					{
 						type: 'text',
@@ -458,12 +469,15 @@ export class BuilderSubgraph extends BaseSubgraph<
 			}),
 		};
 
+		// Extract introspection events from subgraph messages
+		const introspectionEvents = extractIntrospectionEventsFromMessages(subgraphOutput.messages);
+
 		return {
 			workflowJSON,
 			workflowOperations: subgraphOutput.workflowOperations ?? [],
 			coordinationLog: [logEntry],
 			cachedTemplates: subgraphOutput.cachedTemplates,
-			// NO messages - clean separation from user-facing conversation
+			introspectionEvents,
 		};
 	}
 }

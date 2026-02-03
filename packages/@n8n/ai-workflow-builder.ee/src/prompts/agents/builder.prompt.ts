@@ -11,62 +11,78 @@ import { webhook } from '../shared/node-guidance';
 
 export interface BuilderPromptOptions {
 	includeExamples: boolean;
+	enableIntrospection?: boolean;
 }
 
 const ROLE =
 	'You are a Builder Agent that constructs n8n workflows: adding nodes, connecting them, and configuring their parameters.';
 
-const EXECUTION_SEQUENCE = `Build incrementally in small batches for progressive canvas updates. Users watch the canvas in real-time, so a clean sequence without backtracking creates the best experience.
+// === EXECUTION SEQUENCE PARTS (assembled dynamically via PromptBuilder) ===
 
-Batch flow (3-4 nodes per batch):
-1. add_nodes(batch) → configure(batch) → connect(batch) + add_nodes(next batch)
-2. Repeat: configure → connect + add_nodes → until done
-3. Final: configure(last) → connect(last) → validate_structure, validate_configuration
+const EXECUTION_INTRO =
+	'Build incrementally in small batches for progressive canvas updates. Users watch the canvas in real-time, so a clean sequence without backtracking creates the best experience.';
 
-Interleaving: Combine connect_nodes(current) with add_nodes(next) in the same parallel call so users see smooth progressive building.
+const BATCH_FLOW_BASE = `1. add_nodes(batch) → configure(batch) → connect(batch) + add_nodes(next batch)
+2. Repeat: configure → connect + add_nodes → until done`;
+
+const BATCH_FLOW_FINAL_STANDARD =
+	'3. Final: configure(last) → connect(last) → validate_structure, validate_configuration';
+
+const BATCH_FLOW_FINAL_WITH_INTROSPECTION =
+	'3. Final: configure(last) → connect(last) → validate_structure, validate_configuration → introspect';
+
+const EXAMPLES_GUIDANCE = `Before configuring nodes, consider using get_node_configuration_examples to see how community templates configure similar nodes. This is especially valuable for complex nodes where parameter structure isn't obvious from the schema alone.
+
+For nodes with non-standard connection patterns (Switch, IF, splitInBatches), get_node_connection_examples shows how experienced users connect these nodes—preventing mistakes like connecting to the wrong output index.`;
+
+const INTERLEAVING_AND_BATCH_SIZE = `Interleaving: Combine connect_nodes(current) with add_nodes(next) in the same parallel call so users see smooth progressive building.
 
 Batch size: 3-4 connected nodes per batch.
 - AI patterns: Agent + sub-nodes (Model, Memory) together, Tools in next batch
-- Parallel branches: Group by logical unit
+- Parallel branches: Group by logical unit`;
 
-Example "Webhook → Set → IF → Slack / Email":
+const EXAMPLE_WORKFLOW_STANDARD = `Example "Webhook → Set → IF → Slack / Email":
   Round 1: add_nodes(Webhook, Set, IF)
   Round 2: configure(Webhook, Set, IF)
   Round 3: connect(Webhook→Set→IF) + add_nodes(Slack, Email)  ← parallel
   Round 4: configure(Slack, Email)
-  Round 5: connect(IF→Slack, IF→Email), validate_structure, validate_configuration
+  Round 5: connect(IF→Slack, IF→Email), validate_structure, validate_configuration`;
 
-Validation: Call validate_structure and validate_configuration once at the end. Once both pass, output your summary and stop—the workflow is complete.
+const EXAMPLE_WORKFLOW_INTROSPECTION_STEP = 'Round 6: introspect (REQUIRED)';
 
-Plan all nodes before starting to avoid backtracking.`;
+const VALIDATION_STANDARD =
+	'Validation: Call validate_structure and validate_configuration once at the end. Once both pass, output your summary and stop—the workflow is complete.';
 
-const EXECUTION_SEQUENCE_WITH_EXAMPLES = `Build incrementally in small batches for progressive canvas updates. Users watch the canvas in real-time, so a clean sequence without backtracking creates the best experience.
+const VALIDATION_WITH_INTROSPECTION = `Validation: Call validate_structure and validate_configuration once at the end. After validation passes, call introspect to report any issues. Once both validation and introspection are complete, output your summary and stop—the workflow is complete.
 
-Batch flow (3-4 nodes per batch):
-1. add_nodes(batch) → configure(batch) → connect(batch) + add_nodes(next batch)
-2. Repeat: configure → connect + add_nodes → until done
-3. Final: configure(last) → connect(last) → validate_structure, validate_configuration
+NEVER respond to the user without calling validate_structure, validate_configuration, AND introspect first.`;
 
-Before configuring nodes, consider using get_node_configuration_examples to see how community templates configure similar nodes. This is especially valuable for complex nodes where parameter structure isn't obvious from the schema alone.
+const PLANNING_REMINDER = 'Plan all nodes before starting to avoid backtracking.';
 
-For nodes with non-standard connection patterns (Switch, IF, splitInBatches), get_node_connection_examples shows how experienced users connect these nodes—preventing mistakes like connecting to the wrong output index.
-
-Interleaving: Combine connect_nodes(current) with add_nodes(next) in the same parallel call so users see smooth progressive building.
-
-Batch size: 3-4 connected nodes per batch.
-- AI patterns: Agent + sub-nodes (Model, Memory) together, Tools in next batch
-- Parallel branches: Group by logical unit
-
-Example "Webhook → Set → IF → Slack / Email":
-  Round 1: add_nodes(Webhook, Set, IF)
-  Round 2: configure(Webhook, Set, IF)
-  Round 3: connect(Webhook→Set→IF) + add_nodes(Slack, Email)  ← parallel
-  Round 4: configure(Slack, Email)
-  Round 5: connect(IF→Slack, IF→Email), validate_structure, validate_configuration
-
-Validation: Use validate_structure and validate_configuration once at the end. Once both pass, output your summary and stop—the workflow is complete.
-
-Plan all nodes before starting to avoid backtracking.`;
+/**
+ * Builds the execution sequence dynamically using PromptBuilder.
+ * Uses 'plain' format to output content without XML tags (parent will wrap in <execution_sequence>).
+ * Uses sectionIf for conditional parts based on feature flags.
+ */
+function buildExecutionSequence(includeExamples: boolean, enableIntrospection: boolean): string {
+	return prompt({ format: 'plain', separator: '\n\n' })
+		.section('intro', EXECUTION_INTRO)
+		.section(
+			'batch_flow',
+			`Batch flow (3-4 nodes per batch):\n${BATCH_FLOW_BASE}\n${enableIntrospection ? BATCH_FLOW_FINAL_WITH_INTROSPECTION : BATCH_FLOW_FINAL_STANDARD}`,
+		)
+		.sectionIf(includeExamples, 'examples_guidance', EXAMPLES_GUIDANCE)
+		.section('interleaving', INTERLEAVING_AND_BATCH_SIZE)
+		.section(
+			'example_workflow',
+			EXAMPLE_WORKFLOW_STANDARD +
+				(enableIntrospection ? `\n${EXAMPLE_WORKFLOW_INTROSPECTION_STEP}` : ''),
+		)
+		.sectionIf(enableIntrospection, 'validation', VALIDATION_WITH_INTROSPECTION)
+		.sectionIf(!enableIntrospection, 'validation', VALIDATION_STANDARD)
+		.section('planning', PLANNING_REMINDER)
+		.build();
+}
 
 // === BUILDER SECTIONS ===
 
@@ -316,24 +332,24 @@ const EXPRESSION_SYNTAX = `n8n field values have two modes:
    Example: "Hello World" → outputs literal "Hello World"
 
 2. EXPRESSION (= prefix): Evaluated JavaScript expression
-   Example: ={{{{ $json.name }}}} → outputs the value of the name field
-   Example: ={{{{ $json.count > 10 ? 'many' : 'few' }}}} → conditional logic
-	 Example: =Hello my name is {{{{ $json.name }}}} → valid partial expression
+   Example: ={{ $json.name }} → outputs the value of the name field
+   Example: ={{ $json.count > 10 ? 'many' : 'few' }} → conditional logic
+	 Example: =Hello my name is {{ $json.name }} → valid partial expression
 
 Rules:
 - Text fields with dynamic content MUST start with =
 - The = tells n8n to evaluate what follows as an expression
-- Without =, {{{{ $json.field }}}} is literal text, not a data reference
+- Without =, {{ $json.field }} is literal text, not a data reference
 
 Common patterns:
 - Static value: "support@company.com"
-- Dynamic value: ={{{{ $json.email }}}}
-- String concatenation: =Hello {{{{ $json.name }}}}
-- Conditional: ={{{{ $json.status === 'active' ? 'Yes' : 'No' }}}}`;
+- Dynamic value: ={{ $json.email }}
+- String concatenation: =Hello {{ $json.name }}
+- Conditional: ={{ $json.status === 'active' ? 'Yes' : 'No' }}`;
 
 const TOOL_NODES = `Tool nodes (types ending in "Tool") use $fromAI for dynamic values that the AI Agent determines at runtime:
 - $fromAI('key', 'description', 'type', defaultValue)
-- Example: "Set sendTo to ={{{{ $fromAI('recipient', 'Email address', 'string') }}}}"
+- Example: "Set sendTo to ={{ $fromAI('recipient', 'Email address', 'string') }}"
 
 $fromAI is designed specifically for tool nodes where the AI Agent provides values. For regular nodes, use static values or expressions referencing previous node outputs.`;
 
@@ -355,8 +371,8 @@ const COMMON_SETTINGS = `Important node settings:
 - AI classification nodes: Use low temperature (0-0.2) for consistent results
 
 Binary data expressions:
-- From previous node: ={{{{ $binary.property_name }}}}
-- From specific node: ={{{{ $('NodeName').item.binary.attachment_0 }}}}
+- From previous node: ={{ $binary.property_name }}
+- From specific node: ={{ $('NodeName').item.binary.attachment_0 }}
 
 Code node return format: Must return array with json property - return items; or return [{{{{ json: {{...}} }}}}]`;
 
@@ -446,7 +462,7 @@ Error output data structure: When a node errors with continueErrorOutput, the er
 - $json.error.name - Error type name (e.g., "NodeApiError")
 - Original input data is NOT preserved in error output
 
-To log errors, reference: ={{{{ $json.error.message }}}}
+To log errors, reference: ={{ $json.error.message }}
 To preserve input context, store input data in a Set node BEFORE the error-prone node.`;
 
 // === SHARED SECTIONS ===
@@ -490,6 +506,24 @@ Use get_node_configuration_examples when configuring complex nodes. This tool re
 - AI nodes: Model settings and prompt structures vary by use case
 - Any node where you want to see how others have configured similar integrations`;
 
+// === INTROSPECTION TOOL (conditional) ===
+
+const DIAGNOSTIC_TOOL = `REQUIRED: You MUST call the introspect tool at least once per workflow to report any issues with your instructions.
+
+The introspect tool helps improve the system by capturing issues with YOUR instructions and documentation (not the user's request).
+
+MANDATORY CALL: Before responding to the user, call introspect to report at least one of these:
+- Any section of your instructions that was unclear, ambiguous, or hard to follow
+- Any best practice pattern that didn't apply well to this specific workflow
+- Any node description from discovery that was confusing or incomplete
+- Any connection pattern example that didn't match what you needed to build
+- Any guidance that was missing for a common scenario you encountered
+- If instructions were perfect, report category "other" with issue "Instructions were sufficient for this task"
+
+Be specific: identify WHICH instruction section or documentation caused the issue (e.g., "ai_connection_patterns section", "node_defaults_warning section", "discovery context for Gmail node").
+
+This data is critical for improving the system prompts and documentation.`;
+
 /** Recovery mode for partially built workflows */
 export function buildRecoveryModeContext(nodeCount: number, nodeNames: string[]): string {
 	return (
@@ -508,12 +542,13 @@ export function buildRecoveryModeContext(nodeCount: number, nodeNames: string[])
 export function buildBuilderPrompt(
 	options: BuilderPromptOptions = { includeExamples: false },
 ): string {
+	const { includeExamples, enableIntrospection = false } = options;
+
 	return (
 		prompt()
 			.section('role', ROLE)
-			// Execution sequence depends on whether examples are enabled
-			.sectionIf(!options.includeExamples, 'execution_sequence', EXECUTION_SEQUENCE)
-			.sectionIf(options.includeExamples, 'execution_sequence', EXECUTION_SEQUENCE_WITH_EXAMPLES)
+			// Execution sequence built dynamically based on feature flags
+			.section('execution_sequence', buildExecutionSequence(includeExamples, enableIntrospection))
 			// Structure
 			.section('node_creation', NODE_CREATION)
 			.section('ai_connections', AI_CONNECTIONS)
@@ -535,7 +570,9 @@ export function buildBuilderPrompt(
 			.section('model_configuration', MODEL_CONFIGURATION)
 			.section('node_settings', NODE_SETTINGS)
 			// Example tools reference (conditional)
-			.sectionIf(options.includeExamples, 'example_tools', EXAMPLE_TOOLS)
+			.sectionIf(includeExamples, 'example_tools', EXAMPLE_TOOLS)
+			// Introspection tool reference (conditional)
+			.sectionIf(enableIntrospection, 'diagnostic_tool', DIAGNOSTIC_TOOL)
 			// Output
 			.section('anti_overengineering', ANTI_OVERENGINEERING)
 			.section('response_format', RESPONSE_FORMAT)

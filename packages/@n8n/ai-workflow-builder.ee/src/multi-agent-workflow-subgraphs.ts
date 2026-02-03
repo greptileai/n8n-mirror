@@ -139,7 +139,10 @@ export function createMultiAgentWorkflowWithSubgraphs(config: MultiAgentSubgraph
 	} = config;
 
 	const supervisorAgent = new SupervisorAgent({ llm: stageLLMs.supervisor });
-	const responderAgent = new ResponderAgent({ llm: stageLLMs.responder });
+	const responderAgent = new ResponderAgent({
+		llm: stageLLMs.responder,
+		enableIntrospection: featureFlags?.enableIntrospection,
+	});
 
 	// Create subgraph instances
 	const discoverySubgraph = new DiscoverySubgraph();
@@ -185,7 +188,7 @@ export function createMultiAgentWorkflowWithSubgraphs(config: MultiAgentSubgraph
 			// Add Responder Node (synthesizes final user-facing response)
 			// Accepts config as second param to propagate callbacks for tracing
 			.addNode('responder', async (state, config) => {
-				const response = await responderAgent.invoke(
+				const { response, introspectionEvents } = await responderAgent.invoke(
 					{
 						messages: state.messages,
 						coordinationLog: state.coordinationLog,
@@ -205,6 +208,7 @@ export function createMultiAgentWorkflowWithSubgraphs(config: MultiAgentSubgraph
 
 				return {
 					messages: [response], // Only responder adds to user messages
+					introspectionEvents, // Collected from responder's tool calls
 				};
 			})
 			// Add process_operations node for hybrid operations approach

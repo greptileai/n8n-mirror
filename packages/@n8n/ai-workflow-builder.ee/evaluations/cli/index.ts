@@ -5,26 +5,27 @@
  * Can be run directly or used as a reference for custom setups.
  */
 
-import type { Callbacks } from '@langchain/core/callbacks/manager';
-import type { INodeTypeDescription } from 'n8n-workflow';
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
 import pLimit from 'p-limit';
 
-import type { SimpleWorkflow } from '@/types/workflow';
-import type { BuilderFeatureFlags } from '@/workflow-builder-agent';
-
-import { consumeGenerator, getChatPayload } from '../harness/evaluation-helpers';
+import { createWorkflowGenerator } from '../harness/evaluation-helpers';
 import { createLogger } from '../harness/logger';
 import {
 	runEvaluation,
 	createConsoleLifecycle,
+	mergeLifecycles,
 	createLLMJudgeEvaluator,
 	createProgrammaticEvaluator,
 	createPairwiseEvaluator,
 	createSimilarityEvaluator,
+	createIntrospectionEvaluator,
 	type RunConfig,
 	type TestCase,
 	type Evaluator,
 	type EvaluationContext,
+	type ExampleResult,
+	type EvaluationLifecycle,
 } from '../index';
 import {
 	argsToStageModels,
@@ -39,52 +40,83 @@ import {
 	getDefaultTestCaseIds,
 } from './csv-prompt-loader';
 import { sendWebhookNotification } from './webhook';
-import { generateRunId, isWorkflowStateValues } from '../langsmith/types';
-import { EVAL_TYPES, EVAL_USERS } from '../support/constants';
-import { setupTestEnvironment, createAgent, type ResolvedStageLLMs } from '../support/environment';
+import type { EvalLogger } from '../harness/logger';
+import { summarizeIntrospectionResults } from '../summarizers/introspection-summarizer';
+import { setupTestEnvironment, type ResolvedStageLLMs } from '../support/environment';
 
 /**
- * Create a workflow generator function.
- * LangSmith tracing is handled via traceable() in the runner.
- * Callbacks are passed explicitly from the runner to ensure correct trace context
- * under high concurrency (avoids AsyncLocalStorage race conditions).
+ * Run introspection analysis and save results.
  */
-function createWorkflowGenerator(
-	parsedNodeTypes: INodeTypeDescription[],
-	llms: ResolvedStageLLMs,
-	featureFlags?: BuilderFeatureFlags,
-): (prompt: string, callbacks?: Callbacks) => Promise<SimpleWorkflow> {
-	return async (prompt: string, callbacks?: Callbacks): Promise<SimpleWorkflow> => {
-		const runId = generateRunId();
+async function runIntrospectionAnalysis(params: {
+	results: ExampleResult[];
+	judgeLlm: ResolvedStageLLMs['judge'];
+	outputDir?: string;
+	logger: EvalLogger;
+}): Promise<void> {
+	const { results, judgeLlm, outputDir, logger } = params;
 
-		const agent = createAgent({
-			parsedNodeTypes,
-			llms,
-			featureFlags,
-		});
+	if (results.length === 0) return;
 
-		await consumeGenerator(
-			agent.chat(
-				getChatPayload({
-					evalType: EVAL_TYPES.LANGSMITH,
-					message: prompt,
-					workflowId: runId,
-					featureFlags,
-				}),
-				EVAL_USERS.LANGSMITH,
-				undefined, // abortSignal
-				callbacks,
-			),
-		);
+	logger.info('\n📊 Running introspection analysis...\n');
 
-		const state = await agent.getState(runId, EVAL_USERS.LANGSMITH);
+	const summary = await summarizeIntrospectionResults(results, judgeLlm);
 
-		if (!state.values || !isWorkflowStateValues(state.values)) {
-			throw new Error('Invalid workflow state: workflow or messages missing');
-		}
+	logger.info('=== Introspection Analysis ===\n');
+	logger.info(`Total events: ${summary.totalEvents}`);
+	logger.info(`Category breakdown: ${JSON.stringify(summary.categoryBreakdown, null, 2)}`);
+	logger.info('\n--- LLM Analysis ---\n');
+	logger.info(summary.llmAnalysis);
 
-		return state.values.workflowJSON;
-	};
+	if (outputDir) {
+		const summaryContent = `# Introspection Summary
+
+## Overview
+- **Total Events:** ${summary.totalEvents}
+- **Category Breakdown:** ${JSON.stringify(summary.categoryBreakdown, null, 2)}
+
+## LLM Analysis
+
+${summary.llmAnalysis}
+`;
+		const summaryPath = path.join(outputDir, 'introspection-summary.md');
+		await fs.writeFile(summaryPath, summaryContent);
+		logger.info(`\nSummary saved to: ${summaryPath}`);
+	}
+}
+
+/**
+ * Create evaluators based on suite type.
+ */
+function createEvaluators(params: {
+	suite: string;
+	judgeLlm: ResolvedStageLLMs['judge'];
+	parsedNodeTypes: Parameters<typeof createProgrammaticEvaluator>[0];
+	numJudges: number;
+}): Array<Evaluator<EvaluationContext>> {
+	const { suite, judgeLlm, parsedNodeTypes, numJudges } = params;
+	const evaluators: Array<Evaluator<EvaluationContext>> = [];
+
+	switch (suite) {
+		case 'introspection':
+			evaluators.push(createIntrospectionEvaluator());
+			break;
+		case 'llm-judge':
+			evaluators.push(createLLMJudgeEvaluator(judgeLlm, parsedNodeTypes));
+			evaluators.push(createProgrammaticEvaluator(parsedNodeTypes));
+			break;
+		case 'pairwise':
+			evaluators.push(createPairwiseEvaluator(judgeLlm, { numJudges }));
+			evaluators.push(createProgrammaticEvaluator(parsedNodeTypes));
+			break;
+		case 'programmatic':
+			evaluators.push(createProgrammaticEvaluator(parsedNodeTypes));
+			break;
+		case 'similarity':
+			evaluators.push(createSimilarityEvaluator());
+			break;
+	}
+
+	return evaluators;
 }
 
 /**
@@ -159,43 +191,41 @@ export async function runV2Evaluation(): Promise<void> {
 		throw new Error('LangSmith client not initialized - check LANGSMITH_API_KEY');
 	}
 
-	// Create workflow generator with per-stage LLMs
-	const generateWorkflow = createWorkflowGenerator(
-		env.parsedNodeTypes,
-		env.llms,
-		args.featureFlags,
-	);
+	// Create evaluators based on suite type
+	const evaluators = createEvaluators({
+		suite: args.suite,
+		judgeLlm: env.llms.judge,
+		parsedNodeTypes: env.parsedNodeTypes,
+		numJudges: args.numJudges,
+	});
 
-	// Create evaluators based on mode (using judge LLM for evaluation)
-	const evaluators: Array<Evaluator<EvaluationContext>> = [];
-
-	switch (args.suite) {
-		case 'llm-judge':
-			evaluators.push(createLLMJudgeEvaluator(env.llms.judge, env.parsedNodeTypes));
-			evaluators.push(createProgrammaticEvaluator(env.parsedNodeTypes));
-			break;
-		case 'pairwise':
-			evaluators.push(
-				createPairwiseEvaluator(env.llms.judge, {
-					numJudges: args.numJudges,
-				}),
-			);
-			evaluators.push(createProgrammaticEvaluator(env.parsedNodeTypes));
-			break;
-		case 'programmatic':
-			evaluators.push(createProgrammaticEvaluator(env.parsedNodeTypes));
-			break;
-		case 'similarity':
-			evaluators.push(createSimilarityEvaluator());
-			break;
-	}
+	// Create workflow generator (returns workflow + introspection events)
+	const generateWorkflow = createWorkflowGenerator({
+		parsedNodeTypes: env.parsedNodeTypes,
+		llms: env.llms,
+		featureFlags: args.featureFlags,
+	});
 
 	const llmCallLimiter = pLimit(args.concurrency);
+
+	// Collect results for introspection summarization
+	const collectedResults: ExampleResult[] = [];
+	const resultCollectorLifecycle: Partial<EvaluationLifecycle> =
+		args.suite === 'introspection'
+			? {
+					onExampleComplete: (_index, result) => {
+						collectedResults.push(result);
+					},
+				}
+			: {};
+
+	// Merge console lifecycle with result collector
+	const mergedLifecycle = mergeLifecycles(lifecycle, resultCollectorLifecycle);
 
 	const baseConfig = {
 		generateWorkflow,
 		evaluators,
-		lifecycle,
+		lifecycle: mergedLifecycle,
 		logger,
 		outputDir: args.outputDir,
 		timeoutMs: args.timeoutMs,
@@ -228,6 +258,7 @@ export async function runV2Evaluation(): Promise<void> {
 					...baseConfig,
 					mode: 'local',
 					dataset: loadTestCases(args),
+					concurrency: args.concurrency,
 				};
 
 	// Run evaluation
@@ -246,6 +277,16 @@ export async function runV2Evaluation(): Promise<void> {
 			dataset,
 			suite: args.suite,
 			metadata: { ...buildCIMetadata() },
+			logger,
+		});
+	}
+
+	// If introspection suite, run LLM summarization
+	if (args.suite === 'introspection') {
+		await runIntrospectionAnalysis({
+			results: collectedResults,
+			judgeLlm: env.llms.judge,
+			outputDir: args.outputDir,
 			logger,
 		});
 	}

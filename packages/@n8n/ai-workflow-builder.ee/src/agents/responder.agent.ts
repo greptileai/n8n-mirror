@@ -1,8 +1,9 @@
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import type { BaseMessage } from '@langchain/core/messages';
-import { AIMessage, HumanMessage } from '@langchain/core/messages';
+import { AIMessage, HumanMessage, ToolMessage } from '@langchain/core/messages';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
-import type { RunnableConfig } from '@langchain/core/runnables';
+import type { Runnable, RunnableConfig } from '@langchain/core/runnables';
+import type { StructuredTool } from '@langchain/core/tools';
 
 import {
 	buildResponderPrompt,
@@ -12,6 +13,11 @@ import {
 	buildDataTableCreationGuidance,
 } from '@/prompts';
 
+import {
+	createIntrospectTool,
+	extractIntrospectionEventsFromMessages,
+	type IntrospectionEvent,
+} from '../tools/introspect.tool';
 import type { CoordinationLogEntry } from '../types/coordination';
 import type { DiscoveryContext } from '../types/discovery-types';
 import { isAIMessage } from '../types/langchain';
@@ -23,22 +29,26 @@ import {
 } from '../utils/coordination-log';
 import { extractDataTableInfo } from '../utils/data-table-helpers';
 
-const systemPrompt = ChatPromptTemplate.fromMessages([
-	[
-		'system',
+function createSystemPrompt(enableIntrospection: boolean): ChatPromptTemplate {
+	return ChatPromptTemplate.fromMessages([
 		[
-			{
-				type: 'text',
-				text: buildResponderPrompt(),
-				cache_control: { type: 'ephemeral' },
-			},
+			'system',
+			[
+				{
+					type: 'text',
+					text: buildResponderPrompt({ enableIntrospection }),
+					cache_control: { type: 'ephemeral' },
+				},
+			],
 		],
-	],
-	['placeholder', '{messages}'],
-]);
+		['placeholder', '{messages}'],
+	]);
+}
 
 export interface ResponderAgentConfig {
 	llm: BaseChatModel;
+	/** Enable introspection tool for diagnostic data collection. */
+	enableIntrospection?: boolean;
 }
 
 /**
@@ -63,11 +73,42 @@ export interface ResponderContext {
  * Synthesizes final user-facing responses from workflow building context.
  * Handles conversational queries and explanations.
  */
+/**
+ * Result from ResponderAgent.invoke
+ */
+export interface ResponderResult {
+	response: AIMessage;
+	introspectionEvents: IntrospectionEvent[];
+}
+
 export class ResponderAgent {
-	private llm: BaseChatModel;
+	private readonly tool: StructuredTool | undefined;
+
+	private readonly llmWithTools: Runnable;
+
+	private readonly systemPrompt: ChatPromptTemplate;
 
 	constructor(config: ResponderAgentConfig) {
-		this.llm = config.llm;
+		const enableIntrospection = config.enableIntrospection === true;
+
+		// Create system prompt with conditional introspection section
+		this.systemPrompt = createSystemPrompt(enableIntrospection);
+
+		// Conditionally create and bind the introspect tool
+		if (enableIntrospection) {
+			const introspectTool = createIntrospectTool();
+			this.tool = introspectTool.tool;
+
+			if (typeof config.llm.bindTools === 'function') {
+				this.llmWithTools = config.llm.bindTools([this.tool]);
+			} else {
+				// Fallback for LLMs that don't support tools
+				this.llmWithTools = config.llm;
+			}
+		} else {
+			this.tool = undefined;
+			this.llmWithTools = config.llm;
+		}
 	}
 
 	/**
@@ -157,21 +198,156 @@ export class ResponderAgent {
 	 * Invoke the responder agent with the given context
 	 * @param context - Responder context with messages and workflow state
 	 * @param config - Optional RunnableConfig for tracing callbacks
+	 * @returns Response message and any introspection events collected
 	 */
-	async invoke(context: ResponderContext, config?: RunnableConfig): Promise<AIMessage> {
-		const agent = systemPrompt.pipe(this.llm);
+	async invoke(context: ResponderContext, config?: RunnableConfig): Promise<ResponderResult> {
+		const agent = this.systemPrompt.pipe(this.llmWithTools);
 
 		const contextMessage = this.buildContextMessage(context);
-		const messagesToSend = contextMessage
+		let messagesToSend: BaseMessage[] = contextMessage
 			? [...context.messages, contextMessage]
-			: context.messages;
+			: [...context.messages];
 
-		const result = await agent.invoke({ messages: messagesToSend }, config);
-		if (!isAIMessage(result)) {
-			return new AIMessage({
-				content: 'I encountered an issue generating a response. Please try again.',
-			});
+		// Collect AI messages for introspection event extraction
+		const aiMessages: BaseMessage[] = [];
+
+		const MAX_ITERATIONS = 5;
+
+		for (let i = 0; i < MAX_ITERATIONS; i++) {
+			// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+			const result = await agent.invoke({ messages: messagesToSend }, config);
+
+			if (!isAIMessage(result as BaseMessage)) {
+				return {
+					response: new AIMessage({
+						content: 'I encountered an issue generating a response. Please try again.',
+					}),
+					introspectionEvents: extractIntrospectionEventsFromMessages(aiMessages),
+				};
+			}
+
+			// result is narrowed to AIMessage by the type guard above
+			const aiResult = result as AIMessage;
+			aiMessages.push(aiResult);
+
+			// Check if there are tool calls
+			if (!aiResult.tool_calls || aiResult.tool_calls.length === 0) {
+				// No tool calls - this is the final response
+				return {
+					response: aiResult,
+					introspectionEvents: extractIntrospectionEventsFromMessages(aiMessages),
+				};
+			}
+
+			// Execute tool calls
+			const toolMessages = await this.executeToolCalls(aiResult, config);
+
+			// Add AI message and tool messages for next iteration
+			messagesToSend = [...messagesToSend, aiResult, ...toolMessages];
 		}
-		return result;
+
+		// If we hit max iterations, make one final call without expecting tools
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+		const lastResult = await agent.invoke({ messages: messagesToSend }, config);
+		if (isAIMessage(lastResult as BaseMessage)) {
+			// lastResult is narrowed to AIMessage by the type guard above
+			const lastAiResult = lastResult as AIMessage;
+			aiMessages.push(lastAiResult);
+			return {
+				response: lastAiResult,
+				introspectionEvents: extractIntrospectionEventsFromMessages(aiMessages),
+			};
+		}
+
+		return {
+			response: new AIMessage({
+				content: 'I encountered an issue generating a response. Please try again.',
+			}),
+			introspectionEvents: extractIntrospectionEventsFromMessages(aiMessages),
+		};
+	}
+
+	/**
+	 * Execute tool calls from an AI message and return tool messages
+	 */
+	private async executeToolCalls(
+		aiMessage: AIMessage,
+		config?: RunnableConfig,
+	): Promise<ToolMessage[]> {
+		if (!aiMessage.tool_calls || aiMessage.tool_calls.length === 0) {
+			return [];
+		}
+
+		const toolMessages: ToolMessage[] = [];
+
+		for (const toolCall of aiMessage.tool_calls) {
+			if (this.tool && toolCall.name === this.tool.name) {
+				try {
+					// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+					const result = await this.tool.invoke(toolCall.args ?? {}, {
+						...config,
+						toolCall: {
+							id: toolCall.id,
+							name: toolCall.name,
+							args: toolCall.args ?? {},
+						},
+					});
+
+					// Extract content from Command object response
+					const content = this.extractToolContent(result);
+
+					toolMessages.push(
+						new ToolMessage({
+							content,
+							tool_call_id: toolCall.id ?? '',
+							name: toolCall.name,
+						}),
+					);
+				} catch (error) {
+					toolMessages.push(
+						new ToolMessage({
+							content: `Tool failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+							tool_call_id: toolCall.id ?? '',
+							name: toolCall.name,
+						}),
+					);
+				}
+			} else {
+				// Unknown tool - return error message
+				toolMessages.push(
+					new ToolMessage({
+						content: `Unknown tool: ${toolCall.name}`,
+						tool_call_id: toolCall.id ?? '',
+						name: toolCall.name,
+					}),
+				);
+			}
+		}
+
+		return toolMessages;
+	}
+
+	/**
+	 * Extract content from tool result, handling Command object pattern
+	 */
+	private extractToolContent(result: unknown): string {
+		// Handle Command object pattern used by tools in this codebase
+		if (result && typeof result === 'object' && 'update' in result) {
+			const command = result as { update?: { messages?: BaseMessage[] } };
+			const messages = command.update?.messages;
+			if (messages && messages.length > 0) {
+				const lastMessage = messages[messages.length - 1];
+				if (typeof lastMessage.content === 'string') {
+					return lastMessage.content;
+				}
+			}
+		}
+
+		// Fallback for direct string results
+		if (typeof result === 'string') {
+			return result;
+		}
+
+		return 'Tool executed successfully';
 	}
 }

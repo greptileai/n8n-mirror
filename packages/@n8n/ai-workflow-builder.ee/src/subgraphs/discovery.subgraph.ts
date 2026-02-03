@@ -22,6 +22,10 @@ import { BaseSubgraph } from './subgraph-interface';
 import type { ParentGraphState } from '../parent-graph-state';
 import { createGetDocumentationTool } from '../tools/get-documentation.tool';
 import { createGetWorkflowExamplesTool } from '../tools/get-workflow-examples.tool';
+import {
+	createIntrospectTool,
+	extractIntrospectionEventsFromMessages,
+} from '../tools/introspect.tool';
 import { createNodeSearchTool } from '../tools/node-search.tool';
 import type { CoordinationLogEntry } from '../types/coordination';
 import { createDiscoveryMetadata } from '../types/coordination';
@@ -29,6 +33,7 @@ import type { WorkflowMetadata } from '../types/tools';
 import { applySubgraphCacheMarkers } from '../utils/cache-control';
 import { buildWorkflowSummary, createContextMessage } from '../utils/context-builders';
 import { appendArrayReducer, cachedTemplatesReducer } from '../utils/state-reducers';
+import type { BuilderTool } from '../utils/stream-processor';
 import { executeSubgraphTools, extractUserRequest } from '../utils/subgraph-helpers';
 
 /**
@@ -154,9 +159,15 @@ export class DiscoverySubgraph extends BaseSubgraph<
 
 		// Check if template examples are enabled
 		const includeExamples = config.featureFlags?.templateExamples === true;
+		const enableIntrospection = config.featureFlags?.enableIntrospection === true;
 
 		// Create base tools - search_nodes provides all data needed for discovery
-		const baseTools = [createNodeSearchTool(config.parsedNodeTypes)];
+		const baseTools: BuilderTool[] = [createNodeSearchTool(config.parsedNodeTypes)];
+
+		// Conditionally add introspect tool if feature flag is enabled
+		if (enableIntrospection) {
+			baseTools.push(createIntrospectTool());
+		}
 
 		// Conditionally add documentation and workflow examples tools if feature flag is enabled
 		const tools = includeExamples
@@ -433,6 +444,9 @@ export class DiscoverySubgraph extends BaseSubgraph<
 			}),
 		};
 
+		// Extract introspection events from subgraph messages
+		const introspectionEvents = extractIntrospectionEventsFromMessages(subgraphOutput.messages);
+
 		return {
 			discoveryContext,
 			coordinationLog: [logEntry],
@@ -440,6 +454,7 @@ export class DiscoverySubgraph extends BaseSubgraph<
 			templateIds,
 			// Propagate cached templates back to parent
 			cachedTemplates: subgraphOutput.cachedTemplates,
+			introspectionEvents,
 		};
 	}
 }
