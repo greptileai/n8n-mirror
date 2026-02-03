@@ -75,7 +75,7 @@ return { response: logWrapper(memory, this) };
 
 ### logWrapper
 
-Enables n8n execution logging.
+Enables n8n execution logging for memory nodes:
 
 ```typescript
 import { logWrapper } from '@n8n/ai-node-sdk';
@@ -84,11 +84,7 @@ import { logWrapper } from '@n8n/ai-node-sdk';
 const memory = createMemory({ ... });
 return { response: logWrapper(memory, this) };
 
-// Document loaders, tools - use logWrapper
-const processor = new MyDocumentProcessor();
-return { response: logWrapper(processor, this) };
-
-// Chat models - no logWrapper needed (TO BE CONFIRMED)
+// Chat models - no logWrapper needed (handled internally via callbacks)
 const model = createChatModel({ ... });
 return { response: model };
 ```
@@ -233,36 +229,36 @@ async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyD
 
 ## Community Node Examples
 
-### Acme AI Chat Model (Custom API)
+### ImaginaryLLM Chat Model (Custom API)
 
 ```typescript
 import { createChatModel, type Message, type GenerateResult } from '@n8n/ai-node-sdk';
 import { NodeConnectionTypes, type INodeType, type ISupplyDataFunctions, type SupplyData } from 'n8n-workflow';
 
-export class LmChatAcmeAi implements INodeType {
+export class LmChatImaginaryLlm implements INodeType {
   description = {
-    displayName: 'Acme AI Chat Model',
-    name: 'lmChatAcmeAi',
+    displayName: 'ImaginaryLLM Chat Model',
+    name: 'lmChatImaginaryLlm',
     outputs: [NodeConnectionTypes.AiLanguageModel],
-    credentials: [{ name: 'acmeAiApi', required: true }],
+    credentials: [{ name: 'imaginaryLlmApi', required: true }],
     properties: [
       { displayName: 'Model', name: 'model', type: 'options', options: [
-        { name: 'Acme Pro', value: 'acme-pro' },
-        { name: 'Acme Fast', value: 'acme-fast' },
-      ], default: 'acme-pro' },
+        { name: 'Imaginary Pro', value: 'imaginary-pro' },
+        { name: 'Imaginary Fast', value: 'imaginary-fast' },
+      ], default: 'imaginary-pro' },
       { displayName: 'Temperature', name: 'temperature', type: 'number', default: 0.7 },
     ],
   };
 
   async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyData> {
-    const credentials = await this.getCredentials<{ apiKey: string }>('acmeAiApi');
+    const credentials = await this.getCredentials<{ apiKey: string }>('imaginaryLlmApi');
     const modelName = this.getNodeParameter('model', itemIndex) as string;
     const temperature = this.getNodeParameter('temperature', itemIndex) as number;
 
     const generate = async (messages: Message[]): Promise<GenerateResult> => {
       const response = await this.helpers.httpRequest({
         method: 'POST',
-        url: 'https://api.acme-ai.example.com/v1/generate',
+        url: 'https://api.imaginary-llm.example.com/v1/generate',
         headers: { 'Authorization': `Bearer ${credentials.apiKey}` },
         body: {
           model: modelName,
@@ -286,37 +282,37 @@ export class LmChatAcmeAi implements INodeType {
 }
 ```
 
-### Redis Chat Memory
+### ImaginaryDB Chat Memory
 
 ```typescript
 import { createMemory, logWrapper, type ChatHistory, type Message } from '@n8n/ai-node-sdk';
 import { NodeConnectionTypes, type INodeType, type ISupplyDataFunctions, type SupplyData } from 'n8n-workflow';
 
-class RedisChatHistory implements ChatHistory {
-  constructor(private helpers: ISupplyDataFunctions['helpers'], private redisUrl: string, private sessionId: string) {}
+class ImaginaryDbChatHistory implements ChatHistory {
+  constructor(private helpers: ISupplyDataFunctions['helpers'], private dbUrl: string, private sessionId: string) {}
 
   async getMessages(): Promise<Message[]> {
-    const response = await this.helpers.httpRequest({ method: 'GET', url: `${this.redisUrl}/get/chat:${this.sessionId}` });
+    const response = await this.helpers.httpRequest({ method: 'GET', url: `${this.dbUrl}/get/chat:${this.sessionId}` });
     return response.value ? JSON.parse(response.value) : [];
   }
 
   async addMessage(message: Message): Promise<void> {
     const messages = await this.getMessages();
     messages.push(message);
-    await this.helpers.httpRequest({ method: 'POST', url: `${this.redisUrl}/set/chat:${this.sessionId}`, body: { value: JSON.stringify(messages) } });
+    await this.helpers.httpRequest({ method: 'POST', url: `${this.dbUrl}/set/chat:${this.sessionId}`, body: { value: JSON.stringify(messages) } });
   }
 
   async clear(): Promise<void> {
-    await this.helpers.httpRequest({ method: 'DELETE', url: `${this.redisUrl}/del/chat:${this.sessionId}` });
+    await this.helpers.httpRequest({ method: 'DELETE', url: `${this.dbUrl}/del/chat:${this.sessionId}` });
   }
 }
 
-export class MemoryRedisChat implements INodeType {
+export class MemoryImaginaryDbChat implements INodeType {
   description = {
-    displayName: 'Redis Chat Memory',
-    name: 'memoryRedisChat',
+    displayName: 'ImaginaryDB Chat Memory',
+    name: 'memoryImaginaryDbChat',
     outputs: [NodeConnectionTypes.AiMemory],
-    credentials: [{ name: 'redisApi', required: true }],
+    credentials: [{ name: 'imaginaryDbApi', required: true }],
     properties: [
       { displayName: 'Session ID', name: 'sessionId', type: 'string', default: '={{ $json.sessionId }}' },
       { displayName: 'Context Window', name: 'contextWindow', type: 'number', default: 10 },
@@ -324,28 +320,16 @@ export class MemoryRedisChat implements INodeType {
   };
 
   async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyData> {
-    const credentials = await this.getCredentials<{ url: string }>('redisApi');
+    const credentials = await this.getCredentials<{ url: string }>('imaginaryDbApi');
     const sessionId = this.getNodeParameter('sessionId', itemIndex) as string;
     const k = this.getNodeParameter('contextWindow', itemIndex) as number;
 
-    const chatHistory = new RedisChatHistory(this.helpers, credentials.url, sessionId);
+    const chatHistory = new ImaginaryDbChatHistory(this.helpers, credentials.url, sessionId);
 
     const memory = createMemory({ type: 'bufferWindow', k, sessionId, chatHistory });
 
     return { response: logWrapper(memory, this) };
   }
-}
-```
-
-### Document Loader
-
-```typescript
-import { logWrapper } from '@n8n/ai-node-sdk';
-
-async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyData> {
-  const processor = new MyDocumentProcessor(options);
-
-  return { response: logWrapper(processor, this) };
 }
 ```
 
