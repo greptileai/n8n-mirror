@@ -37,6 +37,13 @@ export class MFAController {
 			);
 		}
 		await this.mfaService.enforceMFA(req.body.enforce);
+
+		this.eventService.emit('instance-policies-updated', {
+			userId: req.user.id,
+			settingName: '2fa_enforcement',
+			value: req.body.enforce,
+		});
+
 		return;
 	}
 

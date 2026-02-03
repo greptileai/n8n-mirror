@@ -2067,4 +2067,36 @@ describe('TelemetryEventRelay', () => {
 			});
 		});
 	});
+
+	describe('instance policies events', () => {
+		it('should track workflow_publishing update', () => {
+			const event: RelayEventMap['instance-policies-updated'] = {
+				userId: 'user123',
+				settingName: 'workflow_publishing',
+				value: true,
+			};
+
+			eventService.emit('instance-policies-updated', event);
+
+			expect(telemetry.track).toHaveBeenCalledWith('User updated instance policies', {
+				user_id: 'user123',
+				workflow_publishing: true,
+			});
+		});
+
+		it('should track 2fa_enforcement update', () => {
+			const event: RelayEventMap['instance-policies-updated'] = {
+				userId: 'user456',
+				settingName: '2fa_enforcement',
+				value: false,
+			};
+
+			eventService.emit('instance-policies-updated', event);
+
+			expect(telemetry.track).toHaveBeenCalledWith('User updated instance policies', {
+				user_id: 'user456',
+				'2fa_enforcement': false,
+			});
+		});
+	});
 });
