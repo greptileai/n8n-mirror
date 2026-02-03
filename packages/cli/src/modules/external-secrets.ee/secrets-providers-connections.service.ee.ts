@@ -122,22 +122,21 @@ export class SecretsProvidersConnectionsService {
 		return await this.repository.findAll();
 	}
 
-	async getGlobalCompletions(): Promise<SecretCompletionsResponse> {
-		const connections = await this.repository.findGlobalConnections();
-		return this.groupByProviderKey(connections);
+	async getGlobalCompletions(): Promise<SecretsProviderConnection[]> {
+		return await this.repository.findGlobalConnections();
 	}
 
-	async getProjectCompletions(projectId: string): Promise<SecretCompletionsResponse> {
-		const connections = await this.repository.findByProjectId(projectId);
-		return this.groupByProviderKey(connections);
+	async getProjectCompletions(projectId: string): Promise<SecretsProviderConnection[]> {
+		return await this.repository.findByProjectId(projectId);
 	}
 
-	private groupByProviderKey(connections: SecretsProviderConnection[]): SecretCompletionsResponse {
-		return connections.reduce((acc, connection) => {
-			const secretNames = this.externalSecretsManager.getSecretNames(connection.providerKey);
-			acc[connection.providerKey] = secretNames;
-			return acc;
-		}, {} as SecretCompletionsResponse);
+	toSecretCompletionsResponse(connections: SecretsProviderConnection[]): SecretCompletionsResponse {
+		return Object.fromEntries(
+			connections.map((connection) => [
+				connection.providerKey,
+				this.externalSecretsManager.getSecretNames(connection.providerKey),
+			]),
+		);
 	}
 
 	toPublicConnection(

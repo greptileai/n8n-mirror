@@ -31,7 +31,8 @@ export class SecretProvidersCompletionsController {
 	@GlobalScope('externalSecret:list')
 	async listGlobalSecrets(): Promise<SecretCompletionsResponse> {
 		this.logger.debug('Listing global secrets');
-		return await this.connectionsService.getGlobalCompletions();
+		const connections = await this.connectionsService.getGlobalCompletions();
+		return this.connectionsService.toSecretCompletionsResponse(connections);
 	}
 
 	@Get('/secrets/project/:projectId')
@@ -42,6 +43,7 @@ export class SecretProvidersCompletionsController {
 		@Param('projectId') projectId: string,
 	): Promise<SecretCompletionsResponse> {
 		this.logger.debug('Listing secrets for project');
-		return await this.connectionsService.getProjectCompletions(projectId);
+		const connections = await this.connectionsService.getProjectCompletions(projectId);
+		return this.connectionsService.toSecretCompletionsResponse(connections);
 	}
 }

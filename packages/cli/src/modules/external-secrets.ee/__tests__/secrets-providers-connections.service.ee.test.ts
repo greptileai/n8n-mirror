@@ -1,176 +1,95 @@
-import type {
-	ProjectSecretsProviderAccess,
-	SecretsProviderConnection,
-	SecretsProviderConnectionRepository,
-} from '@n8n/db';
+import type { SecretsProviderConnection, SecretsProviderConnectionRepository } from '@n8n/db';
 import { mock } from 'jest-mock-extended';
 
 import type { ExternalSecretsManager } from '@/modules/external-secrets.ee/external-secrets-manager.ee';
 import { SecretsProvidersConnectionsService } from '@/modules/external-secrets.ee/secrets-providers-connections.service.ee';
 
-describe('Secret Providers Connections Service', () => {
-	const mockRepository = mock<SecretsProviderConnectionRepository>();
+describe('SecretsProvidersConnectionsService', () => {
 	const mockExternalSecretsManager = mock<ExternalSecretsManager>();
 	const service = new SecretsProvidersConnectionsService(
-		mockRepository,
+		mock<SecretsProviderConnectionRepository>(),
 		mock(),
 		mock(),
 		mockExternalSecretsManager,
 	);
 
-	const createdAt = new Date('2024-01-15T10:00:00.000Z');
-	const updatedAt = new Date('2024-01-15T10:01:00.000Z');
-
-	function createProjectAccess(
-		projectId: string,
-		projectName: string,
-		connectionId: number,
-	): ProjectSecretsProviderAccess {
-		return {
-			projectId,
-			secretsProviderConnectionId: connectionId,
-			project: { id: projectId, name: projectName },
-			secretsProviderConnection: {},
-			createdAt,
-			updatedAt,
-		} as ProjectSecretsProviderAccess;
-	}
-
-	function createConnection(
-		overrides: Partial<SecretsProviderConnection> = {},
-	): SecretsProviderConnection {
-		return {
-			id: 123,
-			type: 'awsSecretsManager',
-			isEnabled: true,
-			providerKey: 'my-connection',
-			encryptedSettings: 'encrypted-data',
-			projectAccess: [],
-			createdAt,
-			updatedAt,
-			...overrides,
-		} as SecretsProviderConnection;
-	}
+	beforeEach(() => jest.clearAllMocks());
 
 	describe('toPublicConnection', () => {
-		it('should map the entity to a public connection DTO', () => {
-			const connection = createConnection({
+		it('should map entity to DTO with projects', () => {
+			const connection = {
+				id: 1,
+				providerKey: 'my-aws',
+				type: 'awsSecretsManager',
+				isEnabled: true,
 				projectAccess: [
-					createProjectAccess('tp-1', 'Project One', 123),
-					createProjectAccess('tp-2', 'Project Two', 123),
+					{ project: { id: 'p1', name: 'Project 1' } },
+					{ project: { id: 'p2', name: 'Project 2' } },
 				],
-			});
+				createdAt: new Date('2024-01-01'),
+				updatedAt: new Date('2024-01-02'),
+			} as unknown as SecretsProviderConnection;
 
-			const actual = service.toPublicConnection(connection);
-
-			expect(actual).toEqual({
-				id: '123',
-				name: 'my-connection',
+			expect(service.toPublicConnection(connection)).toEqual({
+				id: '1',
+				name: 'my-aws',
 				type: 'awsSecretsManager',
 				isEnabled: true,
 				projects: [
-					{ id: 'tp-1', name: 'Project One' },
-					{ id: 'tp-2', name: 'Project Two' },
+					{ id: 'p1', name: 'Project 1' },
+					{ id: 'p2', name: 'Project 2' },
 				],
-				createdAt: createdAt.toISOString(),
-				updatedAt: updatedAt.toISOString(),
+				createdAt: '2024-01-01T00:00:00.000Z',
+				updatedAt: '2024-01-02T00:00:00.000Z',
 			});
 		});
 
-		it('should handle connection with no project access', () => {
-			const connection = createConnection({
-				id: 456,
+		it('should map entity to DTO without projects', () => {
+			const connection = {
+				id: 2,
+				providerKey: 'my-vault',
 				type: 'vault',
 				isEnabled: false,
-				providerKey: 'vault-connection',
-				encryptedSettings: 'encrypted-vault-data',
-			});
+				projectAccess: [],
+				createdAt: new Date('2024-01-01'),
+				updatedAt: new Date('2024-01-02'),
+			} as unknown as SecretsProviderConnection;
 
-			const actual = service.toPublicConnection(connection);
-
-			expect(actual).toEqual({
-				id: '456',
-				name: 'vault-connection',
+			expect(service.toPublicConnection(connection)).toEqual({
+				id: '2',
+				name: 'my-vault',
 				type: 'vault',
 				isEnabled: false,
 				projects: [],
-				createdAt: createdAt.toISOString(),
-				updatedAt: updatedAt.toISOString(),
+				createdAt: '2024-01-01T00:00:00.000Z',
+				updatedAt: '2024-01-02T00:00:00.000Z',
 			});
 		});
 	});
 
-	describe('getGlobalCompletions', () => {
-		beforeEach(() => {
-			jest.clearAllMocks();
-		});
+	describe('toSecretCompletionsResponse', () => {
+		it('should map connections to completions keyed by providerKey', () => {
+			mockExternalSecretsManager.getSecretNames.mockImplementation((providerKey) => {
+				if (providerKey === 'aws') return ['secret-a', 'secret-b'];
+				if (providerKey === 'vault') return ['secret-c'];
+				return [];
+			});
 
-		it('should return completions for global connections', async () => {
-			const globalConnections = [
-				createConnection({ providerKey: 'global-aws', type: 'awsSecretsManager' }),
-				createConnection({ providerKey: 'global-vault', type: 'vault' }),
-			];
+			const connections = [
+				{ providerKey: 'aws' },
+				{ providerKey: 'vault' },
+				{ providerKey: 'missing_from_cache' },
+			] as unknown as SecretsProviderConnection[];
 
-			mockRepository.findGlobalConnections.mockResolvedValue(globalConnections);
-			mockExternalSecretsManager.getSecretNames
-				.mockReturnValueOnce(['aws-secret-1', 'aws-secret-2'])
-				.mockReturnValueOnce(['vault-secret-1']);
-
-			const result = await service.getGlobalCompletions();
-
-			expect(mockRepository.findGlobalConnections).toHaveBeenCalledTimes(1);
-			expect(result).toEqual({
-				'global-aws': ['aws-secret-1', 'aws-secret-2'],
-				'global-vault': ['vault-secret-1'],
+			expect(service.toSecretCompletionsResponse(connections)).toEqual({
+				aws: ['secret-a', 'secret-b'],
+				vault: ['secret-c'],
+				missing_from_cache: [],
 			});
 		});
 
-		it('should return empty object when no global connections exist', async () => {
-			mockRepository.findGlobalConnections.mockResolvedValue([]);
-
-			const result = await service.getGlobalCompletions();
-
-			expect(mockRepository.findGlobalConnections).toHaveBeenCalledTimes(1);
-			expect(result).toEqual({});
-		});
-	});
-
-	describe('getProjectCompletions', () => {
-		beforeEach(() => {
-			jest.clearAllMocks();
-		});
-
-		it('should return completions for project connections', async () => {
-			const projectId = 'project-123';
-			const projectConnections = [
-				createConnection({ providerKey: 'project-aws', type: 'awsSecretsManager' }),
-				createConnection({ providerKey: 'project-vault', type: 'vault' }),
-			];
-
-			mockRepository.findByProjectId.mockResolvedValue(projectConnections);
-			mockExternalSecretsManager.getSecretNames
-				.mockReturnValueOnce(['project-secret-1'])
-				.mockReturnValueOnce(['project-secret-2', 'project-secret-3']);
-
-			const result = await service.getProjectCompletions(projectId);
-
-			expect(mockRepository.findByProjectId).toHaveBeenCalledWith(projectId);
-			expect(mockRepository.findByProjectId).toHaveBeenCalledTimes(1);
-			expect(result).toEqual({
-				'project-aws': ['project-secret-1'],
-				'project-vault': ['project-secret-2', 'project-secret-3'],
-			});
-		});
-
-		it('should return empty object when no project connections exist', async () => {
-			const projectId = 'project-456';
-			mockRepository.findByProjectId.mockResolvedValue([]);
-
-			const result = await service.getProjectCompletions(projectId);
-
-			expect(mockRepository.findByProjectId).toHaveBeenCalledWith(projectId);
-			expect(mockRepository.findByProjectId).toHaveBeenCalledTimes(1);
-			expect(result).toEqual({});
+		it('should return empty object for empty connections', () => {
+			expect(service.toSecretCompletionsResponse([])).toEqual({});
 		});
 	});
 });
