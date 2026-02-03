@@ -16,6 +16,8 @@ import { createDummyProvider, MockProviders } from '../../shared/external-secret
 import { createAdmin, createMember, createOwner } from '../shared/db/users';
 import type { SuperAgentTest } from '../shared/types';
 import { setupTestServer } from '../shared/utils';
+import { Cipher } from 'n8n-core';
+import { mockCipher } from '@test/mocking';
 
 const resetManager = async () => {
 	const manager = Container.get(ExternalSecretsManager);
@@ -33,6 +35,8 @@ Container.set(LicenseState, licenseMock);
 mockInstance(ExternalSecretsConfig, {
 	externalSecretsForProjects: true,
 });
+
+mockInstance(Cipher, mockCipher());
 
 describe('Secret Providers Completions API', () => {
 	let owner: User;
@@ -120,7 +124,7 @@ describe('Secret Providers Completions API', () => {
 		});
 
 		describe('with existing project connections', () => {
-			it.skip('should return project secrets', async () => {
+			it('should return project secrets', async () => {
 				const TestProvider = createDummyProvider({
 					name: 'test_provider',
 					secrets: { secret1: 'value1', secret2: 'value2' },
@@ -131,18 +135,16 @@ describe('Secret Providers Completions API', () => {
 				});
 
 				mockProvidersInstance.setProviders({
-					dummy: TestProvider,
-					another_dummy: AnotherTestProvider,
+					test_provider: TestProvider,
+					another_test_provider: AnotherTestProvider,
 				});
-
-				await resetManager();
 
 				// Create a project-scoped connection for projectWithConnections
 				const mockConnection = {
 					providerKey: 'test-project-secret-connection',
 					type: 'test_provider',
 					isEnabled: true,
-					encryptedSettings: 'mocked-encrypted-settings',
+					encryptedSettings: JSON.stringify({ mocked: 'mocked-encrypted-settings' }),
 				};
 				const connection = await connectionRepository.save(
 					connectionRepository.create(mockConnection),
@@ -153,7 +155,7 @@ describe('Secret Providers Completions API', () => {
 						providerKey: 'test-project-secret-connection-disabled',
 						type: 'another_test_provider',
 						isEnabled: false,
-						encryptedSettings: 'mocked-encrypted-settings',
+						encryptedSettings: JSON.stringify({ mocked: 'mocked-encrypted-settings' }),
 					}),
 				);
 
@@ -164,18 +166,15 @@ describe('Secret Providers Completions API', () => {
 					}),
 				);
 
+				await resetManager();
+
 				const response = await authOwnerAgent
 					.get(`/secret-providers/completions/secrets/project/${projectWithConnections.id}`)
 					.expect(200);
 
-				expect(response.body.data).toEqual([
-					{
-						type: mockConnection.type,
-						providerKey: mockConnection.providerKey,
-						secretCompletions: ['secret1', 'secret1'],
-						isGlobal: false,
-					},
-				]);
+				expect(response.body.data).toEqual({
+					'test-project-secret-connection': ['secret1', 'secret2'],
+				});
 			});
 		});
 
