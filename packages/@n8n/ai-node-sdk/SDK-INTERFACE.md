@@ -84,7 +84,7 @@ import { logWrapper } from '@n8n/ai-node-sdk';
 const memory = createMemory({ ... });
 return { response: logWrapper(memory, this) };
 
-// Chat models - no logWrapper needed (handled internally via callbacks)
+// Chat models - no logWrapper needed (to be confirmed)
 const model = createChatModel({ ... });
 return { response: model };
 ```
