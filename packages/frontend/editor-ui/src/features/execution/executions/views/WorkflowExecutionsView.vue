@@ -6,7 +6,6 @@ import { useI18n } from '@n8n/i18n';
 import type { ExecutionFilterType } from '../executions.types';
 import type { IWorkflowDb } from '@/Interface';
 import { useWorkflowsStore } from '@/app/stores/workflows.store';
-import { useWorkflowsListStore } from '@/app/stores/workflowsList.store';
 import { useNodeTypesStore } from '@/app/stores/nodeTypes.store';
 import { NO_NETWORK_ERROR_CODE } from '@n8n/rest-api-client';
 import { useToast } from '@/app/composables/useToast';
@@ -21,7 +20,6 @@ import { executionRetryMessage } from '../executions.utils';
 
 const executionsStore = useExecutionsStore();
 const workflowsStore = useWorkflowsStore();
-const workflowsListStore = useWorkflowsListStore();
 const nodeTypesStore = useNodeTypesStore();
 const i18n = useI18n();
 const telemetry = useTelemetry();

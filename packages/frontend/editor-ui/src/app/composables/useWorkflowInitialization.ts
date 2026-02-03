@@ -7,6 +7,7 @@ import { useExternalHooks } from '@/app/composables/useExternalHooks';
 import { useCanvasOperations } from '@/app/composables/useCanvasOperations';
 import type { WorkflowState } from '@/app/composables/useWorkflowState';
 import { useWorkflowsStore } from '@/app/stores/workflows.store';
+import { useWorkflowsListStore } from '@/app/stores/workflowsList.store';
 import { useUIStore } from '@/app/stores/ui.store';
 import { useNodeTypesStore } from '@/app/stores/nodeTypes.store';
 import { useCredentialsStore } from '@/features/credentials/credentials.store';
@@ -28,6 +29,7 @@ export function useWorkflowInitialization(workflowState: WorkflowState) {
 	const externalHooks = useExternalHooks();
 
 	const workflowsStore = useWorkflowsStore();
+	const workflowsListStore = useWorkflowsListStore();
 	const uiStore = useUIStore();
 	const nodeTypesStore = useNodeTypesStore();
 	const credentialsStore = useCredentialsStore();
@@ -48,7 +50,7 @@ export function useWorkflowInitialization(workflowState: WorkflowState) {
 		const name = route.params.name;
 		const id = route.params.id;
 		const param = name ?? id;
-		return Array.isArray(param) ? param[0] : (param as string | undefined);
+		return (Array.isArray(param) ? param[0] : param) ?? '';
 	});
 
 	const isNewWorkflowRoute = computed(() => route.query.new === 'true');
@@ -226,7 +228,7 @@ export function useWorkflowInitialization(workflowState: WorkflowState) {
 
 		// Check if we should initialize for a new workflow
 		if (isNewWorkflowRoute.value && id) {
-			const exists = await workflowsStore.checkWorkflowExists(id);
+			const exists = await workflowsListStore.checkWorkflowExists(id);
 			if (!exists) {
 				await initializeWorkspaceForNewWorkflow();
 				isLoading.value = false;
