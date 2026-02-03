@@ -1,20 +1,23 @@
 import { Config, Env } from '@n8n/config';
-import { jsonParse } from 'n8n-workflow';
 import { z } from 'zod';
 
 const quickConnectOptionsSchema = z.string().pipe(
 	z.preprocess(
-		(input: string) => jsonParse(input),
-		z
-			.array(
-				z.object({
-					packageName: z.string(),
-					credentialType: z.string(),
-					text: z.string(),
-					quickConnectType: z.string(),
-				}),
-			)
-			.optional(),
+		(input: string) => {
+			try {
+				return JSON.parse(input);
+			} catch {
+				return [];
+			}
+		},
+		z.array(
+			z.object({
+				packageName: z.string(),
+				credentialType: z.string(),
+				text: z.string(),
+				quickConnectType: z.string(),
+			}),
+		),
 	),
 );
 
