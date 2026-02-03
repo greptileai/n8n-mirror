@@ -43,6 +43,7 @@ const markdownContent = computed(() => ({
 					size="medium"
 					variant="ghost"
 					:items="options"
+					:class="$style.title"
 					@update:model-value="emit('selectArtifact', $event)"
 				/>
 				<div :class="$style.headerActions">
@@ -109,7 +110,6 @@ const markdownContent = computed(() => ({
 }
 
 .title {
-	flex-grow: 1;
 	flex-shrink: 1;
 	color: var(--color--text);
 	min-width: 0;
