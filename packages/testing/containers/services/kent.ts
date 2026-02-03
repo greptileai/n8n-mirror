@@ -3,6 +3,7 @@
  * @see https://github.com/getsentry/kent
  */
 import { resolve } from 'node:path';
+
 import { GenericContainer, Wait } from 'testcontainers';
 import type { StartedNetwork } from 'testcontainers';
 
@@ -28,20 +29,19 @@ export const kent: Service<KentResult> = {
 	async start(network: StartedNetwork, projectName: string): Promise<KentResult> {
 		const container = await GenericContainer.fromDockerfile(DOCKERFILE_PATH)
 			.build('n8n-kent:local', { deleteOnExit: false })
-			.then(
-				async (image) =>
-					await image
-						.withNetwork(network)
-						.withNetworkAliases(HOSTNAME)
-						.withExposedPorts(PORT)
-						.withWaitStrategy(Wait.forListeningPorts())
-						.withLabels({
-							'com.docker.compose.project': projectName,
-							'com.docker.compose.service': HOSTNAME,
-						})
-						.withName(`${projectName}-${HOSTNAME}`)
-						.withReuse()
-						.start(),
+			.then((image) =>
+				image
+					.withNetwork(network)
+					.withNetworkAliases(HOSTNAME)
+					.withExposedPorts(PORT)
+					.withWaitStrategy(Wait.forListeningPorts())
+					.withLabels({
+						'com.docker.compose.project': projectName,
+						'com.docker.compose.service': HOSTNAME,
+					})
+					.withName(`${projectName}-${HOSTNAME}`)
+					.withReuse()
+					.start(),
 			);
 
 		const mappedPort = container.getMappedPort(PORT);
@@ -108,7 +108,7 @@ export class KentHelper {
 		const res = await fetch(`${this.apiUrl}/api/eventlist/`);
 		if (!res.ok) throw new Error(`Kent API error: ${res.status}`);
 		const { events } = (await res.json()) as { events: Array<{ event_id: string }> };
-		return await Promise.all(events.map(async (e) => await this.getEvent(e.event_id)));
+		return Promise.all(events.map((e) => this.getEvent(e.event_id)));
 	}
 
 	/** Get event source (frontend/backend/task_runner) */
