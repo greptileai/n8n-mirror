@@ -70,9 +70,13 @@ jobs:
       - name: Pre-pull Test Container Images
         run: npx tsx packages/testing/containers/pull-test-images.ts || true
 
-      - name: Test Postgres
+      - name: Test Postgres Integration
         working-directory: packages/cli
-        run: pnpm test:postgres:tc
+        run: pnpm test:postgres:integration:tc
+
+      - name: Test Postgres Migrations
+        working-directory: packages/cli
+        run: pnpm test:postgres:migrations:tc
 
   notify-on-failure:
     name: Notify Slack on failure
