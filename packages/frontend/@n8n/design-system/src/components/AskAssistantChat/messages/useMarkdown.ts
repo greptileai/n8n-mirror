@@ -16,7 +16,7 @@ export interface ContentSegment {
  */
 export function parseThinkingSegments(content: string): ContentSegment[] {
 	const segments: ContentSegment[] = [];
-	const regex = /<n8n_thinking>([\s\S]*?)<\/n8n_thinking>/gi;
+	const regex = /<thinking>([\s\S]*?)<\/thinking>/gi;
 	let lastIndex = 0;
 	let match;
 
@@ -32,7 +32,7 @@ export function parseThinkingSegments(content: string): ContentSegment[] {
 
 	// Handle remaining text (and incomplete thinking tags for streaming)
 	const remaining = content.slice(lastIndex);
-	const incompleteTagIndex = remaining.indexOf('<n8n_thinking>');
+	const incompleteTagIndex = remaining.indexOf('<thinking>');
 	if (incompleteTagIndex !== -1) {
 		// Only include text before incomplete tag
 		if (incompleteTagIndex > 0) {

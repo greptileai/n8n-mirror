@@ -439,7 +439,7 @@ describe('TextMessage', () => {
 			const wrapper = render(TextMessage, {
 				props: {
 					message: createAssistantMessage({
-						content: 'Hello <n8n_thinking>This is my thought process</n8n_thinking> World',
+						content: 'Hello <thinking>This is my thought process</thinking> World',
 					}),
 					isFirstOfRole: true,
 				},
@@ -485,7 +485,7 @@ describe('TextMessage', () => {
 			const wrapper = render(TextMessage, {
 				props: {
 					message: createAssistantMessage({
-						content: 'Starting response <n8n_thinking>Partial thought...',
+						content: 'Starting response <thinking>Partial thought...',
 					}),
 					isFirstOfRole: true,
 					streaming: true,
@@ -498,7 +498,7 @@ describe('TextMessage', () => {
 			expect(wrapper.container.textContent).toContain('Starting response');
 
 			// The incomplete tag and content after should not be visible
-			expect(wrapper.container.textContent).not.toContain('<n8n_thinking>');
+			expect(wrapper.container.textContent).not.toContain('<thinking>');
 			expect(wrapper.container.textContent).not.toContain('Partial thought');
 		});
 
@@ -507,7 +507,7 @@ describe('TextMessage', () => {
 				props: {
 					message: createAssistantMessage({
 						content:
-							'First <n8n_thinking>Thought 1</n8n_thinking> Middle <n8n_thinking>Thought 2</n8n_thinking> Last',
+							'First <thinking>Thought 1</thinking> Middle <thinking>Thought 2</thinking> Last',
 					}),
 					isFirstOfRole: true,
 				},
@@ -537,7 +537,7 @@ describe('parseThinkingSegments', () => {
 	});
 
 	it('should parse complete thinking tag into text and thinking segments', () => {
-		const result = parseThinkingSegments('Before <n8n_thinking>The thought</n8n_thinking> After');
+		const result = parseThinkingSegments('Before <thinking>The thought</thinking> After');
 		expect(result).toEqual([
 			{ type: 'text', content: 'Before ' },
 			{ type: 'thinking', content: 'The thought' },
@@ -546,9 +546,7 @@ describe('parseThinkingSegments', () => {
 	});
 
 	it('should handle multiple thinking tags', () => {
-		const result = parseThinkingSegments(
-			'A <n8n_thinking>T1</n8n_thinking> B <n8n_thinking>T2</n8n_thinking> C',
-		);
+		const result = parseThinkingSegments('A <thinking>T1</thinking> B <thinking>T2</thinking> C');
 		expect(result).toEqual([
 			{ type: 'text', content: 'A ' },
 			{ type: 'thinking', content: 'T1' },
@@ -559,17 +557,17 @@ describe('parseThinkingSegments', () => {
 	});
 
 	it('should hide incomplete opening tag during streaming', () => {
-		const result = parseThinkingSegments('Visible text <n8n_thinking>Incomplete thought...');
+		const result = parseThinkingSegments('Visible text <thinking>Incomplete thought...');
 		expect(result).toEqual([{ type: 'text', content: 'Visible text ' }]);
 	});
 
 	it('should trim whitespace from thinking content', () => {
-		const result = parseThinkingSegments('<n8n_thinking>  trimmed  </n8n_thinking>');
+		const result = parseThinkingSegments('<thinking>  trimmed  </thinking>');
 		expect(result).toEqual([{ type: 'thinking', content: 'trimmed' }]);
 	});
 
 	it('should handle thinking tag at the start', () => {
-		const result = parseThinkingSegments('<n8n_thinking>Thought</n8n_thinking> After');
+		const result = parseThinkingSegments('<thinking>Thought</thinking> After');
 		expect(result).toEqual([
 			{ type: 'thinking', content: 'Thought' },
 			{ type: 'text', content: ' After' },
@@ -577,7 +575,7 @@ describe('parseThinkingSegments', () => {
 	});
 
 	it('should handle thinking tag at the end', () => {
-		const result = parseThinkingSegments('Before <n8n_thinking>Thought</n8n_thinking>');
+		const result = parseThinkingSegments('Before <thinking>Thought</thinking>');
 		expect(result).toEqual([
 			{ type: 'text', content: 'Before ' },
 			{ type: 'thinking', content: 'Thought' },
@@ -590,12 +588,12 @@ describe('parseThinkingSegments', () => {
 	});
 
 	it('should handle case-insensitive tags', () => {
-		const result = parseThinkingSegments('<N8N_THINKING>Upper</N8N_THINKING>');
+		const result = parseThinkingSegments('<THINKING>Upper</THINKING>');
 		expect(result).toEqual([{ type: 'thinking', content: 'Upper' }]);
 	});
 
 	it('should handle multiline thinking content', () => {
-		const result = parseThinkingSegments('<n8n_thinking>Line 1\nLine 2\nLine 3</n8n_thinking>');
+		const result = parseThinkingSegments('<thinking>Line 1\nLine 2\nLine 3</thinking>');
 		expect(result).toEqual([{ type: 'thinking', content: 'Line 1\nLine 2\nLine 3' }]);
 	});
 });

@@ -1004,7 +1004,7 @@ ${'='.repeat(50)}
 
 	/**
 	 * Extract thinking/planning content from an AI message
-	 * Looks for <n8n_thinking> tags and extended thinking blocks
+	 * Looks for <thinking> tags and extended thinking blocks
 	 */
 	private extractThinkingContent(message: AIMessage): string | null {
 		const textContent = this.extractTextContent(message);
@@ -1012,11 +1012,11 @@ ${'='.repeat(50)}
 			return null;
 		}
 
-		// Extract <n8n_thinking> blocks
-		const thinkingMatches = textContent.match(/<n8n_thinking>([\s\S]*?)<\/n8n_thinking>/g);
+		// Extract <thinking> blocks
+		const thinkingMatches = textContent.match(/<thinking>([\s\S]*?)<\/thinking>/g);
 		if (thinkingMatches) {
 			return thinkingMatches
-				.map((match) => match.replace(/<\/?n8n_thinking>/g, '').trim())
+				.map((match) => match.replace(/<\/?thinking>/g, '').trim())
 				.join('\n\n');
 		}
 

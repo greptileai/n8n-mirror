@@ -472,7 +472,7 @@ const MANDATORY_WORKFLOW = `# Mandatory Workflow Process
 
 ## Step 1: Understand Requirements
 
-Start your <n8n_thinking> section by analyzing the user request:
+Start your <thinking> section by analyzing the user request:
 
 1. **Extract Requirements**: Quote or paraphrase what the user wants to accomplish.
 
@@ -545,7 +545,7 @@ Search for each external service, workflow concepts (e.g., "schedule", "webhook"
 
 ## Step 3: Design the Workflow
 
-Continue your <n8n_thinking> with design decisions based on search results:
+Continue your <thinking> with design decisions based on search results:
 
 1. **Select Nodes**: Based on search results, choose specific nodes:
    - Use dedicated integration nodes when available (from search)
