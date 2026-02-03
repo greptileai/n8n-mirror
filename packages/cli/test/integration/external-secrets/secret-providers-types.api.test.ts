@@ -1,7 +1,9 @@
+import type { SecretProviderTypeResponse, SecretsProviderType } from '@n8n/api-types';
 import { LicenseState, Logger } from '@n8n/backend-common';
 import { mockInstance, mockLogger, testDb, testModules } from '@n8n/backend-test-utils';
 import { Container } from '@n8n/di';
 import { mock } from 'jest-mock-extended';
+import type { Response } from 'superagent';
 
 import { ExternalSecretsProviders } from '@/modules/external-secrets.ee/external-secrets-providers.ee';
 import { ExternalSecretsConfig } from '@/modules/external-secrets.ee/external-secrets.config';
@@ -12,11 +14,9 @@ import {
 	DummyProvider,
 	MockProviders,
 } from '../../shared/external-secrets/utils';
-import { createOwner } from '../shared/db/users';
+import { createAdmin, createMember, createOwner } from '../shared/db/users';
 import type { SuperAgentTest } from '../shared/types';
 import { setupTestServer } from '../shared/utils';
-import { Response } from 'superagent';
-import { SecretProviderTypeResponse, SecretsProviderType } from '@n8n/api-types';
 
 const mockProvidersInstance = new MockProviders();
 mockInstance(ExternalSecretsProviders, mockProvidersInstance);
@@ -39,6 +39,8 @@ describe('Secret Providers Types API', () => {
 	});
 
 	let ownerAgent: SuperAgentTest;
+	let adminAgent: SuperAgentTest;
+	let memberAgent: SuperAgentTest;
 
 	beforeAll(async () => {
 		await testModules.loadModules(['external-secrets']);
@@ -48,6 +50,12 @@ describe('Secret Providers Types API', () => {
 
 		const owner = await createOwner();
 		ownerAgent = testServer.authAgentFor(owner);
+
+		const admin = await createAdmin();
+		adminAgent = testServer.authAgentFor(admin);
+
+		const member = await createMember();
+		memberAgent = testServer.authAgentFor(member);
 	});
 
 	afterAll(async () => {
@@ -61,9 +69,26 @@ describe('Secret Providers Types API', () => {
 
 	describe('GET /secret-providers/types', () => {
 		describe('Authorization', () => {
-			it.todo('should authorize owner to list provider types');
-			it.todo('should authorize global admin to list provider types');
-			it.todo('should refuse member to list provider types');
+			beforeAll(async () => {
+				mockProvidersInstance.setProviders({
+					dummy: DummyProvider,
+				});
+			});
+
+			it('should authorize owner to list provider types', async () => {
+				const response = await ownerAgent.get('/secret-providers/types');
+				expect(response.status).toBe(200);
+			});
+
+			it('should authorize global admin to list provider types', async () => {
+				const response = await adminAgent.get('/secret-providers/types');
+				expect(response.status).toBe(200);
+			});
+
+			it('should refuse member to list provider types', async () => {
+				const response = await memberAgent.get('/secret-providers/types');
+				expect(response.status).toBe(403);
+			});
 		});
 
 		describe('with providers', () => {
@@ -122,7 +147,7 @@ describe('Secret Providers Types API', () => {
 				response = await ownerAgent.get('/secret-providers/types');
 			});
 
-			it('should return all available provider types when providers exist', async () => {
+			it('should return all available provider typesp', async () => {
 				const { data } = response.body as { data: SecretProviderTypeResponse[] };
 				expect(response.status).toBe(200);
 				expect(data).toBeInstanceOf(Array);
@@ -134,7 +159,7 @@ describe('Secret Providers Types API', () => {
 				);
 			});
 
-			it('should return correct provider data', () => {
+			it('should return correct provider type data', () => {
 				const { data } = response.body as { data: SecretProviderTypeResponse[] };
 
 				const expectedMockProvider = data.find(
@@ -152,34 +177,138 @@ describe('Secret Providers Types API', () => {
 		});
 
 		describe('without providers', () => {
-			it.todo('should return empty array when no providers are registered');
+			it('should return empty array when no providers are registered', async () => {
+				mockProvidersInstance.setProviders({});
+
+				const response = await ownerAgent.get('/secret-providers/types');
+
+				expect(response.status).toBe(200);
+				const { data } = response.body as { data: SecretProviderTypeResponse[] };
+				expect(data).toBeInstanceOf(Array);
+				expect(data).toHaveLength(0);
+			});
 		});
 	});
 
 	describe('GET /secret-providers/types/:type', () => {
 		describe('Authorization', () => {
-			it.todo('should authorize owner to get specific provider type');
-			it.todo('should authorize global admin to get specific provider type');
-			it.todo('should refuse member to get provider type');
+			beforeAll(async () => {
+				mockProvidersInstance.setProviders({
+					dummy: DummyProvider,
+				});
+			});
+
+			it('should authorize owner to get specific provider type', async () => {
+				const response = await ownerAgent.get('/secret-providers/types/dummy');
+				expect(response.status).toBe(200);
+			});
+
+			it('should authorize global admin to get specific provider type', async () => {
+				const response = await adminAgent.get('/secret-providers/types/dummy');
+				expect(response.status).toBe(200);
+			});
+
+			it('should refuse member to get provider type', async () => {
+				const response = await memberAgent.get('/secret-providers/types/dummy');
+				expect(response.status).toBe(403);
+			});
 		});
 
 		describe('with provider', () => {
-			beforeAll(async () => {
-				// call the endpoint
+			const mockProvider = createDummyProvider({
+				name: 'vault',
+				displayName: 'HashiCorp Vault',
+				properties: [
+					{
+						name: 'url',
+						displayName: 'Vault URL',
+						type: 'string',
+						default: '',
+						required: true,
+						placeholder: 'https://vault.example.com',
+					},
+					{
+						name: 'token',
+						displayName: 'Token',
+						type: 'string',
+						default: '',
+						required: true,
+						typeOptions: {
+							password: true,
+						},
+					},
+					{
+						name: 'namespace',
+						displayName: 'Namespace',
+						type: 'string',
+						default: '',
+						required: false,
+					},
+				],
 			});
 
-			it.todo('should return provider type details for valid existing type');
-			it.todo('should return correct structure with type, displayName, icon, and properties');
-			it.todo('should return provider-specific properties matching the provider');
+			let response: Response;
+
+			beforeAll(async () => {
+				mockProvidersInstance.setProviders({
+					dummy: DummyProvider,
+					vault: mockProvider,
+				});
+
+				response = await ownerAgent.get('/secret-providers/types/vault');
+			});
+
+			it('should return provider type', () => {
+				expect(response.status).toBe(200);
+				const { data } = response.body as { data: SecretProviderTypeResponse };
+				expect(data).toBeDefined();
+				expect(data.type).toBe('vault');
+			});
+
+			it('should return correct provider type data', () => {
+				const { data } = response.body as { data: SecretProviderTypeResponse };
+
+				expect(data.displayName).toBe('HashiCorp Vault');
+				expect(data.icon).toBe('vault');
+				expect(data.properties).toHaveLength(3);
+
+				const propertyNames = data.properties.map((p) => p.name);
+				expect(propertyNames).toEqual(expect.arrayContaining(['url', 'token', 'namespace']));
+
+				// Verify password field has correct typeOptions
+				const tokenProperty = data.properties.find((p) => p.name === 'token');
+				expect(tokenProperty?.typeOptions).toEqual({ password: true });
+
+				// Verify required fields
+				const urlProperty = data.properties.find((p) => p.name === 'url');
+				expect(urlProperty?.required).toBe(true);
+
+				const namespaceProperty = data.properties.find((p) => p.name === 'namespace');
+				expect(namespaceProperty?.required).toBe(false);
+			});
 		});
 
 		describe('without provider', () => {
+			let response: Response;
+
 			beforeAll(async () => {
-				// call the endpoint
+				mockProvidersInstance.setProviders({
+					dummy: DummyProvider,
+				});
+
+				response = await ownerAgent.get('/secret-providers/types/non_existent');
 			});
 
-			it.todo('should return 404 for non-existent provider type');
-			it.todo('should return 404 with appropriate error message');
+			it('should return 404 for non-existent provider type', () => {
+				expect(response.status).toBe(404);
+			});
+
+			it('should return 404 with appropriate error message', () => {
+				expect(response.body).toEqual({
+					code: 404,
+					message: 'Provider type "non_existent" not found',
+				});
+			});
 		});
 	});
 });

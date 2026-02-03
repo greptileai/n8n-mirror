@@ -1,6 +1,7 @@
 import type { SecretProviderTypeResponse, SecretsProviderType } from '@n8n/api-types';
 import { Logger } from '@n8n/backend-common';
-import { Get, GlobalScope, Param, RestController, Middleware } from '@n8n/decorators';
+import type { AuthenticatedRequest } from '@n8n/db';
+import { Get, GlobalScope, Middleware, Param, RestController } from '@n8n/decorators';
 import type { NextFunction, Request, Response } from 'express';
 
 import { BadRequestError } from '@/errors/response-errors/bad-request.error';
@@ -41,7 +42,11 @@ export class SecretProvidersTypesController {
 
 	@Get('/:type')
 	@GlobalScope('externalSecretsProvider:list')
-	getSecretProviderType(@Param('type') type: string): SecretProviderTypeResponse {
+	getSecretProviderType(
+		_req: AuthenticatedRequest,
+		_res: Response,
+		@Param('type') type: string,
+	): SecretProviderTypeResponse {
 		this.logger.debug('Get provider connection type', { type });
 		if (!this.secretsProviders.hasProvider(type)) {
 			throw new NotFoundError(`Provider type "${type}" not found`);
