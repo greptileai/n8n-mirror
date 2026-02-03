@@ -4,7 +4,6 @@ import type { AuthenticatedRequest } from '@n8n/db';
 import { Get, GlobalScope, Middleware, Param, RestController } from '@n8n/decorators';
 import type { NextFunction, Request, Response } from 'express';
 
-import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
 import { NotFoundError } from '@/errors/response-errors/not-found.error';
 
 import { ExternalSecretsProviders } from './external-secrets-providers.ee';

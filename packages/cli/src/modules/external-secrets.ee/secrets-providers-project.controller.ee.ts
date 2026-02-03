@@ -3,8 +3,6 @@ import type { AuthenticatedRequest } from '@n8n/db';
 import { Get, Middleware, Param, ProjectScope, RestController } from '@n8n/decorators';
 import type { NextFunction, Request, Response } from 'express';
 
-import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
-
 import { ExternalSecretsConfig } from './external-secrets.config';
 import { SecretsProvidersConnectionsService } from './secrets-providers-connections.service.ee';
 import type { SecretsProvidersResponses } from './secrets-providers.responses.ee';
