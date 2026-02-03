@@ -38,6 +38,7 @@ export class Currents implements INodeType {
 				Accept: 'application/json',
 				'Content-Type': 'application/json',
 			},
+			arrayFormat: 'repeat',
 		},
 		properties: [
 			{

@@ -26,3 +26,59 @@ export const projectRLC: INodeProperties = {
 		},
 	],
 };
+
+export const filterAuthorsOption: INodeProperties = {
+	displayName: 'Git Authors',
+	name: 'authors',
+	type: 'string',
+	default: '',
+	routing: {
+		send: {
+			type: 'query',
+			property: 'authors[]',
+		},
+	},
+	description: 'Filter by git authors (multiple values supported)',
+};
+
+export const filterBranchesOption: INodeProperties = {
+	displayName: 'Branches',
+	name: 'branches',
+	type: 'string',
+	default: '',
+	routing: {
+		send: {
+			type: 'query',
+			property: 'branches[]',
+		},
+	},
+	description: 'Filter by branches (multiple values supported)',
+};
+
+export const filterGroupsOption: INodeProperties = {
+	displayName: 'Groups',
+	name: 'groups',
+	type: 'string',
+	default: '',
+	routing: {
+		send: {
+			type: 'query',
+			property: 'groups[]',
+		},
+	},
+	description: 'Filter by groups (multiple values supported)',
+};
+
+export const filterTagsOption: INodeProperties = {
+	displayName: 'Tags',
+	name: 'tags',
+	type: 'string',
+	default: '',
+	routing: {
+		send: {
+			type: 'query',
+			property: 'tags[]',
+		},
+	},
+	description: 'Filter by tags (multiple values supported)',
+};
