@@ -446,13 +446,12 @@ describe('AuthRolesService', () => {
 				publishing: boolean | null,
 				sharing: boolean | null,
 			): void {
-				settingsRepository.findByKey.mockImplementation((key: string) => {
+				settingsRepository.findByKey.mockImplementation(async (key: string) => {
 					const value = (enabled: boolean | null) =>
 						enabled === null ? null : ({ value: enabled ? 'true' : 'false' } as any);
-					if (key === PERSONAL_SPACE_PUBLISHING_SETTING.key)
-						return Promise.resolve(value(publishing));
-					if (key === PERSONAL_SPACE_SHARING_SETTING.key) return Promise.resolve(value(sharing));
-					return Promise.resolve(null);
+					if (key === PERSONAL_SPACE_PUBLISHING_SETTING.key) return value(publishing);
+					if (key === PERSONAL_SPACE_SHARING_SETTING.key) return value(sharing);
+					return null;
 				});
 			}
 
