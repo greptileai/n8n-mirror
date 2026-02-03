@@ -343,25 +343,13 @@ describe('WorkflowHistoryService', () => {
 			expect(workflowHistoryRepository.findOne).not.toHaveBeenCalled();
 		});
 
-		it('should allow updating all allowed fields', async () => {
+		it('should allow updating name and description', async () => {
 			// Arrange
 			const workflowId = '123';
 			const versionId = 'version1';
 			const updateData = {
 				name: 'Updated Name',
 				description: 'Updated Description',
-				nodes: [
-					{
-						id: 'node1',
-						name: 'Node 1',
-						parameters: {},
-						position: [0, 0],
-						type: 'n8n-nodes-base.test',
-						typeVersion: 1,
-					},
-				],
-				connections: {},
-				authors: 'Jane Doe',
 			};
 			workflowHistoryRepository.update.mockResolvedValue(mockUpdateResult);
 

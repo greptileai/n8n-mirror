@@ -173,7 +173,10 @@ export class WorkflowHistoryService {
 	async updateVersion(
 		workflowId: string,
 		versionId: string,
-		updateData: UpdateWorkflowHistoryVersionDto,
+		updateData: Omit<
+			Partial<WorkflowHistory>,
+			'versionId' | 'workflowId' | 'createdAt' | 'updatedAt'
+		>,
 	) {
 		await this.workflowHistoryRepository.update({ versionId, workflowId }, updateData);
 	}

@@ -5,6 +5,7 @@ import { Container } from '@n8n/di';
 import { createOwner, createUser } from '@test-integration/db/users';
 import { createWorkflowHistoryItem } from '@test-integration/db/workflow-history';
 import { createWorkflowPublishHistoryItem } from '@test-integration/db/workflow-publish-history';
+import type { IConnections, INode } from 'n8n-workflow';
 
 import type { SuperAgentTest } from './shared/types';
 import * as utils from './shared/utils/';
@@ -442,5 +443,45 @@ describe('PATCH /workflow-history/workflow/:workflowId/versions/:versionId', () 
 		expect(getResponse.body.data.authors).toBe(originalAuthors);
 		expect(getResponse.body.data.description).toBe('Original Description');
 		expect(getResponse.body.data.createdAt).toBe(originalCreatedAt.toISOString());
+	});
+
+	test('should ignore immutable fields', async () => {
+		const workflow = await createWorkflow(undefined, owner);
+		const originalNodes: INode[] = [
+			{
+				id: 'node1',
+				name: 'Original Node',
+				parameters: {},
+				position: [0, 0],
+				type: 'n8n-nodes-base.test',
+				typeVersion: 1,
+			},
+		];
+		const originalConnections: IConnections = { node1: {} };
+		const originalAuthors = 'John Doe';
+		const version = await createWorkflowHistoryItem(workflow.id, {
+			name: 'Original Name',
+			authors: originalAuthors,
+			nodes: originalNodes,
+			connections: originalConnections,
+		});
+
+		const response = await authOwnerAgent
+			.patch(`/workflow-history/workflow/${workflow.id}/versions/${version.versionId}`)
+			.send({
+				name: 'Updated Name',
+				authors: 'Malicious Actor',
+				nodes: [{ id: 'fake', name: 'Fake Node' }],
+				connections: { fake: {} },
+			});
+		expect(response.status).toBe(200);
+
+		const getResponse = await authOwnerAgent.get(
+			`/workflow-history/workflow/${workflow.id}/version/${version.versionId}`,
+		);
+		expect(getResponse.body.data.name).toBe('Updated Name');
+		expect(getResponse.body.data.authors).toBe(originalAuthors);
+		expect(getResponse.body.data.nodes).toEqual(originalNodes);
+		expect(getResponse.body.data.connections).toEqual(originalConnections);
 	});
 });
