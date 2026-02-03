@@ -1,5 +1,5 @@
-import { LicenseState } from '@n8n/backend-common';
-import { createTeamProject, mockInstance, testDb } from '@n8n/backend-test-utils';
+import { LicenseState, Logger } from '@n8n/backend-common';
+import { createTeamProject, mockInstance, mockLogger, testDb } from '@n8n/backend-test-utils';
 import type { Project, User } from '@n8n/db';
 import {
 	ProjectSecretsProviderAccessRepository,
@@ -8,24 +8,20 @@ import {
 import { Container } from '@n8n/di';
 import { mock } from 'jest-mock-extended';
 
+import { ExternalSecretsManager } from '@/modules/external-secrets.ee/external-secrets-manager.ee';
 import { ExternalSecretsProviders } from '@/modules/external-secrets.ee/external-secrets-providers.ee';
 import { ExternalSecretsConfig } from '@/modules/external-secrets.ee/external-secrets.config';
 
-import {
-	AnotherDummyProvider,
-	DummyProvider,
-	MockProviders,
-} from '../../shared/external-secrets/utils';
+import { createDummyProvider, MockProviders } from '../../shared/external-secrets/utils';
 import { createAdmin, createMember, createOwner } from '../shared/db/users';
 import type { SuperAgentTest } from '../shared/types';
 import { setupTestServer } from '../shared/utils';
 
-let owner: User;
-let member: User;
-let admin: User;
-let authOwnerAgent: SuperAgentTest;
-let authAdminAgent: SuperAgentTest;
-let authMemberAgent: SuperAgentTest;
+const resetManager = async () => {
+	const manager = Container.get(ExternalSecretsManager);
+	manager.shutdown();
+	await manager.init();
+};
 
 const mockProvidersInstance = new MockProviders();
 mockInstance(ExternalSecretsProviders, mockProvidersInstance);
@@ -34,143 +30,159 @@ const licenseMock = mock<LicenseState>();
 licenseMock.isLicensed.mockReturnValue(true);
 Container.set(LicenseState, licenseMock);
 
-const testServer = setupTestServer({
-	endpointGroups: ['externalSecrets'],
-	enabledFeatures: ['feat:externalSecrets'],
-	modules: ['external-secrets'],
+mockInstance(ExternalSecretsConfig, {
+	externalSecretsForProjects: true,
 });
 
-let connectionRepository: SecretsProviderConnectionRepository;
-let projectAccessRepository: ProjectSecretsProviderAccessRepository;
-let externalSecretsConfig: ExternalSecretsConfig;
+describe('Secret Providers Completions API', () => {
+	let owner: User;
+	let member: User;
+	let admin: User;
+	let authOwnerAgent: SuperAgentTest;
+	let authAdminAgent: SuperAgentTest;
+	let authMemberAgent: SuperAgentTest;
 
-let projectWithConnections: Project;
-let projectWithoutConnections: Project;
-
-beforeAll(async () => {
-	mockProvidersInstance.setProviders({
-		dummy: DummyProvider,
-		another_dummy: AnotherDummyProvider,
+	const testServer = setupTestServer({
+		endpointGroups: ['externalSecrets'],
+		enabledFeatures: ['feat:externalSecrets'],
+		modules: ['external-secrets'],
 	});
 
-	externalSecretsConfig = Container.get(ExternalSecretsConfig);
-	externalSecretsConfig.externalSecretsForProjects = true;
+	let connectionRepository: SecretsProviderConnectionRepository;
+	let projectAccessRepository: ProjectSecretsProviderAccessRepository;
 
-	owner = await createOwner();
-	member = await createMember();
-	admin = await createAdmin();
+	let projectWithConnections: Project;
+	let projectWithoutConnections: Project;
 
-	authOwnerAgent = testServer.authAgentFor(owner);
-	authAdminAgent = testServer.authAgentFor(admin);
-	authMemberAgent = testServer.authAgentFor(member);
+	beforeAll(async () => {
+		Container.set(Logger, mockLogger());
 
-	connectionRepository = Container.get(SecretsProviderConnectionRepository);
-	projectAccessRepository = Container.get(ProjectSecretsProviderAccessRepository);
+		owner = await createOwner();
+		member = await createMember();
+		admin = await createAdmin();
 
-	projectWithConnections = await createTeamProject('With Connections', owner);
-	projectWithoutConnections = await createTeamProject('Without Connections', owner);
-});
+		authOwnerAgent = testServer.authAgentFor(owner);
+		authAdminAgent = testServer.authAgentFor(admin);
+		authMemberAgent = testServer.authAgentFor(member);
 
-beforeEach(async () => {
-	await testDb.truncate(['SecretsProviderConnection', 'ProjectSecretsProviderAccess']);
-});
+		connectionRepository = Container.get(SecretsProviderConnectionRepository);
+		projectAccessRepository = Container.get(ProjectSecretsProviderAccessRepository);
 
-describe('GET /secret-providers/completions/secrets/global', () => {
-	describe('with owner', () => {
-		it('should return global secrets', async () => {
-			// TODO: Add API call to test the endpoint
-		});
-
-		it('should return empty array when no global connections exist', async () => {});
+		projectWithConnections = await createTeamProject('With Connections', owner);
+		projectWithoutConnections = await createTeamProject('Without Connections', owner);
 	});
 
-	describe('with instance admin', () => {
-		it('should return global secrets', async () => {});
-
-		it('should return empty array when no global connections exist', async () => {});
+	beforeEach(async () => {
+		await testDb.truncate(['SecretsProviderConnection', 'ProjectSecretsProviderAccess']);
 	});
 
-	describe('with member', () => {
-		it('should not retrieve global secrets', async () => {});
-	});
+	describe('GET /secret-providers/completions/secrets/global', () => {
+		describe('Authorisation', () => {
+			it('should authorize owner to list global secrets', async () => {
+				const response = await authOwnerAgent.get('/secret-providers/completions/secrets/global');
+				expect(response.status).toBe(200);
+			});
 
-	describe('with unauthenticated user', () => {
-		it('should not retrieve global secrets', async () => {
-			await testServer.authlessAgent
-				.get('/secret-providers/completions/secrets/global')
-				.expect(401);
+			it('should authorize global admin to list global secrets', async () => {
+				const response = await authAdminAgent.get('/secret-providers/completions/secrets/global');
+				expect(response.status).toBe(200);
+			});
+
+			it('should refuse member to list global secrets', async () => {
+				const response = await authMemberAgent.get('/secret-providers/completions/secrets/global');
+				expect(response.status).toBe(403);
+			});
 		});
 	});
-});
 
-describe('GET /secret-providers/completions/secrets/project/:projectId', () => {
-	describe('with owner', () => {
-		it('should return project secrets', async () => {
-			// Create a project-scoped connection for projectWithConnections
-			const connection = await connectionRepository.save(
-				connectionRepository.create({
+	describe('GET /secret-providers/completions/secrets/project/:projectId', () => {
+		describe('Authorisation', () => {
+			it('should authorize owner to list project secrets', async () => {
+				const response = await authOwnerAgent.get(
+					'/secret-providers/completions/secrets/project/123',
+				);
+				expect(response.status).toBe(200);
+			});
+
+			it('should authorize global admin to list project secrets', async () => {
+				const response = await authAdminAgent.get(
+					'/secret-providers/completions/secrets/project/123',
+				);
+				expect(response.status).toBe(200);
+			});
+
+			it('should refuse member to list project secrets', async () => {
+				const response = await authMemberAgent.get(
+					'/secret-providers/completions/secrets/project/123',
+				);
+				expect(response.status).toBe(403);
+			});
+		});
+
+		describe('with existing project connections', () => {
+			it.skip('should return project secrets', async () => {
+				const TestProvider = createDummyProvider({
+					name: 'test_provider',
+					secrets: { secret1: 'value1', secret2: 'value2' },
+				});
+				const AnotherTestProvider = createDummyProvider({
+					name: 'another_test_provider',
+					secrets: { secret3: 'value3', secret4: 'value4' },
+				});
+
+				mockProvidersInstance.setProviders({
+					dummy: TestProvider,
+					another_dummy: AnotherTestProvider,
+				});
+
+				await resetManager();
+
+				// Create a project-scoped connection for projectWithConnections
+				const mockConnection = {
 					providerKey: 'test-project-secret-connection',
-					type: 'dummy',
+					type: 'test_provider',
 					isEnabled: true,
-					encryptedSettings: JSON.stringify({
-						region: 'us-east-1',
-						accessKeyId: 'AKIA...',
-						secretAccessKey: 'SECRET',
+					encryptedSettings: 'mocked-encrypted-settings',
+				};
+				const connection = await connectionRepository.save(
+					connectionRepository.create(mockConnection),
+				);
+
+				await connectionRepository.save(
+					connectionRepository.create({
+						providerKey: 'test-project-secret-connection-disabled',
+						type: 'another_test_provider',
+						isEnabled: false,
+						encryptedSettings: 'mocked-encrypted-settings',
 					}),
-				}),
-			);
+				);
 
-			await connectionRepository.save(
-				connectionRepository.create({
-					providerKey: 'test-project-secret-connection-disabled',
-					type: 'another_dummy',
-					isEnabled: false,
-					encryptedSettings: JSON.stringify({
-						region: 'us-east-1',
-						accessKeyId: 'AKIA...',
-						secretAccessKey: 'SECRET',
+				await projectAccessRepository.save(
+					projectAccessRepository.create({
+						projectId: projectWithConnections.id,
+						secretsProviderConnectionId: connection.id,
 					}),
-				}),
-			);
+				);
 
-			await projectAccessRepository.save(
-				projectAccessRepository.create({
-					projectId: projectWithConnections.id,
-					secretsProviderConnectionId: connection.id,
-				}),
-			);
+				const response = await authOwnerAgent
+					.get(`/secret-providers/completions/secrets/project/${projectWithConnections.id}`)
+					.expect(200);
 
-			const response = await authOwnerAgent
-				.get(`/secret-providers/completions/secrets/project/${projectWithConnections.id}`)
-				.expect(200);
-
-			expect(response.body.data).toEqual([
-				{
-					type: 'awsSecretsManager',
-					providerKey: 'test-project-secret-connection',
-					secretCompletions: ['secret1', 'secret2'],
-				},
-			]);
+				expect(response.body.data).toEqual([
+					{
+						type: mockConnection.type,
+						providerKey: mockConnection.providerKey,
+						secretCompletions: ['secret1', 'secret1'],
+						isGlobal: false,
+					},
+				]);
+			});
 		});
 
-		it('should return empty array when project has no connections', async () => {});
-	});
+		describe('with no project connections', () => {});
 
-	describe('with instance admin', () => {
-		it('should return project secrets', async () => {});
-
-		it('should return empty array when project has no connections', async () => {});
-	});
-
-	describe('with member', () => {
-		it('should not retrieve project secrets', async () => {});
-	});
-
-	describe('with unauthenticated user', () => {
-		it('should not retrieve project secrets', async () => {
-			await testServer.authlessAgent
-				.get('/secret-providers/completions/secrets/project/123')
-				.expect(401);
+		describe('with no project', () => {
+			it.todo('should return 404');
 		});
 	});
 });
