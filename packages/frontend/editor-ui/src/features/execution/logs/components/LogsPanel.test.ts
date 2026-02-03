@@ -62,8 +62,7 @@ vi.mock('@/app/composables/useNodeHelpers', async (importOriginal) => {
 	const actual = await importOriginal<typeof useNodeHelpersModule>();
 	return {
 		...actual,
-		useNodeHelpers: (opts = {}) =>
-			actual.useNodeHelpers({ ...opts, workflowState: workflowStateRef.current }),
+		useNodeHelpers: () => actual.useNodeHelpers(),
 	};
 });
 
@@ -111,7 +110,7 @@ describe('LogsPanel', () => {
 		setActivePinia(pinia);
 
 		workflowsStore = mockedStore(useWorkflowsStore);
-		workflowState = useWorkflowState();
+		workflowState = useWorkflowState('test-workflow-id');
 		workflowStateRef.current = workflowState;
 		workflowState.setWorkflowExecutionData(null);
 

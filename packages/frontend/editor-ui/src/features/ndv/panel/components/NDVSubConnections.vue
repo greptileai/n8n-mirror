@@ -17,6 +17,7 @@ import { useDebounce } from '@/app/composables/useDebounce';
 import { OnClickOutside } from '@vueuse/components';
 import { useI18n } from '@n8n/i18n';
 import { useNDVStore } from '@/features/ndv/shared/ndv.store';
+import { injectWorkflowState } from '@/app/composables/useWorkflowState';
 
 import { N8nIconButton, N8nTooltip } from '@n8n/design-system';
 interface Props {
@@ -27,6 +28,7 @@ const props = defineProps<Props>();
 const workflowsStore = useWorkflowsStore();
 const nodeTypesStore = useNodeTypesStore();
 const nodeHelpers = useNodeHelpers();
+const workflowState = injectWorkflowState();
 const i18n = useI18n();
 const { debounce } = useDebounce();
 const emit = defineEmits<{
@@ -65,7 +67,7 @@ const ndvStore = useNDVStore();
 const workflowObject = computed(() => workflowsStore.workflowObject as Workflow);
 
 const nodeInputIssues = computed(() => {
-	const issues = nodeHelpers.getNodeIssues(nodeType.value, props.rootNode, workflowObject.value, [
+	const issues = workflowState.getNodeIssues(nodeType.value, props.rootNode, workflowObject.value, [
 		'typeUnknown',
 		'parameters',
 		'credentials',
@@ -163,7 +165,7 @@ function getINodesFromNames(names: string[]): NodeConfig[] {
 			if (node) {
 				const matchedNodeType = nodeTypesStore.getNodeType(node.type);
 				if (matchedNodeType) {
-					const issues = nodeHelpers.getNodeIssues(matchedNodeType, node, workflowObject.value);
+					const issues = workflowState.getNodeIssues(matchedNodeType, node, workflowObject.value);
 					const stringifiedIssues = issues ? nodeHelpers.nodeIssuesToString(issues, node) : '';
 					return { node, nodeType: matchedNodeType, issues: stringifiedIssues };
 				}

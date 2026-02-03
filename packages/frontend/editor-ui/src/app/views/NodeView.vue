@@ -23,6 +23,7 @@ import { useUIStore } from '@/app/stores/ui.store';
 import CanvasRunWorkflowButton from '@/features/workflows/canvas/components/elements/buttons/CanvasRunWorkflowButton.vue';
 import { useI18n } from '@n8n/i18n';
 import { useWorkflowsStore } from '@/app/stores/workflows.store';
+import { disposeWorkflowDocumentsStore } from '@/app/stores/workflowDocuments.store';
 import { useWorkflowsListStore } from '@/app/stores/workflowsList.store';
 import { useRunWorkflow } from '@/app/composables/useRunWorkflow';
 import { useGlobalLinkActions } from '@/app/composables/useGlobalLinkActions';
@@ -105,7 +106,7 @@ import { useNpsSurveyStore } from '@/app/stores/npsSurvey.store';
 import { useTelemetry } from '@/app/composables/useTelemetry';
 import { useHistoryStore } from '@/app/stores/history.store';
 import { useProjectsStore } from '@/features/collaboration/projects/projects.store';
-import { useNodeHelpers } from '@/app/composables/useNodeHelpers';
+import { useWorkflowHelpers } from '@/app/composables/useWorkflowHelpers';
 import { useExecutionDebugging } from '@/features/execution/executions/composables/useExecutionDebugging';
 import { useUsersStore } from '@/features/settings/users/users.store';
 import { sourceControlEventBus } from '@/features/integrations/sourceControl.ee/sourceControl.eventBus';
@@ -152,8 +153,6 @@ import { useWorkflowState } from '@/app/composables/useWorkflowState';
 import { useActivityDetection } from '@/app/composables/useActivityDetection';
 import { useParentFolder } from '@/features/core/folders/composables/useParentFolder';
 import { useCollaborationStore } from '@/features/collaboration/collaboration/collaboration.store';
-import { injectStrict } from '@/app/utils/injectStrict';
-import { WorkflowIdKey } from '@/app/constants/injectionKeys';
 
 import { N8nCallout, N8nCanvasThinkingPill, N8nCanvasCollaborationPill } from '@n8n/design-system';
 
@@ -192,7 +191,7 @@ const workflowSaving = useWorkflowSaving({
 		canvasEventBus.emit('saved:workflow', { isFirstSave });
 	},
 });
-const nodeHelpers = useNodeHelpers();
+const workflowHelpers = useWorkflowHelpers();
 const clipboard = useClipboard({ onPaste: onClipboardPaste });
 
 const nodeTypesStore = useNodeTypesStore();
@@ -226,7 +225,12 @@ const collaborationStore = useCollaborationStore();
 const emptyStateBuilderPromptStore = useEmptyStateBuilderPromptStore();
 const chatPanelStore = useChatPanelStore();
 
-const workflowState = useWorkflowState();
+const workflowId = computed(() => {
+	const name = route.params.name;
+	return Array.isArray(name) ? name[0] : name;
+});
+
+const workflowState = useWorkflowState(workflowId.value ?? '');
 
 // Initialize activity detection for collaboration
 useActivityDetection();
@@ -302,7 +306,6 @@ const hideNodeIssues = ref(false);
 const fallbackNodes = ref<INodeUi[]>([]);
 
 const initializedWorkflowId = ref<string | undefined>();
-const workflowId = injectStrict(WorkflowIdKey);
 const routeNodeId = computed(() => {
 	const nodeId = route.params.nodeId;
 	return Array.isArray(nodeId) ? nodeId[0] : nodeId;
@@ -558,9 +561,9 @@ async function initializeWorkspaceForExistingWorkflow(id: string) {
 }
 
 function updateNodesIssues() {
-	nodeHelpers.updateNodesInputIssues();
-	nodeHelpers.updateNodesCredentialsIssues();
-	nodeHelpers.updateNodesParameterIssues();
+	workflowState.updateNodesInputIssues();
+	workflowState.updateNodesCredentialsIssues();
+	workflowState.updateNodesParameterIssues();
 }
 
 /**
@@ -1281,7 +1284,7 @@ async function onRunWorkflowToNode(id: string) {
 	}
 }
 async function copyWebhookUrl(id: string, webhookType: 'test' | 'production') {
-	const webhookUrl = await workflowsStore.getWebhookUrl(id, webhookType);
+	const webhookUrl = await workflowHelpers.getWebhookUrlByNodeId(id, webhookType);
 	if (!webhookUrl) return;
 
 	void clipboard.copy(webhookUrl);
@@ -2100,6 +2103,11 @@ onDeactivated(() => {
 });
 
 onBeforeUnmount(() => {
+	// Dispose the workflow document store to prevent memory leaks
+	if (workflowId.value) {
+		disposeWorkflowDocumentsStore(workflowId.value);
+	}
+
 	removeSourceControlEventBindings();
 	removePostMessageEventBindings();
 	removeWorkflowSavedEventBindings();

@@ -4,6 +4,7 @@ import {
 	DUPLICATE_POSTFFIX,
 	ERROR_TRIGGER_NODE_TYPE,
 	FORM_NODE_TYPE,
+	HTTP_REQUEST_NODE_TYPE,
 	MAX_WORKFLOW_NAME_LENGTH,
 	WAIT_NODE_TYPE,
 } from '@/app/constants';
@@ -24,7 +25,11 @@ import type {
 } from '@/features/execution/executions/executions.types';
 import type { IUsedCredential } from '@/features/credentials/credentials.types';
 import type { IWorkflowTemplateNode } from '@n8n/rest-api-client/api/templates';
-import type { WorkflowDataCreate, WorkflowDataUpdate } from '@n8n/rest-api-client/api/workflows';
+import type {
+	WorkflowData,
+	WorkflowDataCreate,
+	WorkflowDataUpdate,
+} from '@n8n/rest-api-client/api/workflows';
 import { defineStore } from 'pinia';
 import type {
 	IConnection,
@@ -48,6 +53,7 @@ import type {
 import {
 	deepCopy,
 	NodeConnectionTypes,
+	NodeHelpers,
 	SEND_AND_WAIT_OPERATION,
 	Workflow,
 	TelemetryHelpers,
@@ -68,15 +74,18 @@ import {
 } from '@/features/execution/executions/executions.utils';
 import { useNDVStore } from '@/features/ndv/shared/ndv.store';
 import { useNodeTypesStore } from '@/app/stores/nodeTypes.store';
-import { getCredentialOnlyNodeTypeName } from '@/app/utils/credentialOnlyNodes';
-import { convertWorkflowTagsToIds } from '@/app/utils/workflowUtils';
+import {
+	getCredentialOnlyNodeTypeName,
+	getCredentialTypeName,
+	isCredentialOnlyNodeType,
+} from '@/app/utils/credentialOnlyNodes';
+import { containsNodeFromPackage, convertWorkflowTagsToIds } from '@/app/utils/workflowUtils';
 import { i18n } from '@n8n/i18n';
 
 import { computed, ref, watch } from 'vue';
 import { useProjectsStore } from '@/features/collaboration/projects/projects.store';
 import type { PushPayload } from '@n8n/api-types';
 import { useTelemetry } from '@/app/composables/useTelemetry';
-import { useWorkflowHelpers } from '@/app/composables/useWorkflowHelpers';
 import { useSettingsStore } from './settings.store';
 import { useNodeHelpers } from '@/app/composables/useNodeHelpers';
 import { useUsersStore } from '@/features/settings/users/users.store';
@@ -117,7 +126,6 @@ const createEmptyWorkflow = (): IWorkflowDb => ({
 export const useWorkflowsStore = defineStore(STORES.WORKFLOWS, () => {
 	const uiStore = useUIStore();
 	const telemetry = useTelemetry();
-	const workflowHelpers = useWorkflowHelpers();
 	const settingsStore = useSettingsStore();
 	const rootStore = useRootStore();
 	const nodeHelpers = useNodeHelpers();
@@ -541,6 +549,145 @@ export const useWorkflowsStore = defineStore(STORES.WORKFLOWS, () => {
 	// when the workflow replaces the node-parameters.
 	function getNodes(): INodeUi[] {
 		return workflow.value.nodes.map((node) => ({ ...node }));
+	}
+
+	function getNodeDataToSave(node: INodeUi): INodeUi {
+		const skipKeys = [
+			'color',
+			'continueOnFail',
+			'credentials',
+			'disabled',
+			'issues',
+			'onError',
+			'notes',
+			'parameters',
+			'status',
+		];
+
+		// @ts-ignore
+		const nodeData: INodeUi = {
+			parameters: {},
+		};
+
+		for (const key in node) {
+			if (key.charAt(0) !== '_' && skipKeys.indexOf(key) === -1) {
+				// @ts-ignore
+				nodeData[key] = node[key];
+			}
+		}
+
+		// Get the data of the node type that we can get the default values
+		// TODO: Later also has to care about the node-type-version as defaults could be different
+		const nodeType = nodeTypesStore.getNodeType(node.type, node.typeVersion);
+
+		if (nodeType !== null) {
+			const isCredentialOnly = isCredentialOnlyNodeType(nodeType.name);
+
+			if (isCredentialOnly) {
+				nodeData.type = HTTP_REQUEST_NODE_TYPE;
+				nodeData.extendsCredential = getCredentialTypeName(nodeType.name);
+			}
+
+			// Node-Type is known so we can save the parameters correctly
+			const nodeParameters = NodeHelpers.getNodeParameters(
+				nodeType.properties,
+				node.parameters,
+				isCredentialOnly,
+				false,
+				node,
+				nodeType,
+			);
+			nodeData.parameters = nodeParameters !== null ? nodeParameters : {};
+
+			// Add the node credentials if there are some set and if they should be displayed
+			if (node.credentials !== undefined && nodeType.credentials !== undefined) {
+				const saveCredentials: INodeCredentials = {};
+				for (const nodeCredentialTypeName of Object.keys(node.credentials)) {
+					if (
+						nodeHelpers.hasProxyAuth(node) ||
+						Object.keys(node.parameters).includes('genericAuthType')
+					) {
+						saveCredentials[nodeCredentialTypeName] = node.credentials[nodeCredentialTypeName];
+						continue;
+					}
+
+					const credentialTypeDescription = nodeType.credentials
+						// filter out credentials with same name in different node versions
+						.filter((c) => nodeHelpers.displayParameter(node.parameters, c, '', node))
+						.find((c) => c.name === nodeCredentialTypeName);
+
+					if (credentialTypeDescription === undefined) {
+						// Credential type is not know so do not save
+						continue;
+					}
+
+					if (!nodeHelpers.displayParameter(node.parameters, credentialTypeDescription, '', node)) {
+						// Credential should not be displayed so do also not save
+						continue;
+					}
+
+					saveCredentials[nodeCredentialTypeName] = node.credentials[nodeCredentialTypeName];
+				}
+
+				// Set credential property only if it has content
+				if (Object.keys(saveCredentials).length !== 0) {
+					nodeData.credentials = saveCredentials;
+				}
+			}
+		} else {
+			// Node-Type is not known so save the data as it is
+			nodeData.credentials = node.credentials;
+			nodeData.parameters = node.parameters;
+			if (nodeData.color !== undefined) {
+				nodeData.color = node.color;
+			}
+		}
+
+		// Save the disabled property, continueOnFail and onError only when is set
+		if (node.disabled === true) {
+			nodeData.disabled = true;
+		}
+		if (node.continueOnFail === true) {
+			nodeData.continueOnFail = true;
+		}
+		if (node.onError !== 'stopWorkflow') {
+			nodeData.onError = node.onError;
+		}
+		// Save the notes only if when they contain data
+		if (![undefined, ''].includes(node.notes)) {
+			nodeData.notes = node.notes;
+		}
+
+		return nodeData;
+	}
+
+	async function getWorkflowDataToSave(): Promise<WorkflowData> {
+		const workflowNodes = allNodes.value;
+		const workflowConnections = allConnections.value;
+
+		const nodes: INode[] = [];
+		for (let nodeIndex = 0; nodeIndex < workflowNodes.length; nodeIndex++) {
+			const nodeData = getNodeDataToSave(workflowNodes[nodeIndex]);
+			nodes.push(nodeData);
+		}
+
+		const data: WorkflowData = {
+			name: workflowName.value,
+			nodes,
+			pinData: pinnedWorkflowData.value,
+			connections: workflowConnections,
+			active: isWorkflowActive.value,
+			settings: workflow.value.settings,
+			tags: workflowTags.value,
+			versionId: workflow.value.versionId,
+			meta: workflow.value.meta,
+		};
+
+		if (workflowId.value) {
+			data.id = workflowId.value;
+		}
+
+		return data;
 	}
 
 	function convertTemplateNodeToNodeUi(node: IWorkflowTemplateNode): INodeUi {
@@ -1232,13 +1379,9 @@ export const useWorkflowsStore = defineStore(STORES.WORKFLOWS, () => {
 				node_type_version: node?.typeVersion,
 				node_id: node?.id,
 				node_graph_string: JSON.stringify(
-					TelemetryHelpers.generateNodesGraph(
-						await workflowHelpers.getWorkflowDataToSave(),
-						workflowHelpers.getNodeTypes(),
-						{
-							isCloudDeployment: settingsStore.isCloudDeployment,
-						},
-					).nodeGraph,
+					TelemetryHelpers.generateNodesGraph(await getWorkflowDataToSave(), getNodeTypes(), {
+						isCloudDeployment: settingsStore.isCloudDeployment,
+					}).nodeGraph,
 				),
 			});
 		}
@@ -1409,10 +1552,7 @@ export const useWorkflowsStore = defineStore(STORES.WORKFLOWS, () => {
 			sendData as unknown as IDataObject,
 		);
 
-		const isAIWorkflow = workflowHelpers.containsNodeFromPackage(
-			newWorkflow,
-			AI_NODES_PACKAGE_NAME,
-		);
+		const isAIWorkflow = containsNodeFromPackage(newWorkflow, AI_NODES_PACKAGE_NAME);
 		if (isAIWorkflow && !usersStore.isEasyAIWorkflowOnboardingDone) {
 			await updateCurrentUserSettings(rootStore.restApiContext, {
 				easyAIWorkflowOnboarded: true,
@@ -1448,7 +1588,7 @@ export const useWorkflowsStore = defineStore(STORES.WORKFLOWS, () => {
 		}
 
 		if (
-			workflowHelpers.containsNodeFromPackage(updatedWorkflow, AI_NODES_PACKAGE_NAME) &&
+			containsNodeFromPackage(updatedWorkflow, AI_NODES_PACKAGE_NAME) &&
 			!usersStore.isEasyAIWorkflowOnboardingDone
 		) {
 			await updateCurrentUserSettings(rootStore.restApiContext, {
@@ -1714,26 +1854,6 @@ export const useWorkflowsStore = defineStore(STORES.WORKFLOWS, () => {
 		selectedTriggerNodeName.value = value;
 	}
 
-	/**
-	 * Get the webhook URL for a node
-	 * @param nodeId - The ID of the node
-	 * @param webhookType - The type of webhook ('test' or 'production')
-	 * @returns The webhook URL or undefined if the node doesn't have webhooks
-	 */
-	async function getWebhookUrl(
-		nodeId: string,
-		webhookType: 'test' | 'production',
-	): Promise<string | undefined> {
-		const node = getNodeById(nodeId);
-		if (!node) return;
-
-		const nodeType = nodeTypesStore.getNodeType(node.type, node.typeVersion);
-		if (!nodeType?.webhooks?.length) return;
-
-		const webhook = nodeType.webhooks[0];
-		return await workflowHelpers.getWebhookUrl(webhook, node, webhookType);
-	}
-
 	watch(
 		[selectableTriggerNodes, workflowExecutionTriggerNodeName],
 		([newSelectable, currentTrigger], [oldSelectable]) => {
@@ -1894,8 +2014,9 @@ export const useWorkflowsStore = defineStore(STORES.WORKFLOWS, () => {
 		setSelectedTriggerNodeName,
 		fetchLastSuccessfulExecution,
 		lastSuccessfulExecution,
-		getWebhookUrl,
 		canViewWorkflows,
+		getWorkflowDataToSave,
+		getNodeDataToSave,
 		defaults,
 		// This is exposed to ease the refactoring to the injected workflowState composable
 		// Please do not use outside this context

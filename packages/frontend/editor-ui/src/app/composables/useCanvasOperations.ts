@@ -648,7 +648,7 @@ export function useCanvasOperations() {
 		}
 
 		const nodes = workflowsStore.getNodesByIds(ids);
-		nodeHelpers.disableNodes(nodes, { trackHistory, trackBulk: false });
+		workflowState.disableNodes(nodes, { trackHistory, trackBulk: false });
 
 		if (trackHistory && trackBulk) {
 			historyStore.stopRecordingUndo();
@@ -658,7 +658,7 @@ export function useCanvasOperations() {
 	function revertToggleNodeDisabled(nodeName: string) {
 		const node = workflowsStore.getNodeByName(nodeName);
 		if (node) {
-			nodeHelpers.disableNodes([node]);
+			workflowState.disableNodes([node]);
 		}
 	}
 
@@ -860,9 +860,9 @@ export function useCanvasOperations() {
 
 			workflowsStore.setNodePristine(nodeData.name, true);
 			nodeHelpers.matchCredentials(nodeData);
-			nodeHelpers.updateNodeParameterIssues(nodeData);
-			nodeHelpers.updateNodeCredentialIssues(nodeData);
-			nodeHelpers.updateNodeInputIssues(nodeData);
+			workflowState.updateNodeParameterIssues(nodeData);
+			workflowState.updateNodeCredentialIssues(nodeData);
+			workflowState.updateNodeInputIssues(nodeData);
 
 			const isStickyNode = nodeData.type === STICKY_NODE_TYPE;
 			const nextView =
@@ -1790,8 +1790,8 @@ export function useCanvasOperations() {
 		});
 
 		void nextTick(() => {
-			nodeHelpers.updateNodeInputIssues(sourceNode);
-			nodeHelpers.updateNodeInputIssues(targetNode);
+			workflowState.updateNodeInputIssues(sourceNode);
+			workflowState.updateNodeInputIssues(targetNode);
 		});
 
 		if (!keepPristine) {
@@ -1901,8 +1901,8 @@ export function useCanvasOperations() {
 		});
 
 		void nextTick(() => {
-			nodeHelpers.updateNodeInputIssues(sourceNode);
-			nodeHelpers.updateNodeInputIssues(targetNode);
+			workflowState.updateNodeInputIssues(sourceNode);
+			workflowState.updateNodeInputIssues(targetNode);
 		});
 
 		if (trackHistory) {
@@ -2168,7 +2168,8 @@ export function useCanvasOperations() {
 	}
 
 	async function initializeWorkspace(data: IWorkflowDb) {
-		await workflowHelpers.initState(data, useWorkflowState());
+		const workflowState = useWorkflowState(data.id);
+		await workflowState.initState(data);
 		data.nodes.forEach((node) => {
 			const nodeTypeDescription = requireNodeTypeDescription(node.type, node.typeVersion);
 			const isUnknownNode =

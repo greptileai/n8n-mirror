@@ -142,8 +142,8 @@ export function useNodeSettingsParameters() {
 			oldNodeParameters,
 		});
 
-		nodeHelpers.updateNodeParameterIssuesByName(node.name);
-		nodeHelpers.updateNodeCredentialIssuesByName(node.name);
+		workflowState.updateNodeParameterIssuesByName(node.name);
+		workflowState.updateNodeCredentialIssuesByName(node.name);
 		telemetry.trackNodeParametersValuesChange(nodeTypeDescription.name, parameterData);
 	}
 

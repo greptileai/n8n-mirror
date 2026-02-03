@@ -296,7 +296,7 @@ describe('useWorkflowsStore', () => {
 		});
 
 		it('should return true for an existing workflow', () => {
-			useWorkflowState().setWorkflowId('123');
+			useWorkflowState('test-workflow-id').setWorkflowId('123');
 			// Add the workflow to workflowsById to simulate it being loaded from backend
 			workflowsListStore.addWorkflow(
 				createTestWorkflow({
@@ -1230,7 +1230,7 @@ describe('useWorkflowsStore', () => {
 		});
 
 		it('should add node success run data', () => {
-			useWorkflowState().setWorkflowExecutionData(executionResponse);
+			useWorkflowState('test-workflow-id').setWorkflowExecutionData(executionResponse);
 
 			workflowsStore.nodesByName[successEvent.nodeName] = mock<INodeUi>({
 				type: 'n8n-nodes-base.manualTrigger',
@@ -1255,7 +1255,7 @@ describe('useWorkflowsStore', () => {
 
 		it('should add node error event and track errored executions', async () => {
 			workflowsStore.workflow.pinData = {};
-			useWorkflowState().setWorkflowExecutionData(executionResponse);
+			useWorkflowState('test-workflow-id').setWorkflowExecutionData(executionResponse);
 			workflowsStore.addNode({
 				parameters: {},
 				id: '554c7ff4-7ee2-407c-8931-e34234c5056a',
@@ -1323,7 +1323,7 @@ describe('useWorkflowsStore', () => {
 					},
 				},
 			});
-			useWorkflowState().setWorkflowExecutionData(runWithExistingRunData);
+			useWorkflowState('test-workflow-id').setWorkflowExecutionData(runWithExistingRunData);
 
 			workflowsStore.nodesByName[successEvent.nodeName] = mock<INodeUi>({
 				type: 'n8n-nodes-base.manualTrigger',
@@ -1378,7 +1378,7 @@ describe('useWorkflowsStore', () => {
 					},
 				},
 			});
-			useWorkflowState().setWorkflowExecutionData(runWithExistingRunData);
+			useWorkflowState('test-workflow-id').setWorkflowExecutionData(runWithExistingRunData);
 
 			workflowsStore.nodesByName[successEvent.nodeName] = mock<INodeUi>({
 				type: 'n8n-nodes-base.manualTrigger',
@@ -1879,7 +1879,11 @@ describe('useWorkflowsStore', () => {
 			await waitFor(() => expect(workflowsStore.selectedTriggerNodeName).toBe('n0'));
 			workflowsStore.removeNode(n0);
 			await waitFor(() => expect(workflowsStore.selectedTriggerNodeName).toBe('n1'));
-			useWorkflowState().setNodeValue({ name: 'n1', key: 'disabled', value: true });
+			useWorkflowState('test-workflow-id').setNodeValue({
+				name: 'n1',
+				key: 'disabled',
+				value: true,
+			});
 			await waitFor(() => expect(workflowsStore.selectedTriggerNodeName).toBe(undefined));
 		});
 	});
@@ -2113,107 +2117,6 @@ describe('useWorkflowsStore', () => {
 			});
 
 			expect(result).toBe(0); // No nodes to update (only current node exists)
-		});
-	});
-
-	describe('getWebhookUrl', () => {
-		it('should return undefined when node does not exist', async () => {
-			workflowsStore.setNodes([]);
-
-			const result = await workflowsStore.getWebhookUrl('non-existent-node', 'test');
-
-			expect(result).toBeUndefined();
-		});
-
-		it('should return undefined when node type does not exist', async () => {
-			const testNode = createTestNode({ id: 'node-1', name: 'Webhook Node' });
-			workflowsStore.setNodes([testNode]);
-			getNodeType.mockReturnValue(null);
-
-			const result = await workflowsStore.getWebhookUrl('node-1', 'test');
-
-			expect(result).toBeUndefined();
-		});
-
-		it('should return undefined when node type has no webhooks', async () => {
-			const testNode = createTestNode({ id: 'node-1', name: 'Webhook Node' });
-			workflowsStore.setNodes([testNode]);
-			getNodeType.mockReturnValue({
-				inputs: [],
-				group: [],
-				webhooks: [],
-				properties: [],
-			});
-
-			const result = await workflowsStore.getWebhookUrl('node-1', 'test');
-
-			expect(result).toBeUndefined();
-		});
-
-		it('should return webhook URL for test type', async () => {
-			const testNode = createTestNode({
-				id: 'node-1',
-				name: 'Webhook Node',
-				type: 'n8n-nodes-base.webhook',
-			});
-			workflowsStore.setNodes([testNode]);
-			getNodeType.mockReturnValue({
-				inputs: [],
-				group: [],
-				webhooks: [{ name: 'default', httpMethod: 'GET', path: 'webhook' }],
-				properties: [],
-			});
-
-			const result = await workflowsStore.getWebhookUrl('node-1', 'test');
-
-			expect(result).toBeDefined();
-			expect(typeof result).toBe('string');
-			expect(result).toContain('webhook');
-		});
-
-		it('should return webhook URL for production type', async () => {
-			const testNode = createTestNode({
-				id: 'node-1',
-				name: 'Webhook Node',
-				type: 'n8n-nodes-base.webhook',
-			});
-			workflowsStore.setNodes([testNode]);
-			getNodeType.mockReturnValue({
-				inputs: [],
-				group: [],
-				webhooks: [{ name: 'default', httpMethod: 'POST', path: 'webhook' }],
-				properties: [],
-			});
-
-			const result = await workflowsStore.getWebhookUrl('node-1', 'production');
-
-			expect(result).toBeDefined();
-			expect(typeof result).toBe('string');
-			expect(result).toContain('webhook');
-		});
-
-		it('should use the first webhook when node has multiple webhooks', async () => {
-			const testNode = createTestNode({
-				id: 'node-1',
-				name: 'Webhook Node',
-				type: 'n8n-nodes-base.webhook',
-			});
-			workflowsStore.setNodes([testNode]);
-			getNodeType.mockReturnValue({
-				inputs: [],
-				group: [],
-				webhooks: [
-					{ name: 'default', httpMethod: 'GET', path: 'webhook1' },
-					{ name: 'default', httpMethod: 'POST', path: 'webhook2' },
-				],
-				properties: [],
-			});
-
-			const result = await workflowsStore.getWebhookUrl('node-1', 'test');
-
-			expect(result).toBeDefined();
-			expect(typeof result).toBe('string');
-			expect(result).toContain('webhook1');
 		});
 	});
 

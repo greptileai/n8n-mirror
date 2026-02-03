@@ -16,14 +16,12 @@ import {
 	LOCAL_STORAGE_TABLE_HOVER_IS_ONBOARDED,
 } from './ndv.constants';
 import { STORES } from '@n8n/stores';
-import type { INodeIssues } from 'n8n-workflow';
 import { NodeConnectionTypes } from 'n8n-workflow';
 import { defineStore } from 'pinia';
 import { v4 as uuid } from 'uuid';
 import { useWorkflowsStore } from '@/app/stores/workflows.store';
 import { computed, ref } from 'vue';
 import type { TelemetryNdvSource } from '@/app/types/telemetry';
-import { injectWorkflowState } from '@/app/composables/useWorkflowState';
 
 const DEFAULT_MAIN_PANEL_DIMENSIONS = {
 	relativeLeft: 1,
@@ -93,7 +91,6 @@ export const useNDVStore = defineStore(STORES.NDV, () => {
 	const lastSetActiveNodeSource = ref<TelemetryNdvSource>();
 
 	const workflowsStore = useWorkflowsStore();
-	const workflowState = injectWorkflowState();
 
 	const activeNode = computed(() => {
 		return workflowsStore.getNodeByName(activeNodeName.value || '');
@@ -363,23 +360,6 @@ export const useNDVStore = defineStore(STORES.NDV, () => {
 		highlightDraggables.value = highlight;
 	};
 
-	const updateNodeParameterIssues = (issues: INodeIssues): void => {
-		const activeNode = workflowsStore.getNodeByName(activeNodeName.value || '');
-
-		if (activeNode) {
-			const nodeIndex = workflowsStore.workflow.nodes.findIndex((node) => {
-				return node.name === activeNode.name;
-			});
-
-			workflowState.updateNodeAtIndex(nodeIndex, {
-				issues: {
-					...activeNode.issues,
-					...issues,
-				},
-			});
-		}
-	};
-
 	const setFocusedInputPath = (path: string) => {
 		focusedInputPath.value = path;
 	};
@@ -447,7 +427,6 @@ export const useNDVStore = defineStore(STORES.NDV, () => {
 		setTableHoverOnboarded,
 		setAutocompleteOnboarded,
 		setHighlightDraggables,
-		updateNodeParameterIssues,
 		setFocusedInputPath,
 	};
 });

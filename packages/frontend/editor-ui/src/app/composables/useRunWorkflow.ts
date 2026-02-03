@@ -73,7 +73,7 @@ export function useRunWorkflow(useRunWorkflowOpts: {
 	const pushConnectionStore = usePushConnectionStore();
 	const workflowsStore = useWorkflowsStore();
 	const workflowState = useRunWorkflowOpts.workflowState ?? injectWorkflowState();
-	const nodeHelpers = useNodeHelpers({ workflowState });
+	const nodeHelpers = useNodeHelpers();
 	const workflowSaving = useWorkflowSaving({
 		router: useRunWorkflowOpts.router,
 		workflowState,
@@ -380,7 +380,7 @@ export function useRunWorkflow(useRunWorkflowOpts: {
 				} as IWorkflowDb,
 			};
 			workflowState.setWorkflowExecutionData(executionData);
-			nodeHelpers.updateNodesExecutionIssues();
+			workflowState.updateNodesExecutionIssues();
 
 			useDocumentTitle().setDocumentTitle(workflowObject.value.name as string, 'EXECUTING');
 			const runWorkflowApiResponse = await runWorkflowApi(startRunData);

@@ -27,6 +27,7 @@ import { isFullExecutionResponse, isResourceMapperValue } from '@/app/utils/type
 import { i18n as locale } from '@n8n/i18n';
 import { useNDVStore } from '@/features/ndv/shared/ndv.store';
 import { useWorkflowsStore } from '@/app/stores/workflows.store';
+import { injectWorkflowState } from '@/app/composables/useWorkflowState';
 import { useDocumentVisibility } from '@/app/composables/useDocumentVisibility';
 import isEqual from 'lodash/isEqual';
 import { useProjectsStore } from '@/features/collaboration/projects/projects.store';
@@ -48,6 +49,7 @@ type Props = {
 const nodeTypesStore = useNodeTypesStore();
 const ndvStore = useNDVStore();
 const workflowsStore = useWorkflowsStore();
+const workflowState = injectWorkflowState();
 const projectsStore = useProjectsStore();
 
 const props = withDefaults(defineProps<Props>(), {
@@ -433,7 +435,7 @@ function updateNodeIssues(): void {
 			nodeType.value,
 		);
 		if (parameterIssues) {
-			ndvStore.updateNodeParameterIssues(parameterIssues);
+			workflowState.mergeNodeIssues(ndvStore.activeNodeName ?? '', parameterIssues);
 		}
 	}
 }

@@ -39,3 +39,11 @@ export function removeWorkflowExecutionData(
 
 	return sanitizedWorkflow;
 }
+
+/**
+ * Check if workflow contains any node from specified package
+ * by performing a quick check based on the node type name.
+ */
+export function containsNodeFromPackage(workflow: IWorkflowDb, packageName: string): boolean {
+	return workflow.nodes.some((node) => node.type.startsWith(packageName));
+}

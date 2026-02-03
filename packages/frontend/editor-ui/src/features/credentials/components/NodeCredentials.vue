@@ -374,7 +374,7 @@ function onCredentialSelected(
 			invalid: oldCredentials,
 			type: selectedCredentialsType,
 		});
-		nodeHelpers.updateNodesCredentialsIssues();
+		workflowState.updateNodesCredentialsIssues();
 		toast.showMessage({
 			title: i18n.baseText('nodeCredentials.showMessage.title'),
 			message: i18n.baseText('nodeCredentials.showMessage.message', {
@@ -395,7 +395,7 @@ function onCredentialSelected(
 	});
 
 	if (updatedNodesCount > 0) {
-		nodeHelpers.updateNodesCredentialsIssues();
+		workflowState.updateNodesCredentialsIssues();
 		toast.showMessage({
 			title: i18n.baseText('nodeCredentials.showMessage.title'),
 			message: i18n.baseText('nodeCredentials.autoAssigned.message', {

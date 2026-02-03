@@ -9,25 +9,13 @@ import type {
 import { NodeConnectionTypes, NodeHelpers } from 'n8n-workflow';
 import { createTestingPinia } from '@pinia/testing';
 import { useNodeHelpers } from '@/app/composables/useNodeHelpers';
-import { createTestNode, createMockEnterpriseSettings } from '@/__tests__/mocks';
+import { createTestNode } from '@/__tests__/mocks';
 import { useWorkflowsStore } from '@/app/stores/workflows.store';
-import { useSettingsStore } from '@/app/stores/settings.store';
-import { CUSTOM_API_CALL_KEY, EnterpriseEditionFeature } from '@/app/constants';
+import { CUSTOM_API_CALL_KEY } from '@/app/constants';
 import { mockedStore } from '@/__tests__/utils';
 import { mock } from 'vitest-mock-extended';
-import { faker } from '@faker-js/faker';
 import type { INodeUi } from '@/Interface';
-import type { IUsedCredential } from '@/features/credentials/credentials.types';
 import { useNodeTypesStore } from '@/app/stores/nodeTypes.store';
-import { injectWorkflowState, useWorkflowState } from './useWorkflowState';
-
-vi.mock('@/app/composables/useWorkflowState', async () => {
-	const actual = await vi.importActual('@/app/composables/useWorkflowState');
-	return {
-		...actual,
-		injectWorkflowState: vi.fn(),
-	};
-});
 
 describe('useNodeHelpers()', () => {
 	beforeAll(() => {
@@ -36,23 +24,6 @@ describe('useNodeHelpers()', () => {
 
 	afterEach(() => {
 		vi.clearAllMocks();
-	});
-
-	describe('initialization', () => {
-		it('should use provided workflowState and not inject', () => {
-			const workflowState = useWorkflowState();
-			vi.clearAllMocks();
-
-			useNodeHelpers({ workflowState });
-
-			expect(injectWorkflowState).not.toBeCalled();
-		});
-
-		it('should create workflowState if not provided', () => {
-			useNodeHelpers();
-
-			expect(injectWorkflowState).toBeCalled();
-		});
 	});
 
 	describe('isNodeExecutable()', () => {
@@ -224,121 +195,6 @@ describe('useNodeHelpers()', () => {
 
 			const result = isNodeExecutable(node, false, ['cred-1']);
 			expect(result).toBe(true);
-		});
-	});
-
-	describe('getForeignCredentialsIfSharingEnabled()', () => {
-		it('should return an empty array when user has the wrong license', () => {
-			const { getForeignCredentialsIfSharingEnabled } = useNodeHelpers();
-
-			const credentialWithoutAccess: IUsedCredential = {
-				id: faker.string.alphanumeric(10),
-				credentialType: 'generic',
-				name: faker.lorem.words(2),
-				currentUserHasAccess: false,
-			};
-
-			mockedStore(useSettingsStore).isEnterpriseFeatureEnabled = createMockEnterpriseSettings({
-				[EnterpriseEditionFeature.Sharing]: false,
-			});
-			mockedStore(useWorkflowsStore).usedCredentials = {
-				[credentialWithoutAccess.id]: credentialWithoutAccess,
-			};
-
-			const result = getForeignCredentialsIfSharingEnabled({
-				[credentialWithoutAccess.id]: {
-					id: credentialWithoutAccess.id,
-					name: credentialWithoutAccess.name,
-				},
-			});
-			expect(result).toEqual([]);
-		});
-
-		it('should return an empty array when credentials are undefined', () => {
-			const { getForeignCredentialsIfSharingEnabled } = useNodeHelpers();
-
-			mockedStore(useSettingsStore).isEnterpriseFeatureEnabled = createMockEnterpriseSettings({
-				[EnterpriseEditionFeature.Sharing]: true,
-			});
-
-			const result = getForeignCredentialsIfSharingEnabled(undefined);
-			expect(result).toEqual([]);
-		});
-
-		it('should return an empty array when user has access to all credentials', () => {
-			const { getForeignCredentialsIfSharingEnabled } = useNodeHelpers();
-
-			const credentialWithAccess1: IUsedCredential = {
-				id: faker.string.alphanumeric(10),
-				credentialType: 'generic',
-				name: faker.lorem.words(2),
-				currentUserHasAccess: true,
-			};
-
-			const credentialWithAccess2: IUsedCredential = {
-				id: faker.string.alphanumeric(10),
-				credentialType: 'generic',
-				name: faker.lorem.words(2),
-				currentUserHasAccess: true,
-			};
-
-			mockedStore(useSettingsStore).isEnterpriseFeatureEnabled = createMockEnterpriseSettings({
-				[EnterpriseEditionFeature.Sharing]: true,
-			});
-			mockedStore(useWorkflowsStore).usedCredentials = {
-				[credentialWithAccess1.id]: credentialWithAccess1,
-				[credentialWithAccess2.id]: credentialWithAccess2,
-			};
-
-			const result = getForeignCredentialsIfSharingEnabled({
-				[credentialWithAccess1.id]: {
-					id: credentialWithAccess1.id,
-					name: credentialWithAccess1.name,
-				},
-				[credentialWithAccess2.id]: {
-					id: credentialWithAccess2.id,
-					name: credentialWithAccess2.name,
-				},
-			});
-			expect(result).toEqual([]);
-		});
-
-		it('should return an array of foreign credentials', () => {
-			const { getForeignCredentialsIfSharingEnabled } = useNodeHelpers();
-
-			const credentialWithAccess: IUsedCredential = {
-				id: faker.string.alphanumeric(10),
-				credentialType: 'generic',
-				name: faker.lorem.words(2),
-				currentUserHasAccess: true,
-			};
-
-			const credentialWithoutAccess: IUsedCredential = {
-				id: faker.string.alphanumeric(10),
-				credentialType: 'generic',
-				name: faker.lorem.words(2),
-				currentUserHasAccess: false,
-			};
-
-			mockedStore(useSettingsStore).isEnterpriseFeatureEnabled = createMockEnterpriseSettings({
-				[EnterpriseEditionFeature.Sharing]: true,
-			});
-			mockedStore(useWorkflowsStore).usedCredentials = {
-				[credentialWithAccess.id]: credentialWithAccess,
-				[credentialWithoutAccess.id]: credentialWithoutAccess,
-			};
-
-			const result = getForeignCredentialsIfSharingEnabled({
-				[credentialWithAccess.id]: {
-					id: credentialWithAccess.id,
-					name: credentialWithAccess.name,
-				},
-				[credentialWithoutAccess.id]: {
-					id: credentialWithoutAccess.id,
-					name: credentialWithoutAccess.name,
-				},
-			});
-			expect(result).toEqual([credentialWithoutAccess.id]);
 		});
 	});
 
@@ -697,70 +553,6 @@ describe('useNodeHelpers()', () => {
 			const hints = getNodeHints(workflow, node, nodeType);
 
 			expect(hints).toHaveLength(1);
-		});
-	});
-
-	describe('updateNodeParameterIssues()', () => {
-		it('should pass nodeTypeDescription to validation and respect @feature conditions', () => {
-			const nodeTypeWithFeatures: INodeTypeDescription = {
-				displayName: 'Test Node',
-				name: 'testNode',
-				group: ['transform'],
-				version: [1, 2],
-				description: 'Test node',
-				defaults: { name: 'Test' },
-				inputs: [NodeConnectionTypes.Main],
-				outputs: [NodeConnectionTypes.Main],
-				features: {
-					testFeature: { '@version': [{ _cnd: { gte: 2 } }] },
-				},
-				properties: [
-					{
-						displayName: 'Field Hidden When Feature Enabled',
-						name: 'fieldHiddenWhenFeatureOn',
-						type: 'string',
-						default: '',
-						required: true,
-						displayOptions: {
-							show: {
-								'@feature': [{ _cnd: { not: 'testFeature' } }],
-							},
-						},
-					},
-				],
-			};
-
-			const node: INodeUi = {
-				id: 'test-node-id',
-				name: 'Test Node',
-				type: 'testNode',
-				typeVersion: 2, // Feature enabled at version >= 2, so field should be hidden
-				position: [0, 0],
-				parameters: {
-					fieldHiddenWhenFeatureOn: '', // Empty required field, but should be hidden
-				},
-			};
-
-			mockedStore(useNodeTypesStore).getNodeType = vi.fn().mockReturnValue(nodeTypeWithFeatures);
-			const getNodeParametersIssuesSpy = vi.spyOn(NodeHelpers, 'getNodeParametersIssues');
-
-			const workflowState = useWorkflowState();
-			const { updateNodeParameterIssues } = useNodeHelpers({ workflowState });
-
-			updateNodeParameterIssues(node);
-
-			expect(getNodeParametersIssuesSpy).toHaveBeenCalledWith(
-				nodeTypeWithFeatures.properties,
-				node,
-				nodeTypeWithFeatures,
-			);
-
-			const issues = getNodeParametersIssuesSpy.mock.results[0].value as ReturnType<
-				typeof NodeHelpers.getNodeParametersIssues
-			>;
-			expect(issues).toBeNull();
-
-			getNodeParametersIssuesSpy.mockRestore();
 		});
 	});
 });

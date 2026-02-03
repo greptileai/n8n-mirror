@@ -968,7 +968,7 @@ async function updateCredential(
 
 	// Now that the credentials changed check if any nodes use credentials
 	// which have now a different name
-	nodeHelpers.updateNodesCredentialsIssues();
+	workflowState.updateNodesCredentialsIssues();
 
 	return credential;
 }
@@ -1013,7 +1013,7 @@ async function deleteCredential() {
 
 	isDeleting.value = false;
 	// Now that the credentials were removed check if any nodes used them
-	nodeHelpers.updateNodesCredentialsIssues();
+	workflowState.updateNodesCredentialsIssues();
 	credentialData.value = {};
 
 	toast.showMessage({
