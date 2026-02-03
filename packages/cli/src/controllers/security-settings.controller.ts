@@ -4,6 +4,10 @@ import type { Response } from 'express';
 
 import { UpdateSecuritySettingsDto } from '@/dto/security-settings.dto';
 import { SecuritySettingsService } from '@/services/security-settings.service';
+import {
+	PERSONAL_SPACE_PUBLISHING_SETTING,
+	PERSONAL_SPACE_SHARING_SETTING,
+} from '@n8n/permissions';
 
 @RestController('/settings/security')
 export class SecuritySettingsController {
@@ -13,9 +17,15 @@ export class SecuritySettingsController {
 	@Get('/')
 	async getSecuritySettings(_req: AuthenticatedRequest, _res: Response) {
 		const personalSpacePublishing =
-			await this.securitySettingsService.isPersonalSpacePublishingEnabled();
+			await this.securitySettingsService.isPersonalSpaceSettingEnabled(
+				PERSONAL_SPACE_PUBLISHING_SETTING,
+			);
 
-		return { personalSpacePublishing };
+		const personalSpaceSharing = await this.securitySettingsService.isPersonalSpaceSettingEnabled(
+			PERSONAL_SPACE_SHARING_SETTING,
+		);
+
+		return { personalSpacePublishing, personalSpaceSharing };
 	}
 
 	@GlobalScope('securitySettings:manage')
@@ -25,8 +35,22 @@ export class SecuritySettingsController {
 		_res: Response,
 		@Body dto: UpdateSecuritySettingsDto,
 	) {
-		await this.securitySettingsService.setPersonalSpacePublishing(dto.personalSpacePublishing);
+		const updatedSettings = new Map<string, boolean>();
+		if (dto.personalSpacePublishing !== undefined) {
+			await this.securitySettingsService.setPersonalSpaceSetting(
+				PERSONAL_SPACE_PUBLISHING_SETTING,
+				dto.personalSpacePublishing,
+			);
+			updatedSettings.set('personalSpacePublishing', dto.personalSpacePublishing);
+		}
+		if (dto.personalSpaceSharing !== undefined) {
+			await this.securitySettingsService.setPersonalSpaceSetting(
+				PERSONAL_SPACE_SHARING_SETTING,
+				dto.personalSpaceSharing,
+			);
+			updatedSettings.set('personalSpaceSharing', dto.personalSpaceSharing);
+		}
 
-		return { personalSpacePublishing: dto.personalSpacePublishing };
+		return updatedSettings;
 	}
 }

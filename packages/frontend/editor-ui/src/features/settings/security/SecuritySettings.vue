@@ -3,11 +3,10 @@ import { computed, useCssModule } from 'vue';
 import { useAsyncState } from '@vueuse/core';
 import { ElSwitch } from 'element-plus';
 import { N8nHeading, N8nText } from '@n8n/design-system';
-import { useI18n } from '@n8n/i18n';
+import { useI18n, type BaseTextKey } from '@n8n/i18n';
 import { useRootStore } from '@n8n/stores/useRootStore';
 import { useToast } from '@/app/composables/useToast';
 import * as securitySettingsApi from '@n8n/rest-api-client/api/security-settings';
-import type { UpdateSecuritySettingsDto } from '@n8n/api-types';
 import { useMessage } from '@/app/composables/useMessage';
 import { MODAL_CONFIRM } from '@/app/constants/modals';
 
@@ -19,44 +18,17 @@ const message = useMessage();
 
 const { state, isLoading } = useAsyncState(async () => {
 	const settings = await securitySettingsApi.getSecuritySettings(rootStore.restApiContext);
-	return settings.personalSpacePublishing;
+	return {
+		personalSpacePublishing: settings.personalSpacePublishing,
+		personalSpaceSharing: settings.personalSpaceSharing,
+	};
 }, undefined);
-
-const personalSpacePublishing = computed({
-	get: () => state.value ?? false,
-	set: async (value: boolean) => {
-		if (!value) {
-			const confirmDisablingPublishing = await promptConfirmDisablingPersonalSpacePublishing();
-			if (confirmDisablingPublishing !== MODAL_CONFIRM) {
-				return;
-			}
-		}
-
-		state.value = value;
-		await updatePublishingSetting(value);
-	},
-});
-
-async function promptConfirmDisablingPersonalSpacePublishing() {
-	const confirmAction = await message.confirm(
-		i18n.baseText('settings.security.personalSpace.publishing.confirmMessage.disable.message'),
-		i18n.baseText('settings.security.personalSpace.publishing.confirmMessage.disable.headline'),
-		{
-			cancelButtonText: i18n.baseText('generic.cancel'),
-			confirmButtonText: i18n.baseText('generic.confirm'),
-		},
-	);
-	return confirmAction;
-}
 
 async function updatePublishingSetting(value: boolean) {
 	try {
-		const data: UpdateSecuritySettingsDto = {
+		await securitySettingsApi.updateSecuritySettings(rootStore.restApiContext, {
 			personalSpacePublishing: value,
-		};
-
-		await securitySettingsApi.updateSecuritySettings(rootStore.restApiContext, data);
-
+		});
 		showToast({
 			type: 'success',
 			title: value
@@ -65,11 +37,70 @@ async function updatePublishingSetting(value: boolean) {
 			message: '',
 		});
 	} catch (error) {
-		// Revert optimistic update on error
-		state.value = !value;
+		if (state.value) state.value.personalSpacePublishing = !value;
 		showError(error, i18n.baseText('settings.security.personalSpace.publishing.error'));
 	}
 }
+
+async function updateSharingSetting(value: boolean) {
+	try {
+		await securitySettingsApi.updateSecuritySettings(rootStore.restApiContext, {
+			personalSpaceSharing: value,
+		});
+		showToast({
+			type: 'success',
+			title: value
+				? i18n.baseText('settings.security.personalSpace.sharing.success.enabled' as BaseTextKey)
+				: i18n.baseText('settings.security.personalSpace.sharing.success.disabled' as BaseTextKey),
+			message: '',
+		});
+	} catch (error) {
+		if (state.value) state.value.personalSpaceSharing = !value;
+		showError(error, i18n.baseText('settings.security.personalSpace.sharing.error' as BaseTextKey));
+	}
+}
+
+const personalSpacePublishing = computed({
+	get: () => state.value?.personalSpacePublishing ?? false,
+	set: async (value: boolean) => {
+		if (!value) {
+			const confirmed = await message.confirm(
+				i18n.baseText('settings.security.personalSpace.publishing.confirmMessage.disable.message'),
+				i18n.baseText('settings.security.personalSpace.publishing.confirmMessage.disable.headline'),
+				{
+					cancelButtonText: i18n.baseText('generic.cancel'),
+					confirmButtonText: i18n.baseText('generic.confirm'),
+				},
+			);
+			if (confirmed !== MODAL_CONFIRM) return;
+		}
+		if (state.value) state.value.personalSpacePublishing = value;
+		await updatePublishingSetting(value);
+	},
+});
+
+const personalSpaceSharing = computed({
+	get: () => state.value?.personalSpaceSharing ?? false,
+	set: async (value: boolean) => {
+		if (!value) {
+			const confirmed = await message.confirm(
+				i18n.baseText(
+					'settings.security.personalSpace.sharing.confirmMessage.disable.message' as BaseTextKey,
+				),
+				i18n.baseText(
+					'settings.security.personalSpace.sharing.confirmMessage.disable.headline' as BaseTextKey,
+				),
+				{
+					cancelButtonText: i18n.baseText('generic.cancel'),
+					confirmButtonText: i18n.baseText('generic.confirm'),
+				},
+			);
+			if (confirmed !== MODAL_CONFIRM) return;
+		}
+		if (state.value) state.value.personalSpaceSharing = value;
+		await updateSharingSetting(value);
+	},
+});
 </script>
 
 <template>
@@ -97,6 +128,25 @@ async function updatePublishingSetting(value: boolean) {
 					:loading="isLoading"
 					size="large"
 					data-test-id="security-personal-space-publishing-toggle"
+				/>
+			</div>
+		</div>
+
+		<div :class="$style.settingsContainer">
+			<div :class="$style.settingsContainerInfo">
+				<N8nText :bold="true">
+					{{ i18n.baseText('settings.security.personalSpace.sharing.title' as BaseTextKey) }}
+				</N8nText>
+				<N8nText size="small" color="text-light">
+					{{ i18n.baseText('settings.security.personalSpace.sharing.description' as BaseTextKey) }}
+				</N8nText>
+			</div>
+			<div :class="$style.settingsContainerAction">
+				<ElSwitch
+					v-model="personalSpaceSharing"
+					:loading="isLoading"
+					size="large"
+					data-test-id="security-personal-space-sharing-toggle"
 				/>
 			</div>
 		</div>
