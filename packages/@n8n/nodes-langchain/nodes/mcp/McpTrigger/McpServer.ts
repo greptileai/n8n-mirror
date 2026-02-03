@@ -408,6 +408,14 @@ export class McpServerManager {
 		relaySessionId?: string;
 		/** True when this is a list tools request that needs to be relayed to another main */
 		needsListToolsRelay?: boolean;
+		/** True when an MCP tool job should be enqueued (new pattern without workflow execution) */
+		enqueueMcpToolJob?: boolean;
+		/** MCP tool job data for direct tool invocation on worker */
+		mcpToolJobData?: {
+			toolName: string;
+			arguments: Record<string, unknown>;
+			sourceNodeName: string;
+		};
 	}> {
 		// Session ID can be passed either as a query parameter (SSE transport)
 		// or in the header (StreamableHTTP transport).
@@ -481,6 +489,11 @@ export class McpServerManager {
 			};
 		}
 
+		let enqueueMcpToolJob: boolean | undefined;
+		let mcpToolJobData:
+			| { toolName: string; arguments: Record<string, unknown>; sourceNodeName: string }
+			| undefined;
+
 		if (sessionId && transport) {
 			// We need to add a promise here because the `handlePostMessage` will send something to the
 			// MCP Server, that will run in a different context. This means that the return will happen
@@ -492,10 +505,34 @@ export class McpServerManager {
 			this.tools[sessionId] = connectedTools;
 
 			try {
-				await new Promise(async (resolve) => {
+				const resolveResult = await new Promise<unknown>((resolve) => {
 					this.resolveFunctions[callId] = resolve;
-					await transport.handleRequest(req, resp, message as IncomingMessage);
+					void transport.handleRequest(req, resp, message as IncomingMessage);
 				});
+
+				// Check if the resolve result contains tool job data (queue mode new pattern)
+				if (
+					typeof resolveResult === 'object' &&
+					resolveResult !== null &&
+					'enqueueMcpToolJob' in resolveResult &&
+					(resolveResult as { enqueueMcpToolJob: boolean }).enqueueMcpToolJob
+				) {
+					enqueueMcpToolJob = true;
+					const jobData = resolveResult as {
+						mcpToolJobData?: {
+							toolName: string;
+							arguments: Record<string, unknown>;
+							sourceNodeName?: string;
+						};
+					};
+					if (jobData.mcpToolJobData?.sourceNodeName) {
+						mcpToolJobData = {
+							toolName: jobData.mcpToolJobData.toolName,
+							arguments: jobData.mcpToolJobData.arguments,
+							sourceNodeName: jobData.mcpToolJobData.sourceNodeName,
+						};
+					}
+				}
 			} finally {
 				delete this.resolveFunctions[callId];
 			}
@@ -512,6 +549,8 @@ export class McpServerManager {
 			wasToolCall: wasToolCall(rawBody),
 			toolCallInfo,
 			messageId,
+			enqueueMcpToolJob,
+			mcpToolJobData,
 		};
 	}
 
@@ -896,9 +935,17 @@ export class McpServerManager {
 						// Store pending response for tracking
 						this.storePendingResponse(extra.sessionId, requestId);
 
-						// Resolve handlePostMessage so webhook can return and enqueue execution.
+						// Resolve handlePostMessage with tool job data so webhook enqueues MCP tool job.
+						// This uses the new sendChunk-style pattern: no workflow execution, direct tool invoke.
 						if (this.resolveFunctions[callId]) {
-							this.resolveFunctions[callId]();
+							this.resolveFunctions[callId]({
+								enqueueMcpToolJob: true,
+								mcpToolJobData: {
+									toolName,
+									arguments: toolArguments,
+									sourceNodeName: requestedTool?.metadata?.sourceNodeName as string | undefined,
+								},
+							});
 						}
 
 						// Queue mode: Wait for worker to execute and return the result.
