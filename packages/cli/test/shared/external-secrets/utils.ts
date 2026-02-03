@@ -296,9 +296,13 @@ export class TestFailProvider extends SecretsProvider {
 export function createDummyProvider({
 	name,
 	secrets,
+	displayName,
+	properties,
 }: {
 	name: string;
+	displayName?: string;
 	secrets?: Record<string, string>;
+	properties?: INodeProperties[];
 }): { new (): SecretsProvider } {
 	const defaultSecrets = secrets ?? {
 		test1: 'value1',
@@ -307,9 +311,9 @@ export function createDummyProvider({
 
 	class FreshProvider extends SecretsProvider {
 		name = name;
-		displayName = name;
+		displayName = displayName ?? name;
 
-		properties: INodeProperties[] = [
+		properties: INodeProperties[] = properties ?? [
 			{
 				name: 'username',
 				displayName: 'Username',

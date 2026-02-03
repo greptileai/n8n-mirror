@@ -6,10 +6,17 @@ import { mock } from 'jest-mock-extended';
 import { ExternalSecretsProviders } from '@/modules/external-secrets.ee/external-secrets-providers.ee';
 import { ExternalSecretsConfig } from '@/modules/external-secrets.ee/external-secrets.config';
 
-import { DummyProvider, MockProviders } from '../../shared/external-secrets/utils';
+import {
+	AnotherDummyProvider,
+	createDummyProvider,
+	DummyProvider,
+	MockProviders,
+} from '../../shared/external-secrets/utils';
 import { createOwner } from '../shared/db/users';
 import type { SuperAgentTest } from '../shared/types';
 import { setupTestServer } from '../shared/utils';
+import { Response } from 'superagent';
+import { SecretProviderTypeResponse, SecretsProviderType } from '@n8n/api-types';
 
 const mockProvidersInstance = new MockProviders();
 mockInstance(ExternalSecretsProviders, mockProvidersInstance);
@@ -47,24 +54,9 @@ describe('Secret Providers Types API', () => {
 		await testDb.terminate();
 	});
 
-	describe('Feature Flag', () => {
-		it('should return 400 when externalSecretsForProjects feature is disabled', async () => {
-			const config = Container.get(ExternalSecretsConfig);
-			config.externalSecretsForProjects = false;
-
-			mockProvidersInstance.setProviders({
-				dummy: DummyProvider,
-			});
-
-			const response = await ownerAgent.get('/secret-providers/types');
-
-			// TODO: Check why middleware response is 500 instead of 400
-			expect(response.status).toBe(400);
-			expect(response.body).toEqual({
-				code: 400,
-				message: 'External secrets for projects feature is not enabled',
-			});
-		});
+	beforeAll(async () => {
+		const config = Container.get(ExternalSecretsConfig);
+		config.externalSecretsForProjects = true;
 	});
 
 	describe('GET /secret-providers/types', () => {
@@ -75,15 +67,88 @@ describe('Secret Providers Types API', () => {
 		});
 
 		describe('with providers', () => {
-			beforeAll(async () => {
-				// call the endpoint
+			const mockProvider = createDummyProvider({
+				name: 'mock_provider',
+				displayName: 'Mock Provider Custom',
+				properties: [
+					{
+						name: 'apiKey',
+						displayName: 'API Key',
+						type: 'string',
+						default: '',
+						required: true,
+						typeOptions: {
+							password: true,
+						},
+					},
+					{
+						name: 'region',
+						displayName: 'Region',
+						type: 'options',
+						default: 'us-east-1',
+						options: [
+							{ name: 'US East', value: 'us-east-1' },
+							{ name: 'US West', value: 'us-west-2' },
+							{ name: 'EU Central', value: 'eu-central-1' },
+						],
+						required: false,
+					},
+					{
+						name: 'projectId',
+						displayName: 'Project ID',
+						type: 'string',
+						default: '',
+						required: false,
+					},
+					{
+						name: 'environment',
+						displayName: 'Environment',
+						type: 'string',
+						default: 'production',
+						required: false,
+					},
+				],
 			});
 
-			it.todo('should return all available provider types when providers exist');
-			it.todo('should return multiple provider types when multiple are registered');
-			it.todo(
-				'should return correct structure with type, displayName, icon, and properties for each provider',
-			);
+			let response: Response;
+
+			beforeAll(async () => {
+				mockProvidersInstance.setProviders({
+					dummy: DummyProvider,
+					another_dummy: AnotherDummyProvider,
+					mock_provider: mockProvider,
+				});
+
+				response = await ownerAgent.get('/secret-providers/types');
+			});
+
+			it('should return all available provider types when providers exist', async () => {
+				const { data } = response.body as { data: SecretProviderTypeResponse[] };
+				expect(response.status).toBe(200);
+				expect(data).toBeInstanceOf(Array);
+				expect(data).toHaveLength(3);
+
+				const providerNames = data.map((p) => p.type);
+				expect(providerNames).toEqual(
+					expect.arrayContaining(['dummy', 'another_dummy', 'mock_provider']),
+				);
+			});
+
+			it('should return correct provider data', () => {
+				const { data } = response.body as { data: SecretProviderTypeResponse[] };
+
+				const expectedMockProvider = data.find(
+					(p) => p.type === ('mock_provider' as SecretsProviderType),
+				);
+				expect(expectedMockProvider).toBeDefined();
+				expect(expectedMockProvider?.displayName).toBe('Mock Provider Custom');
+				expect(expectedMockProvider?.properties).toHaveLength(4);
+
+				const propertiesNames = expectedMockProvider?.properties?.map((p) => p.name);
+				expect(propertiesNames).toEqual(
+					expect.arrayContaining(['apiKey', 'region', 'projectId', 'environment']),
+				);
+			});
 		});
 
 		describe('without providers', () => {
