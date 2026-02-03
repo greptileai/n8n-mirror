@@ -12,7 +12,24 @@ import type { CoordinationLogEntry } from '@/types/coordination';
 import type { SimpleWorkflow } from '@/types/workflow';
 import type { BuilderFeatureFlags } from '@/workflow-builder-agent';
 
-import { extractSubgraphMetrics } from '../harness/evaluation-helpers';
+import {
+	argsToStageModels,
+	getDefaultDatasetName,
+	getDefaultExperimentName,
+	parseEvaluationArgs,
+} from './argument-parser';
+import { buildCIMetadata } from './ci-metadata';
+import {
+	loadTestCasesFromCsv,
+	loadDefaultTestCases,
+	getDefaultTestCaseIds,
+} from './csv-prompt-loader';
+import { sendWebhookNotification } from './webhook';
+import {
+	consumeGenerator,
+	extractSubgraphMetrics,
+	getChatPayload,
+} from '../harness/evaluation-helpers';
 import { createLogger } from '../harness/logger';
 import type { GenerationCollectors } from '../harness/runner';
 import { TokenUsageTrackingHandler } from '../harness/token-tracking-handler';
@@ -28,20 +45,6 @@ import {
 	type Evaluator,
 	type EvaluationContext,
 } from '../index';
-import {
-	argsToStageModels,
-	getDefaultDatasetName,
-	getDefaultExperimentName,
-	parseEvaluationArgs,
-} from './argument-parser';
-import { buildCIMetadata } from './ci-metadata';
-import {
-	loadTestCasesFromCsv,
-	loadDefaultTestCases,
-	getDefaultTestCaseIds,
-} from './csv-prompt-loader';
-import { sendWebhookNotification } from './webhook';
-import { consumeGenerator, getChatPayload } from '../harness/evaluation-helpers';
 import { generateRunId, isWorkflowStateValues } from '../langsmith/types';
 import { EVAL_TYPES, EVAL_USERS } from '../support/constants';
 import { setupTestEnvironment, createAgent, type ResolvedStageLLMs } from '../support/environment';
@@ -245,6 +248,7 @@ export async function runV2Evaluation(): Promise<void> {
 		logger,
 		outputDir: args.outputDir,
 		outputCsv: args.outputCsv,
+		suite: args.suite,
 		timeoutMs: args.timeoutMs,
 		context: { llmCallLimiter },
 	};

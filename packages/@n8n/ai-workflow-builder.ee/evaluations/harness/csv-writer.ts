@@ -196,12 +196,22 @@ function buildPairwiseHeader(judgeCount: number): string[] {
 	return header;
 }
 
+export interface WriteResultsCsvOptions {
+	/** Explicitly specify the evaluation suite. If not provided, auto-detects from feedback. */
+	suite?: 'llm-judge' | 'pairwise';
+}
+
 /**
  * Write evaluation results to a CSV file.
  * Results are sorted by prompt for consistent ordering across runs.
- * Automatically detects evaluation suite (llm-judge or pairwise) and formats accordingly.
+ * Automatically detects evaluation suite (llm-judge or pairwise) and formats accordingly,
+ * unless explicitly specified via options.
  */
-export function writeResultsCsv(results: ExampleResult[], outputPath: string): void {
+export function writeResultsCsv(
+	results: ExampleResult[],
+	outputPath: string,
+	options?: WriteResultsCsvOptions,
+): void {
 	if (results.length === 0) {
 		writeFileSync(outputPath, '', 'utf-8');
 		return;
@@ -210,9 +220,17 @@ export function writeResultsCsv(results: ExampleResult[], outputPath: string): v
 	// Sort by prompt for consistent ordering
 	const sorted = [...results].sort((a, b) => a.prompt.localeCompare(b.prompt));
 
-	// Detect suite from first result with feedback
-	const firstWithFeedback = sorted.find((r) => r.feedback.length > 0);
-	const suite = firstWithFeedback ? detectSuite(firstWithFeedback.feedback) : 'unknown';
+	// Use explicit suite if provided, otherwise detect from feedback
+	let suite: EvaluationSuite;
+	if (options?.suite) {
+		suite = options.suite;
+	} else {
+		// Detect suite from first result with feedback (excluding runner errors)
+		const firstWithFeedback = sorted.find((r) =>
+			r.feedback.some((f) => f.evaluator !== 'runner' && f.evaluator !== 'programmatic'),
+		);
+		suite = firstWithFeedback ? detectSuite(firstWithFeedback.feedback) : 'unknown';
+	}
 
 	const lines: string[] = [];
 

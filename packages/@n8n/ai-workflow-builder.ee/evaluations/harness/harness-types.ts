@@ -96,6 +96,9 @@ export interface TestCase {
 	referenceWorkflows?: SimpleWorkflow[];
 }
 
+/** Evaluation suite types supported by the harness */
+export type EvaluationSuite = 'llm-judge' | 'pairwise' | 'programmatic' | 'similarity';
+
 /**
  * Configuration for an evaluation run.
  */
@@ -110,6 +113,8 @@ export interface RunConfigBase {
 	outputDir?: string;
 	/** CSV file path for evaluation results */
 	outputCsv?: string;
+	/** Evaluation suite (used for CSV formatting). If not set, auto-detected from feedback. */
+	suite?: EvaluationSuite;
 	/** Threshold for pass/fail classification of an example score (0-1). */
 	passThreshold?: number;
 	/** Timeout for generation/evaluator operations (ms). */

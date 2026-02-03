@@ -342,4 +342,73 @@ describe('writeResultsCsv', () => {
 		expect(lines[1]).toContain('300'); // discoveryDurationMs
 		expect(lines[1]).toContain('800'); // builderDurationMs
 	});
+
+	it('uses explicit suite option to override auto-detection', () => {
+		// Results with runner errors (no pairwise feedback) should still use pairwise format
+		// when suite is explicitly specified
+		const results: ExampleResult[] = [
+			{
+				index: 1,
+				prompt: 'Failed during generation',
+				status: 'error',
+				score: 0,
+				feedback: [
+					{
+						evaluator: 'runner', // This would normally trigger unknown/llm-judge format
+						metric: 'error',
+						score: 0,
+						kind: 'score',
+						comment: 'Generation failed',
+					},
+				],
+				durationMs: 1000,
+				generationDurationMs: 500,
+				error: 'Generation failed',
+			},
+		];
+
+		const outputPath = join(tempDir, 'explicit-pairwise-suite.csv');
+		writeResultsCsv(results, outputPath, { suite: 'pairwise' });
+
+		const content = readFileSync(outputPath, 'utf-8');
+		const lines = content.trim().split('\n');
+
+		// Should use pairwise format headers despite having runner feedback
+		expect(lines[0]).toContain('pairwise_primary');
+		expect(lines[0]).toContain('pairwise_diagnostic');
+		// Should NOT have llm-judge format headers
+		expect(lines[0]).not.toContain('functionality_detail');
+	});
+
+	it('falls back to auto-detection when suite option is not provided', () => {
+		// Results with runner errors should fall back to llm-judge format when no suite specified
+		const results: ExampleResult[] = [
+			{
+				index: 1,
+				prompt: 'Failed during generation',
+				status: 'error',
+				score: 0,
+				feedback: [
+					{
+						evaluator: 'runner',
+						metric: 'error',
+						score: 0,
+						kind: 'score',
+					},
+				],
+				durationMs: 1000,
+				generationDurationMs: 500,
+			},
+		];
+
+		const outputPath = join(tempDir, 'auto-detect-suite.csv');
+		writeResultsCsv(results, outputPath); // No suite option
+
+		const content = readFileSync(outputPath, 'utf-8');
+		const lines = content.trim().split('\n');
+
+		// Should fall back to llm-judge format when no suite detected
+		expect(lines[0]).toContain('functionality');
+		expect(lines[0]).toContain('functionality_detail');
+	});
 });

@@ -99,10 +99,10 @@ function createSubgraphNodeHandler<
 				metadata: { phase } as { phase: 'discovery' } | { phase: 'builder' },
 			};
 
-			// Extract coordination log from output, ensuring it's an array
-			const outputCoordinationLog = Array.isArray(output.coordinationLog)
-				? output.coordinationLog
-				: [];
+			// Extract coordination log from output as properly typed array
+			// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+			const outputLogRaw = Array.isArray(output.coordinationLog) ? output.coordinationLog : [];
+			const outputCoordinationLog = outputLogRaw as Array<typeof inProgressEntry>;
 
 			return {
 				...output,

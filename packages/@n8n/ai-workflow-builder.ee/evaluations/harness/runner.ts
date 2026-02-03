@@ -669,6 +669,7 @@ async function runLocal(config: LocalRunConfig): Promise<RunSummary> {
 		lifecycle,
 		outputDir,
 		outputCsv,
+		suite,
 		logger,
 	} = config;
 
@@ -706,7 +707,9 @@ async function runLocal(config: LocalRunConfig): Promise<RunSummary> {
 	// Write CSV if requested
 	if (outputCsv) {
 		const { writeResultsCsv } = await import('./csv-writer.js');
-		writeResultsCsv(results, outputCsv);
+		// Map suite to CSV format (only llm-judge and pairwise are supported)
+		const csvSuite = suite === 'llm-judge' || suite === 'pairwise' ? suite : undefined;
+		writeResultsCsv(results, outputCsv, { suite: csvSuite });
 		logger.info(`Results written to: ${outputCsv}`);
 	}
 
@@ -930,6 +933,7 @@ async function runLangsmith(config: LangsmithRunConfig): Promise<RunSummary> {
 		context: globalContext,
 		outputDir,
 		outputCsv,
+		suite,
 		passThreshold = DEFAULT_PASS_THRESHOLD,
 		timeoutMs,
 		langsmithOptions,
@@ -1191,7 +1195,9 @@ async function runLangsmith(config: LangsmithRunConfig): Promise<RunSummary> {
 	// Write CSV if requested
 	if (outputCsv) {
 		const { writeResultsCsv } = await import('./csv-writer.js');
-		writeResultsCsv(capturedResults, outputCsv);
+		// Map suite to CSV format (only llm-judge and pairwise are supported)
+		const csvSuite = suite === 'llm-judge' || suite === 'pairwise' ? suite : undefined;
+		writeResultsCsv(capturedResults, outputCsv, { suite: csvSuite });
 		logger.info(`Results written to: ${outputCsv}`);
 	}
 
