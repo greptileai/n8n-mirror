@@ -17,7 +17,7 @@ This document defines the ideal public API for the `@n8n/ai-node-sdk` package, e
 Two modes available:
 
 ```typescript
-import { createChatModel, logWrapper } from '@n8n/ai-node-sdk';
+import { createChatModel } from '@n8n/ai-node-sdk';
 
 // Mode 1: OpenAI-compatible APIs (covers ~90% of providers)
 const model = createChatModel({
@@ -29,6 +29,8 @@ const model = createChatModel({
   maxTokens: 4096,
 });
 
+return { response: model };
+
 // Mode 2: Custom APIs (for non-OpenAI-compatible providers)
 const model = createChatModel({
   type: 'custom',
@@ -38,7 +40,7 @@ const model = createChatModel({
   },
 });
 
-return { response: logWrapper(model, this) };
+return { response: model };
 ```
 
 ### createMemory
@@ -67,18 +69,28 @@ const memory = createMemory({
   sessionId: 'user-123',
 });
 
+// We use logWrapper explicitly
 return { response: logWrapper(memory, this) };
 ```
 
 ### logWrapper
 
-Enables n8n execution logging. Always wrap before returning from `supplyData`:
+Enables n8n execution logging.
 
 ```typescript
-import { createChatModel, logWrapper } from '@n8n/ai-node-sdk';
+import { logWrapper } from '@n8n/ai-node-sdk';
 
+// Memory nodes - use logWrapper
+const memory = createMemory({ ... });
+return { response: logWrapper(memory, this) };
+
+// Document loaders, tools - use logWrapper
+const processor = new MyDocumentProcessor();
+return { response: logWrapper(processor, this) };
+
+// Chat models - no logWrapper needed (TO BE CONFIRMED)
 const model = createChatModel({ ... });
-return { response: logWrapper(model, this) };
+return { response: model };
 ```
 
 ---
@@ -104,7 +116,7 @@ async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyD
     model: modelName,
     ...options,
     configuration: { baseURL: credentials.url, ... },
-    callbacks: [new N8nLlmTracing(this)],
+    callbacks: [new N8nLlmTracing(this)],  // Logging via LangChain callback
     onFailedAttempt: makeN8nLlmFailedAttemptHandler(this, openAiFailedAttemptHandler),
   });
 
@@ -115,7 +127,7 @@ async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyD
 **After (SDK):**
 
 ```typescript
-import { createChatModel, logWrapper } from '@n8n/ai-node-sdk';
+import { createChatModel } from '@n8n/ai-node-sdk';
 
 async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyData> {
   const credentials = await this.getCredentials<{ url: string; apiKey: string }>('openRouterApi');
@@ -130,7 +142,7 @@ async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyD
     ...options,
   });
 
-  return { response: logWrapper(model, this) };
+  return { response: model };
 }
 ```
 
@@ -224,7 +236,7 @@ async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyD
 ### Acme AI Chat Model (Custom API)
 
 ```typescript
-import { createChatModel, logWrapper, type Message, type GenerateResult } from '@n8n/ai-node-sdk';
+import { createChatModel, type Message, type GenerateResult } from '@n8n/ai-node-sdk';
 import { NodeConnectionTypes, type INodeType, type ISupplyDataFunctions, type SupplyData } from 'n8n-workflow';
 
 export class LmChatAcmeAi implements INodeType {
@@ -269,7 +281,7 @@ export class LmChatAcmeAi implements INodeType {
 
     const model = createChatModel({ type: 'custom', generate });
 
-    return { response: logWrapper(model, this) };
+    return { response: model };
   }
 }
 ```
