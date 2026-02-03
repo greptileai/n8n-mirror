@@ -7,6 +7,7 @@ import { BadRequestError } from '@/errors/response-errors/bad-request.error';
 
 import { ExternalSecretsConfig } from './external-secrets.config';
 import { SecretsProvidersConnectionsService } from './secrets-providers-connections.service.ee';
+import { SecretCompletionsResponse } from '@n8n/api-types';
 
 @RestController('/secret-providers/completions')
 export class SecretProvidersCompletionsController {
@@ -28,7 +29,7 @@ export class SecretProvidersCompletionsController {
 
 	@Get('/secrets/global')
 	@GlobalScope('externalSecret:list')
-	async listGlobalSecrets() {
+	async listGlobalSecrets(): Promise<SecretCompletionsResponse> {
 		this.logger.debug('Listing global secrets');
 		return await this.connectionsService.getGlobalCompletions();
 	}
@@ -39,7 +40,7 @@ export class SecretProvidersCompletionsController {
 		_req: AuthenticatedRequest,
 		_res: Response,
 		@Param('projectId') projectId: string,
-	) {
+	): Promise<SecretCompletionsResponse> {
 		this.logger.debug('Listing secrets for project');
 		return await this.connectionsService.getProjectCompletions(projectId);
 	}
