@@ -2,11 +2,9 @@ import { inTest, Logger } from '@n8n/backend-common';
 import { type InstanceType } from '@n8n/constants';
 import { Service } from '@n8n/di';
 import type { ReportingOptions } from '@n8n/errors';
-import type { ErrorEvent, EventHint } from '@sentry/core';
+import { createBackendBeforeSend, type ErrorFilter } from '@n8n/sentry-config';
 import type { NodeOptions } from '@sentry/node';
-import { AxiosError } from 'axios';
 import { ApplicationError, ExecutionCancelledError, BaseError } from 'n8n-workflow';
-import { createHash } from 'node:crypto';
 
 import { Tracing, SentryTracing } from '@/observability';
 
@@ -33,7 +31,7 @@ type ErrorReporterInitOptions = {
 	 * Function to allow filtering out errors before they are sent to Sentry.
 	 * Return true if the error should be filtered out.
 	 */
-	beforeSendFilter?: (event: ErrorEvent, hint: EventHint) => boolean;
+	beforeSendFilter?: ErrorFilter;
 
 	/**
 	 * Integrations eligible for enablement. `tracesSampleRate` still determines
@@ -55,8 +53,6 @@ export class ErrorReporter {
 	private seenErrors = new Set<string>();
 
 	private report: (error: Error | string, options?: ReportingOptions) => void;
-
-	private beforeSendFilter?: (event: ErrorEvent, hint: EventHint) => boolean;
 
 	constructor(
 		private readonly logger: Logger,
@@ -143,8 +139,14 @@ export class ErrorReporter {
 		Error.stackTraceLimit = 50;
 
 		const sentry = await import('@sentry/node');
-		const { init, captureException, setTag, requestDataIntegration, rewriteFramesIntegration } =
-			sentry;
+		const {
+			init,
+			captureException,
+			setTag,
+			setUser,
+			requestDataIntegration,
+			rewriteFramesIntegration,
+		} = sentry;
 
 		// Most of the integrations are listed here:
 		// https://docs.sentry.io/platforms/javascript/guides/node/configuration/integrations/
@@ -182,6 +184,12 @@ export class ErrorReporter {
 
 		const profilingIntegration = isProfilingEnabled ? await this.getProfilingIntegration() : [];
 
+		// Create beforeSend using the centralized filter from @n8n/sentry-config
+		const beforeSend = createBackendBeforeSend({
+			additionalFilter: beforeSendFilter,
+			seenErrors: this.seenErrors,
+		});
+
 		init({
 			dsn,
 			release,
@@ -189,7 +197,7 @@ export class ErrorReporter {
 			serverName,
 			...(isTracingEnabled ? { tracesSampleRate } : {}),
 			...(isProfilingEnabled ? { profilesSampleRate, profileLifecycle: 'trace' } : {}),
-			beforeSend: this.beforeSend.bind(this) as NodeOptions['beforeSend'],
+			beforeSend: beforeSend as NodeOptions['beforeSend'],
 			ignoreTransactions: ['GET /healthz', 'GET /metrics'],
 			ignoreSpans: ['GET /healthz', 'GET /metrics'],
 			integrations: (integrations) => [
@@ -211,61 +219,11 @@ export class ErrorReporter {
 
 		setTag('server_type', serverType);
 
+		if (serverName) {
+			setUser({ id: serverName });
+		}
+
 		this.report = (error, options) => captureException(error, options);
-		this.beforeSendFilter = beforeSendFilter;
-	}
-
-	async beforeSend(event: ErrorEvent, hint: EventHint) {
-		let { originalException } = hint;
-
-		if (!originalException) return null;
-
-		if (originalException instanceof Promise) {
-			originalException = await originalException.catch((error) => error as Error);
-		}
-
-		if (
-			this.beforeSendFilter?.(event, {
-				...hint,
-				originalException,
-			})
-		) {
-			return null;
-		}
-
-		if (originalException instanceof AxiosError) return null;
-
-		if (originalException instanceof BaseError) {
-			if (!originalException.shouldReport) return null;
-
-			this.extractEventDetailsFromN8nError(event, originalException);
-		}
-
-		if (this.isIgnoredSqliteError(originalException)) return null;
-		if (originalException instanceof ApplicationError || originalException instanceof BaseError) {
-			if (this.isIgnoredN8nError(originalException)) return null;
-
-			this.extractEventDetailsFromN8nError(event, originalException);
-		}
-
-		if (
-			originalException instanceof Error &&
-			'cause' in originalException &&
-			originalException.cause instanceof Error &&
-			'level' in originalException.cause &&
-			(originalException.cause.level === 'warning' || originalException.cause.level === 'info')
-		) {
-			// handle underlying errors propagating from dependencies like ai-assistant-sdk
-			return null;
-		}
-
-		if (originalException instanceof Error && originalException.stack) {
-			const eventHash = createHash('sha1').update(originalException.stack).digest('base64');
-			if (this.seenErrors.has(eventHash)) return null;
-			this.seenErrors.add(eventHash);
-		}
-
-		return event;
 	}
 
 	error(e: unknown, options?: ReportingOptions) {
@@ -286,30 +244,6 @@ export class ErrorReporter {
 		if (e instanceof Error) return e;
 		if (typeof e === 'string') return new ApplicationError(e);
 		return;
-	}
-
-	/** @returns true if the error should be filtered out */
-	private isIgnoredSqliteError(error: unknown) {
-		return (
-			error instanceof Error &&
-			error.name === 'QueryFailedError' &&
-			typeof error.message === 'string' &&
-			['SQLITE_FULL', 'SQLITE_IOERR'].some((errMsg) => error.message.includes(errMsg))
-		);
-	}
-
-	private isIgnoredN8nError(error: ApplicationError | BaseError) {
-		return error.level === 'warning' || error.level === 'info';
-	}
-
-	private extractEventDetailsFromN8nError(
-		event: ErrorEvent,
-		originalException: ApplicationError | BaseError,
-	) {
-		const { level, extra, tags } = originalException;
-		event.level = level;
-		if (extra) event.extra = { ...event.extra, ...extra };
-		if (tags) event.tags = { ...event.tags, ...tags };
 	}
 
 	private async getEventLoopBlockIntegration(tags: Record<string, string>) {

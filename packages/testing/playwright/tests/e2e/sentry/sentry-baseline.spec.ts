@@ -76,4 +76,42 @@ test.describe('Sentry baseline', () => {
 			)
 			.toBeGreaterThan(0);
 	});
+
+	test('events have deployment identification via server_name tag', async ({
+		n8n,
+		n8nContainer,
+	}) => {
+		const kent = n8nContainer.services.kent;
+		await n8n.navigate.toHome();
+
+		// Trigger frontend error
+		n8n.page.on('pageerror', () => {});
+		await n8n.page.evaluate(() => {
+			setTimeout(() => {
+				throw new Error('Test error for deployment identification');
+			}, 0);
+		});
+
+		// Wait for error to be captured
+		await n8n.page.waitForTimeout(2000);
+
+		// Get all events and find the frontend error
+		const events = await kent.getEvents();
+		const frontendError = events.find(
+			(e) =>
+				kent.getSource(e) === 'frontend' &&
+				kent.getType(e) === 'error' &&
+				kent.getErrorMessage(e).includes('Test error for deployment identification'),
+		);
+
+		expect(frontendError).toBeTruthy();
+
+		// Verify server_name tag is set for deployment identification
+		// This allows grouping errors by deployment in Sentry
+		const serverName = frontendError!.payload.body.tags?.server_name;
+		expect(serverName).toBe('e2e-test-deployment');
+
+		// Note: setUser({ id: serverName }) is also called for "Users" column in Sentry
+		// but requires the latest n8n code in the Docker image to verify
+	});
 });

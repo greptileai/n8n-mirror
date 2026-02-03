@@ -1,18 +1,17 @@
 import type { Plugin } from 'vue';
-import { AxiosError } from 'axios';
 import { ResponseError } from '@n8n/rest-api-client';
+import { createFrontendBeforeSend, type IgnoredErrorPattern } from '@n8n/sentry-config';
 import * as Sentry from '@sentry/vue';
 import { getAndParseConfigFromMetaTag } from '@n8n/stores/metaTagConfig';
 
-const ignoredErrors = [
-	{ instanceof: AxiosError },
+/**
+ * Additional frontend-specific ignored errors.
+ * These are on top of the default patterns from @n8n/sentry-config.
+ */
+const additionalIgnoredErrors: readonly IgnoredErrorPattern[] = [
 	{ instanceof: ResponseError, message: /ECONNREFUSED/ },
 	{ instanceof: ResponseError, message: "Can't connect to n8n." },
 	{ instanceof: ResponseError, message: 'Unauthorized' },
-	{ instanceof: RangeError, message: /Position \d+ is out of range for changeset of length \d+/ },
-	{ instanceof: RangeError, message: /Invalid change range \d+ to \d+/ },
-	{ instanceof: RangeError, message: /Selection points outside of document$/ },
-	{ instanceof: Error, message: /ResizeObserver/ },
 ] as const;
 
 type SentryConfig = {
@@ -22,31 +21,8 @@ type SentryConfig = {
 	release?: string;
 };
 
-export function beforeSend(event: Sentry.ErrorEvent, { originalException }: Sentry.EventHint) {
-	if (
-		!originalException ||
-		ignoredErrors.some((entry) => {
-			const typeMatch = originalException instanceof entry.instanceof;
-			if (!typeMatch) {
-				return false;
-			}
-
-			if ('message' in entry) {
-				if (entry.message instanceof RegExp) {
-					return entry.message.test(originalException.message ?? '');
-				} else {
-					return originalException.message === entry.message;
-				}
-			}
-
-			return true;
-		})
-	) {
-		return null;
-	}
-
-	return event;
-}
+// Create the beforeSend function using the centralized filter with additional patterns
+export const beforeSend = createFrontendBeforeSend(additionalIgnoredErrors);
 
 export const SentryPlugin: Plugin = {
 	install: (app) => {
@@ -76,6 +52,7 @@ export const SentryPlugin: Plugin = {
 
 		if (serverName) {
 			Sentry.setTag('server_name', serverName);
+			Sentry.setUser({ id: serverName });
 		}
 	},
 };

@@ -65,6 +65,7 @@ export const kent: Service<KentResult> = {
 			N8N_FRONTEND_SENTRY_DSN: result.meta.frontendDsn,
 			N8N_SENTRY_TRACES_SAMPLE_RATE: '1.0',
 			ENVIRONMENT: 'test',
+			DEPLOYMENT_NAME: 'e2e-test-deployment',
 			N8N_SENTRY_DISABLE_FILTERING: 'true',
 		};
 	},
@@ -85,6 +86,7 @@ export interface KentEvent {
 			type?: string;
 			transaction?: string;
 			tags?: Record<string, string>;
+			user?: { id?: string; email?: string; username?: string; ip_address?: string };
 			exception?: { values: Array<{ type: string; value: string }> };
 			spans?: unknown[];
 			[key: string]: unknown;
@@ -134,6 +136,16 @@ export class KentHelper {
 	/** Get error message from event */
 	getErrorMessage(event: KentEvent): string {
 		return event.payload.body.exception?.values?.[0]?.value ?? '';
+	}
+
+	/** Get user context from event (deployment/account identifier) */
+	getUser(event: KentEvent): { id?: string; email?: string } | undefined {
+		return event.payload.body.user;
+	}
+
+	/** Get tags from event */
+	getTags(event: KentEvent): Record<string, string> | undefined {
+		return event.payload.body.tags;
 	}
 
 	private async getEvent(eventId: string): Promise<KentEvent> {

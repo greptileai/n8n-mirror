@@ -1585,6 +1585,22 @@ importers:
         specifier: 0.2.4
         version: 0.2.4
 
+  packages/@n8n/sentry-config:
+    dependencies:
+      '@sentry/node':
+        specifier: catalog:sentry
+        version: 10.36.0
+      axios:
+        specifier: 1.12.0
+        version: 1.12.0
+      n8n-workflow:
+        specifier: workspace:*
+        version: link:../../workflow
+    devDependencies:
+      '@n8n/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+
   packages/@n8n/stylelint-config:
     dependencies:
       postcss-html:
@@ -1637,6 +1653,9 @@ importers:
       '@n8n/errors':
         specifier: workspace:*
         version: link:../errors
+      '@n8n/sentry-config':
+        specifier: workspace:*
+        version: link:../sentry-config
       '@sentry/node':
         specifier: catalog:sentry
         version: 10.36.0
@@ -2156,6 +2175,9 @@ importers:
       '@n8n/di':
         specifier: workspace:*
         version: link:../@n8n/di
+      '@n8n/sentry-config':
+        specifier: workspace:*
+        version: link:../@n8n/sentry-config
       '@sentry/node':
         specifier: catalog:sentry
         version: 10.36.0
@@ -2896,6 +2918,9 @@ importers:
       '@n8n/rest-api-client':
         specifier: workspace:*
         version: link:../@n8n/rest-api-client
+      '@n8n/sentry-config':
+        specifier: workspace:*
+        version: link:../../@n8n/sentry-config
       '@n8n/stores':
         specifier: workspace:*
         version: link:../@n8n/stores
@@ -26360,7 +26385,7 @@ snapshots:
   '@types/pg@8.15.6':
     dependencies:
       '@types/node': 20.19.21
-      pg-protocol: 1.6.1
+      pg-protocol: 1.11.0
       pg-types: 2.2.0
 
   '@types/phoenix@1.6.6': {}
