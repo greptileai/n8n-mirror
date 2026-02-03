@@ -600,41 +600,7 @@ Fix any reported errors and re-validate until the workflow passes.
 When validation passes, stop calling tools and output a one-liner summary of what the workflow does.`;
 
 /**
- * Output format instructions
- */
-const OUTPUT_FORMAT = `# Output Format
-
-Generate your workflow code in a JavaScript code block:
-
-\`\`\`javascript
-const startTrigger = trigger({{
-  type: 'n8n-nodes-base.manualTrigger',
-  version: 1,
-  config: {{ name: 'Start', position: [240, 300] }}
-}});
-
-const processData = node({{
-  type: 'n8n-nodes-base.set',
-  version: 3.4,
-  config: {{ name: 'Process Data', parameters: {{}}, position: [540, 300] }}
-}});
-
-return workflow('unique-id', 'Workflow Name')
-  .add(startTrigger.to(processData));
-\`\`\`
-
-Your code must:
-- **Define all nodes as constants FIRST** (subnodes before main nodes)
-- **Then return the workflow composition** with .add() and .to() chains
-- **Write clean code without comments** - comments are stripped before execution and users only see the resulting workflow. Use 'sticky()' to add guidance for users
-- Follow all workflow rules with valid syntax
-- Use proper node positioning (left-to-right, vertical for branches)
-- Use descriptive node names
-
-Now, analyze the user's request and generate the workflow code following all the steps above.`;
-
-/**
- * Text editor tool instructions (only included when text editor mode is enabled)
+ * Text editor tool instructions
  */
 const TEXT_EDITOR_INSTRUCTIONS = `# Text Editor Tool
 
@@ -696,8 +662,7 @@ export interface HistoryContext {
  * Options for building the code builder prompt
  */
 export interface BuildCodeBuilderPromptOptions {
-	/** Enable text editor tool instructions */
-	enableTextEditor?: boolean;
+	// Reserved for future options
 }
 
 /**
@@ -710,7 +675,7 @@ export interface BuildCodeBuilderPromptOptions {
 export function buildCodeBuilderPrompt(
 	currentWorkflow?: WorkflowJSON,
 	historyContext?: HistoryContext,
-	options?: BuildCodeBuilderPromptOptions,
+	_options?: BuildCodeBuilderPromptOptions,
 ): ChatPromptTemplate {
 	const promptSections = [
 		ROLE,
@@ -718,14 +683,8 @@ export function buildCodeBuilderPrompt(
 		WORKFLOW_PATTERNS,
 		`<sdk_api_reference>\n${SDK_API_CONTENT_ESCAPED}\n</sdk_api_reference>`,
 		MANDATORY_WORKFLOW,
+		TEXT_EDITOR_INSTRUCTIONS,
 	];
-
-	// Add text editor instructions if enabled (replaces OUTPUT_FORMAT)
-	if (options?.enableTextEditor) {
-		promptSections.push(TEXT_EDITOR_INSTRUCTIONS);
-	} else {
-		promptSections.push(OUTPUT_FORMAT);
-	}
 
 	const systemMessage = promptSections.join('\n\n');
 
@@ -748,25 +707,17 @@ export function buildCodeBuilderPrompt(
 		userMessageParts.push('</previous_requests>');
 	}
 
-	// 3. Current workflow context (with line numbers when text editor is enabled)
+	// 3. Current workflow context (with line numbers for text editor)
 	if (currentWorkflow) {
 		// Convert WorkflowJSON to SDK code
 		const workflowCode = generateWorkflowCode(currentWorkflow);
 
-		if (options?.enableTextEditor) {
-			// Format as file with line numbers (matches view command output)
-			// Include SDK import so LLM sees the same code that's in the text editor
-			const codeWithImport = `${SDK_IMPORT_STATEMENT}\n\n${workflowCode}`;
-			const formattedCode = formatCodeWithLineNumbers(codeWithImport);
-			const escapedCode = escapeCurlyBrackets(formattedCode);
-			userMessageParts.push(
-				`<workflow_file path="/workflow.ts">\n${escapedCode}\n</workflow_file>`,
-			);
-		} else {
-			// Standard format without line numbers
-			const escapedWorkflowCode = escapeCurlyBrackets(workflowCode);
-			userMessageParts.push(`<current_workflow>\n${escapedWorkflowCode}\n</current_workflow>`);
-		}
+		// Format as file with line numbers (matches view command output)
+		// Include SDK import so LLM sees the same code that's in the text editor
+		const codeWithImport = `${SDK_IMPORT_STATEMENT}\n\n${workflowCode}`;
+		const formattedCode = formatCodeWithLineNumbers(codeWithImport);
+		const escapedCode = escapeCurlyBrackets(formattedCode);
+		userMessageParts.push(`<workflow_file path="/workflow.ts">\n${escapedCode}\n</workflow_file>`);
 	}
 
 	// 4. Add context separator if we have any context
