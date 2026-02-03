@@ -58,6 +58,6 @@ To auto-approve Linear MCP tools, add to your global settings:
 
 ## Skills
 
-- **n8n-conventions** - 313-line reference guide (optional - agents have embedded knowledge)
+- **n8n-conventions** - Quick reference pointing to /AGENTS.md (optional - agents have embedded knowledge)
   - Use `/n8n-conventions` when you need detailed patterns
-  - Not auto-loaded to save tokens (~6-8K)
+  - References root docs instead of duplicating (~95 lines)
