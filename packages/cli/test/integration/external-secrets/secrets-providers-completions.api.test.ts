@@ -100,22 +100,66 @@ describe('Secret Providers Completions API', () => {
 
 		describe('with global connections', () => {
 			it('should return global secrets', async () => {
-				const TestProvider = createDummyProvider({
-					name: 'global_test_provider',
+				const GlobalProvider1 = createDummyProvider({
+					name: 'global_provider_1',
 					secrets: { globalSecret1: 'value1', globalSecret2: 'value2' },
+				});
+				const GlobalProvider2 = createDummyProvider({
+					name: 'global_provider_2',
+					secrets: { globalSecret3: 'value3' },
+				});
+				const ProjectProvider = createDummyProvider({
+					name: 'project_provider',
+					secrets: { projectSecret1: 'value1' },
 				});
 
 				mockProvidersInstance.setProviders({
-					global_test_provider: TestProvider,
+					global_provider_1: GlobalProvider1,
+					global_provider_2: GlobalProvider2,
+					project_provider: ProjectProvider,
 				});
 
-				// Create a global connection (no project access)
+				// Create enabled global connections (should be returned)
 				await connectionRepository.save(
 					connectionRepository.create({
-						providerKey: 'global-connection',
-						type: 'global_test_provider',
+						providerKey: 'global-connection-1',
+						type: 'global_provider_1',
 						isEnabled: true,
 						encryptedSettings: JSON.stringify({ mocked: 'mocked-encrypted-settings' }),
+					}),
+				);
+				await connectionRepository.save(
+					connectionRepository.create({
+						providerKey: 'global-connection-2',
+						type: 'global_provider_2',
+						isEnabled: true,
+						encryptedSettings: JSON.stringify({ mocked: 'mocked-encrypted-settings' }),
+					}),
+				);
+
+				// Create disabled global connection (should NOT be returned)
+				await connectionRepository.save(
+					connectionRepository.create({
+						providerKey: 'global-connection-disabled',
+						type: 'global_provider_1',
+						isEnabled: false,
+						encryptedSettings: JSON.stringify({ mocked: 'mocked-encrypted-settings' }),
+					}),
+				);
+
+				// Create project-scoped connection (should NOT be returned)
+				const projectConnection = await connectionRepository.save(
+					connectionRepository.create({
+						providerKey: 'project-connection',
+						type: 'project_provider',
+						isEnabled: true,
+						encryptedSettings: JSON.stringify({ mocked: 'mocked-encrypted-settings' }),
+					}),
+				);
+				await projectAccessRepository.save(
+					projectAccessRepository.create({
+						projectId: projectWithConnections.id,
+						secretsProviderConnectionId: projectConnection.id,
 					}),
 				);
 
@@ -126,13 +170,49 @@ describe('Secret Providers Completions API', () => {
 					.expect(200);
 
 				expect(response.body.data).toEqual({
-					'global-connection': ['globalSecret1', 'globalSecret2'],
+					'global-connection-1': ['globalSecret1', 'globalSecret2'],
+					'global-connection-2': ['globalSecret3'],
 				});
 			});
 		});
 
 		describe('without global connections', () => {
 			it('should return an empty object', async () => {
+				const ProjectProvider = createDummyProvider({
+					name: 'project_provider',
+					secrets: { projectSecret1: 'value1' },
+				});
+
+				mockProvidersInstance.setProviders({
+					project_provider: ProjectProvider,
+				});
+
+				// Create project-scoped connection (should NOT be returned)
+				const projectConnection = await connectionRepository.save(
+					connectionRepository.create({
+						providerKey: 'project-connection',
+						type: 'project_provider',
+						isEnabled: true,
+						encryptedSettings: JSON.stringify({ mocked: 'mocked-encrypted-settings' }),
+					}),
+				);
+				await projectAccessRepository.save(
+					projectAccessRepository.create({
+						projectId: projectWithConnections.id,
+						secretsProviderConnectionId: projectConnection.id,
+					}),
+				);
+
+				// Create disabled global connection (should NOT be returned)
+				await connectionRepository.save(
+					connectionRepository.create({
+						providerKey: 'global-connection-disabled',
+						type: 'project_provider',
+						isEnabled: false,
+						encryptedSettings: JSON.stringify({ mocked: 'mocked-encrypted-settings' }),
+					}),
+				);
+
 				await resetManager();
 
 				const response = await authOwnerAgent
@@ -170,36 +250,44 @@ describe('Secret Providers Completions API', () => {
 
 		describe('with existing project connections', () => {
 			it('should return project secrets', async () => {
-				const TestProvider = createDummyProvider({
-					name: 'test_provider',
+				const ProjectProvider1 = createDummyProvider({
+					name: 'project_provider_1',
 					secrets: { secret1: 'value1', secret2: 'value2' },
 				});
-				const AnotherTestProvider = createDummyProvider({
-					name: 'another_test_provider',
+				const ProjectProvider2 = createDummyProvider({
+					name: 'project_provider_2',
 					secrets: { secret3: 'value3', secret4: 'value4' },
+				});
+				const GlobalProvider = createDummyProvider({
+					name: 'global_provider',
+					secrets: { globalSecret1: 'value1' },
+				});
+				const OtherProjectProvider = createDummyProvider({
+					name: 'other_project_provider',
+					secrets: { otherSecret1: 'value1' },
 				});
 
 				mockProvidersInstance.setProviders({
-					test_provider: TestProvider,
-					another_test_provider: AnotherTestProvider,
+					project_provider_1: ProjectProvider1,
+					project_provider_2: ProjectProvider2,
+					global_provider: GlobalProvider,
+					other_project_provider: OtherProjectProvider,
 				});
 
-				// Create a project-scoped connection for projectWithConnections
-				const mockConnection = {
-					providerKey: 'test-project-secret-connection',
-					type: 'test_provider',
-					isEnabled: true,
-					encryptedSettings: JSON.stringify({ mocked: 'mocked-encrypted-settings' }),
-				};
-				const connection = await connectionRepository.save(
-					connectionRepository.create(mockConnection),
-				);
-
-				await connectionRepository.save(
+				// Create enabled project-scoped connections for projectWithConnections (should be returned)
+				const connection1 = await connectionRepository.save(
 					connectionRepository.create({
-						providerKey: 'test-project-secret-connection-disabled',
-						type: 'another_test_provider',
-						isEnabled: false,
+						providerKey: 'test-project-secret-connection-1',
+						type: 'project_provider_1',
+						isEnabled: true,
+						encryptedSettings: JSON.stringify({ mocked: 'mocked-encrypted-settings' }),
+					}),
+				);
+				const connection2 = await connectionRepository.save(
+					connectionRepository.create({
+						providerKey: 'test-project-secret-connection-2',
+						type: 'project_provider_2',
+						isEnabled: true,
 						encryptedSettings: JSON.stringify({ mocked: 'mocked-encrypted-settings' }),
 					}),
 				);
@@ -207,7 +295,55 @@ describe('Secret Providers Completions API', () => {
 				await projectAccessRepository.save(
 					projectAccessRepository.create({
 						projectId: projectWithConnections.id,
-						secretsProviderConnectionId: connection.id,
+						secretsProviderConnectionId: connection1.id,
+					}),
+				);
+				await projectAccessRepository.save(
+					projectAccessRepository.create({
+						projectId: projectWithConnections.id,
+						secretsProviderConnectionId: connection2.id,
+					}),
+				);
+
+				// Create disabled connection for the same project (should NOT be returned)
+				const disabledConnection = await connectionRepository.save(
+					connectionRepository.create({
+						providerKey: 'test-project-secret-connection-disabled',
+						type: 'project_provider_1',
+						isEnabled: false,
+						encryptedSettings: JSON.stringify({ mocked: 'mocked-encrypted-settings' }),
+					}),
+				);
+				await projectAccessRepository.save(
+					projectAccessRepository.create({
+						projectId: projectWithConnections.id,
+						secretsProviderConnectionId: disabledConnection.id,
+					}),
+				);
+
+				// Create connection for another project (should NOT be returned)
+				const otherProjectConnection = await connectionRepository.save(
+					connectionRepository.create({
+						providerKey: 'other-project-connection',
+						type: 'other_project_provider',
+						isEnabled: true,
+						encryptedSettings: JSON.stringify({ mocked: 'mocked-encrypted-settings' }),
+					}),
+				);
+				await projectAccessRepository.save(
+					projectAccessRepository.create({
+						projectId: projectWithoutConnections.id,
+						secretsProviderConnectionId: otherProjectConnection.id,
+					}),
+				);
+
+				// Create global connection (should NOT be returned)
+				await connectionRepository.save(
+					connectionRepository.create({
+						providerKey: 'global-connection',
+						type: 'global_provider',
+						isEnabled: true,
+						encryptedSettings: JSON.stringify({ mocked: 'mocked-encrypted-settings' }),
 					}),
 				);
 
@@ -218,13 +354,54 @@ describe('Secret Providers Completions API', () => {
 					.expect(200);
 
 				expect(response.body.data).toEqual({
-					'test-project-secret-connection': ['secret1', 'secret2'],
+					'test-project-secret-connection-1': ['secret1', 'secret2'],
+					'test-project-secret-connection-2': ['secret3', 'secret4'],
 				});
 			});
 		});
 
 		describe('with no project connections', () => {
 			it('should return an empty object', async () => {
+				const ProjectProvider = createDummyProvider({
+					name: 'project_provider',
+					secrets: { secret1: 'value1' },
+				});
+				const GlobalProvider = createDummyProvider({
+					name: 'global_provider',
+					secrets: { globalSecret1: 'value1' },
+				});
+
+				mockProvidersInstance.setProviders({
+					project_provider: ProjectProvider,
+					global_provider: GlobalProvider,
+				});
+
+				// Create connection for another project (should NOT be returned)
+				const otherProjectConnection = await connectionRepository.save(
+					connectionRepository.create({
+						providerKey: 'other-project-connection',
+						type: 'project_provider',
+						isEnabled: true,
+						encryptedSettings: JSON.stringify({ mocked: 'mocked-encrypted-settings' }),
+					}),
+				);
+				await projectAccessRepository.save(
+					projectAccessRepository.create({
+						projectId: projectWithConnections.id,
+						secretsProviderConnectionId: otherProjectConnection.id,
+					}),
+				);
+
+				// Create global connection (should NOT be returned)
+				await connectionRepository.save(
+					connectionRepository.create({
+						providerKey: 'global-connection',
+						type: 'global_provider',
+						isEnabled: true,
+						encryptedSettings: JSON.stringify({ mocked: 'mocked-encrypted-settings' }),
+					}),
+				);
+
 				await resetManager();
 
 				const response = await authOwnerAgent
@@ -237,6 +414,31 @@ describe('Secret Providers Completions API', () => {
 
 		describe('with no project', () => {
 			it('should return an empty object', async () => {
+				const ProjectProvider = createDummyProvider({
+					name: 'project_provider',
+					secrets: { secret1: 'value1' },
+				});
+
+				mockProvidersInstance.setProviders({
+					project_provider: ProjectProvider,
+				});
+
+				// Create connections that should NOT be returned for non-existent project
+				const connection = await connectionRepository.save(
+					connectionRepository.create({
+						providerKey: 'project-connection',
+						type: 'project_provider',
+						isEnabled: true,
+						encryptedSettings: JSON.stringify({ mocked: 'mocked-encrypted-settings' }),
+					}),
+				);
+				await projectAccessRepository.save(
+					projectAccessRepository.create({
+						projectId: projectWithConnections.id,
+						secretsProviderConnectionId: connection.id,
+					}),
+				);
+
 				await resetManager();
 
 				const nonExistentProjectId = '00000000-0000-0000-0000-000000000000';
