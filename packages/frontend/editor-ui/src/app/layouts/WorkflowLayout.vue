@@ -1,25 +1,65 @@
 <script lang="ts" setup>
-import { provide, computed } from 'vue';
-import { useRoute } from 'vue-router';
+import { provide, watch, onMounted, onBeforeUnmount } from 'vue';
 import BaseLayout from './BaseLayout.vue';
 import { useLayoutProps } from '@/app/composables/useLayoutProps';
+import { useWorkflowState } from '@/app/composables/useWorkflowState';
+import { useWorkflowInitialization } from '@/app/composables/useWorkflowInitialization';
+import { WorkflowStateKey } from '@/app/constants';
 import AskAssistantFloatingButton from '@/features/ai/assistant/components/Chat/AskAssistantFloatingButton.vue';
 import { useAssistantStore } from '@/features/ai/assistant/assistant.store';
 import AppHeader from '@/app/components/app/AppHeader.vue';
 import AppSidebar from '@/app/components/app/AppSidebar.vue';
 import LogsPanel from '@/features/execution/logs/components/LogsPanel.vue';
+import LoadingView from '@/app/views/LoadingView.vue';
 import { WorkflowIdKey } from '@/app/constants/injectionKeys';
 
-const route = useRoute();
 const { layoutProps } = useLayoutProps();
 const assistantStore = useAssistantStore();
 
-const workflowId = computed(() => {
-	const name = route.params.name;
-	return (Array.isArray(name) ? name[0] : name) as string;
+// Create and provide workflowState for child components
+const workflowState = useWorkflowState();
+provide(WorkflowStateKey, workflowState);
+
+// Use the workflow initialization composable
+const {
+	isLoading,
+	workflowId,
+	isTemplateRoute,
+	isOnboardingRoute,
+	initializeData,
+	initializeWorkflow,
+	cleanup,
+} = useWorkflowInitialization(workflowState);
+
+// Provide workflowId for child components (used by WorkflowExecutionsView, etc.)
+provide(WorkflowIdKey, workflowId);
+
+// Initialize on mount
+onMounted(async () => {
+	await initializeData();
+	await initializeWorkflow();
 });
 
-provide(WorkflowIdKey, workflowId);
+// Watch for workflow ID changes to reload the workflow
+watch(
+	workflowId,
+	async (newId, oldId) => {
+		// Skip if template or onboarding routes - they handle their own initialization
+		if (isTemplateRoute.value || isOnboardingRoute.value) {
+			return;
+		}
+
+		if (newId !== oldId && newId) {
+			await initializeWorkflow(true);
+		}
+	},
+	{ flush: 'post' },
+);
+
+// Cleanup on unmount
+onBeforeUnmount(() => {
+	cleanup();
+});
 </script>
 
 <template>
@@ -30,11 +70,8 @@ provide(WorkflowIdKey, workflowId);
 		<template #sidebar>
 			<AppSidebar />
 		</template>
-		<RouterView v-slot="{ Component }">
-			<KeepAlive include="NodeView" :max="1">
-				<Component :is="Component" />
-			</KeepAlive>
-		</RouterView>
+		<LoadingView v-if="isLoading" />
+		<RouterView v-else />
 		<template v-if="layoutProps.logs" #footer>
 			<LogsPanel />
 		</template>
