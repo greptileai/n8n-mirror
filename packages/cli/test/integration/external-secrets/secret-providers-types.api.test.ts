@@ -18,14 +18,23 @@ import { createAdmin, createMember, createOwner } from '../shared/db/users';
 import type { SuperAgentTest } from '../shared/types';
 import { setupTestServer } from '../shared/utils';
 
+const mockProvidersInstance = new MockProviders();
+mockInstance(ExternalSecretsProviders, mockProvidersInstance);
+
+const licenseMock = mock<LicenseState>();
+licenseMock.isLicensed.mockReturnValue(true);
+Container.set(LicenseState, licenseMock);
+
+mockInstance(ExternalSecretsConfig, {
+	externalSecretsForProjects: true,
+});
+
 describe('Secret Providers Types API', () => {
 	const testServer = setupTestServer({
 		endpointGroups: ['externalSecrets'],
 		enabledFeatures: ['feat:externalSecrets'],
 		modules: ['external-secrets'],
 	});
-
-	const mockProvidersInstance = new MockProviders();
 
 	let ownerAgent: SuperAgentTest;
 	let adminAgent: SuperAgentTest;
@@ -34,16 +43,6 @@ describe('Secret Providers Types API', () => {
 	beforeAll(async () => {
 		await testModules.loadModules(['external-secrets']);
 		await testDb.init();
-
-		mockInstance(ExternalSecretsProviders, mockProvidersInstance);
-
-		const licenseMock = mock<LicenseState>();
-		licenseMock.isLicensed.mockReturnValue(true);
-		Container.set(LicenseState, licenseMock);
-
-		mockInstance(ExternalSecretsConfig, {
-			externalSecretsForProjects: true,
-		});
 
 		Container.set(Logger, mockLogger());
 
