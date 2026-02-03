@@ -350,7 +350,6 @@ export class RoleService {
 			this.logger.debug(
 				`Scopes ${scopesAlreadyAssigned.map((s) => s.slug).join(', ')} are already assigned on role ${roleSlug}`,
 			);
-			return;
 		}
 
 		this.logger.debug(`Adding scopes ${scopes.map((s) => s.slug).join(', ')} to role ${roleSlug}`);
