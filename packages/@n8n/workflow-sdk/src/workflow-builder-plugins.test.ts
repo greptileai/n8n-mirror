@@ -875,7 +875,7 @@ describe('WorkflowBuilder plugin integration', () => {
 			// Should detect the disconnected node
 			expect(issues.length).toBeGreaterThan(0);
 			expect(issues.some((i: { code: string }) => i.code === 'DISCONNECTED_NODE')).toBe(true);
-			expect(issues.some((i: { nodeName: string }) => i.nodeName === 'Disconnected')).toBe(true);
+			expect(issues.some((i) => i.nodeName === 'Disconnected')).toBe(true);
 		});
 
 		it('validateWorkflow respects allowDisconnectedNodes in context', () => {
@@ -1031,7 +1031,7 @@ describe('WorkflowBuilder plugin integration', () => {
 
 			// Should NOT warn about subnodes connected via AI connections
 			// The OpenAI node is a subnode connected via ai_languageModel
-			expect(issues.some((i: { nodeName: string }) => i.nodeName === 'OpenAI')).toBe(false);
+			expect(issues.some((i) => i.nodeName === 'OpenAI')).toBe(false);
 		});
 	});
 
@@ -1265,7 +1265,7 @@ describe('WorkflowBuilder plugin integration', () => {
 				config: { name: 'If', parameters: {}, pinData: [{ item: 'if' }] },
 			}).onTrue!(trueNode).onFalse(falseNode);
 
-			ifElseHandler.collectPinData(composite, collector);
+			ifElseHandler.collectPinData!(composite, collector);
 
 			expect(collectedNodes).toContain('If');
 			expect(collectedNodes).toContain('True Node');
@@ -1294,7 +1294,7 @@ describe('WorkflowBuilder plugin integration', () => {
 				config: { name: 'Switch', parameters: {}, pinData: [{ item: 'switch' }] },
 			}).onCase!(0, case0).onCase(1, case1);
 
-			switchCaseHandler.collectPinData(composite, collector);
+			switchCaseHandler.collectPinData!(composite, collector);
 
 			expect(collectedNodes).toContain('Switch');
 			expect(collectedNodes).toContain('Case 0');
@@ -1325,7 +1325,13 @@ describe('WorkflowBuilder plugin integration', () => {
 				.onDone(doneNode)
 				.onEachBatch(eachNode);
 
-			splitInBatchesHandler.collectPinData(sib, collector);
+			// The handler's SplitInBatchesBuilderShape is internal, but the builder implements it at runtime
+			(
+				splitInBatchesHandler.collectPinData as (
+					input: unknown,
+					collector: (node: NodeInstance<string, string, unknown>) => void,
+				) => void
+			)(sib, collector);
 
 			expect(collectedNodes).toContain('SIB');
 			// Note: done/each nodes may not be collected by the handler as they're added via addBranchToGraph
