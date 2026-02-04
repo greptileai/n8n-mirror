@@ -38,6 +38,7 @@ import { useToast } from '@/app/composables/useToast';
 import { createEventBus } from '@n8n/utils/event-bus';
 import type { WorkflowHistoryNameVersionModalEventBusEvents } from '@/features/workflows/workflowHistory/components/WorkflowHistoryNameVersionModal.vue';
 import { useWorkflowHistoryStore } from '@/features/workflows/workflowHistory/workflowHistory.store';
+import type { WorkflowVersionMetadata } from '@n8n/rest-api-client/api/workflowHistory';
 import { useKeybindings } from '@/app/composables/useKeybindings';
 
 const props = defineProps<{
@@ -337,6 +338,7 @@ const onNameVersion = async () => {
 
 	const currentVersion = workflowsStore.workflow.versionId;
 	const currentWorkflow = workflowsStore.workflow;
+	const currentVersionData = workflowsStore.currentVersion;
 
 	const nameVersionEventBus = createEventBus<WorkflowHistoryNameVersionModalEventBusEvents>();
 
@@ -347,6 +349,15 @@ const onNameVersion = async () => {
 				name: saveData.name,
 				description: saveData.description,
 			});
+
+			if (currentVersionData) {
+				const updatedVersion: WorkflowVersionMetadata = {
+					versionId: currentVersionData.versionId,
+					name: saveData.name,
+					description: saveData.description,
+				};
+				workflowsStore.setWorkflowCurrentVersion(updatedVersion);
+			}
 
 			uiStore.closeModal(WORKFLOW_HISTORY_NAME_VERSION_MODAL_KEY);
 
@@ -363,6 +374,8 @@ const onNameVersion = async () => {
 			versionId: currentVersion,
 			workflowId: props.id,
 			formattedCreatedAt: new Date(currentWorkflow.updatedAt).toISOString(),
+			versionName: currentVersionData?.name ?? undefined,
+			description: currentVersionData?.description ?? undefined,
 			eventBus: nameVersionEventBus,
 		},
 	});

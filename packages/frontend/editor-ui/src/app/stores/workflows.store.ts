@@ -60,7 +60,12 @@ import * as workflowsApi from '@/app/api/workflows';
 import { useUIStore } from '@/app/stores/ui.store';
 import { dataPinningEventBus } from '@/app/event-bus';
 import { isJsonKeyObject, stringSizeInBytes, isPresent } from '@/app/utils/typesUtils';
-import { makeRestApiRequest, ResponseError, type WorkflowHistory } from '@n8n/rest-api-client';
+import {
+	makeRestApiRequest,
+	ResponseError,
+	type WorkflowHistory,
+	type WorkflowVersionMetadata,
+} from '@n8n/rest-api-client';
 import {
 	unflattenExecutionData,
 	findTriggerNodeToAutoSelect,
@@ -132,6 +137,7 @@ export const useWorkflowsStore = defineStore(STORES.WORKFLOWS, () => {
 		createWorkflowObject(workflow.value.nodes, workflow.value.connections),
 	);
 
+	const currentVersion = ref<WorkflowVersionMetadata | null>(null);
 	const usedCredentials = ref<Record<string, IUsedCredential>>({});
 
 	const currentWorkflowExecutions = ref<ExecutionSummary[]>([]);
@@ -656,6 +662,10 @@ export const useWorkflowsStore = defineStore(STORES.WORKFLOWS, () => {
 
 	function setWorkflowActiveVersion(version: WorkflowHistory | null) {
 		workflow.value.activeVersion = deepCopy(version);
+	}
+
+	function setWorkflowCurrentVersion(version: WorkflowVersionMetadata | null) {
+		currentVersion.value = deepCopy(version);
 	}
 
 	// replace invalid credentials in workflow
@@ -1767,6 +1777,7 @@ export const useWorkflowsStore = defineStore(STORES.WORKFLOWS, () => {
 
 	return {
 		workflow,
+		currentVersion,
 		usedCredentials,
 		currentWorkflowExecutions,
 		workflowExecutionData,
@@ -1840,6 +1851,7 @@ export const useWorkflowsStore = defineStore(STORES.WORKFLOWS, () => {
 		setUsedCredentials,
 		setWorkflowVersionId,
 		setWorkflowActiveVersion,
+		setWorkflowCurrentVersion,
 		replaceInvalidWorkflowCredentials,
 		assignCredentialToMatchingNodes,
 		archiveWorkflow,

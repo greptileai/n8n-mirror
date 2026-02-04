@@ -47,6 +47,7 @@ import { useUIStore } from '@/app/stores/ui.store';
 import { useWorkflowsStore } from '@/app/stores/workflows.store';
 import { useWorkflowsListStore } from '@/app/stores/workflowsList.store';
 import { getSourceItems } from '@/app/utils/pairedItemUtils';
+import * as workflowHistoryApi from '@n8n/rest-api-client/api/workflowHistory';
 import { getCredentialTypeName, isCredentialOnlyNodeType } from '@/app/utils/credentialOnlyNodes';
 import { convertWorkflowTagsToIds } from '@/app/utils/workflowUtils';
 import { useI18n } from '@n8n/i18n';
@@ -968,6 +969,24 @@ export function useWorkflowHelpers() {
 
 		if ('activeVersion' in workflowData) {
 			workflowsStore.setWorkflowActiveVersion(workflowData.activeVersion ?? null);
+		}
+
+		// Fetch current version details if versionId exists
+		if (workflowData.versionId) {
+			try {
+				const versionData = await workflowHistoryApi.getWorkflowVersion(
+					rootStore.restApiContext,
+					workflowData.id,
+					workflowData.versionId,
+				);
+				workflowsStore.setWorkflowCurrentVersion({
+					versionId: versionData.versionId,
+					name: versionData.name,
+					description: versionData.description,
+				});
+			} catch {
+				workflowsStore.setWorkflowCurrentVersion(null);
+			}
 		}
 
 		if (workflowData.usedCredentials) {

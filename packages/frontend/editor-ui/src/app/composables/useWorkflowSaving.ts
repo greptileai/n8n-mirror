@@ -226,6 +226,11 @@ export function useWorkflowSaving({
 				throw new Error('Failed to update workflow');
 			}
 			workflowsStore.setWorkflowVersionId(workflowData.versionId, workflowData.checksum);
+			workflowsStore.setWorkflowCurrentVersion({
+				versionId: workflowData.versionId,
+				name: null,
+				description: null,
+			});
 			workflowState.setWorkflowProperty('updatedAt', workflowData.updatedAt);
 
 			if (name) {
@@ -450,6 +455,11 @@ export function useWorkflowSaving({
 			workflowState.setActive(workflowData.activeVersionId);
 			workflowState.setWorkflowId(workflowData.id);
 			workflowsStore.setWorkflowVersionId(workflowData.versionId);
+			workflowsStore.setWorkflowCurrentVersion({
+				versionId: workflowData.versionId,
+				name: null,
+				description: null,
+			});
 			workflowState.setWorkflowName({ newName: workflowData.name, setStateDirty: false });
 			workflowState.setWorkflowSettings((workflowData.settings as IWorkflowSettings) || {});
 			workflowState.setWorkflowProperty('updatedAt', workflowData.updatedAt);
