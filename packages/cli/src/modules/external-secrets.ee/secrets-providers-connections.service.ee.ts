@@ -2,7 +2,10 @@ import type { SecretCompletionsResponse, SecretsProviderType } from '@n8n/api-ty
 import {
 	CreateSecretsProviderConnectionDto,
 	TestSecretProviderConnectionResponse,
-} from '@n8n/api-types/src';
+	testSecretProviderConnectionResponseSchema,
+	reloadSecretProviderConnectionResponseSchema,
+	ReloadSecretProviderConnectionResponse,
+} from '@n8n/api-types';
 import type { SecretsProviderConnection } from '@n8n/db';
 import {
 	ProjectSecretsProviderAccessRepository,
@@ -12,17 +15,11 @@ import { Service } from '@n8n/di';
 import { Cipher } from 'n8n-core';
 import type { IDataObject } from 'n8n-workflow';
 
+import { jsonParse } from 'n8n-workflow';
 import { BadRequestError } from '@/errors/response-errors/bad-request.error';
 import { NotFoundError } from '@/errors/response-errors/not-found.error';
 import { ExternalSecretsManager } from '@/modules/external-secrets.ee/external-secrets-manager.ee';
 import { SecretsProvidersResponses } from '@/modules/external-secrets.ee/secrets-providers.responses.ee';
-import { jsonParse } from 'n8n-workflow';
-
-import {
-	ReloadProviderResult,
-	TestProviderSettingsResult,
-} from '@/modules/external-secrets.ee/types';
-import { testSecretProviderConnectionResponseSchema } from '@n8n/api-types/src/schemas/secrets-provider.schema';
 
 @Service()
 export class SecretsProvidersConnectionsService {
@@ -175,10 +172,12 @@ export class SecretsProvidersConnectionsService {
 		return testSecretProviderConnectionResponseSchema.parse(result);
 	}
 
-	async reloadConnectionSecrets(providerKey: string): Promise<ReloadProviderResult> {
+	async reloadConnectionSecrets(
+		providerKey: string,
+	): Promise<ReloadSecretProviderConnectionResponse> {
 		await this.getConnection(providerKey);
 		await this.externalSecretsManager.updateProvider(providerKey);
-		return { success: true };
+		return reloadSecretProviderConnectionResponseSchema.parse({ success: true });
 	}
 
 	private encryptConnectionSettings(settings: IDataObject): string {

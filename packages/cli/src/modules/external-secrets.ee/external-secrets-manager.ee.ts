@@ -20,12 +20,7 @@ import { ExternalSecretsProviderRegistry } from './provider-registry.service';
 import { ExternalSecretsRetryManager } from './retry-manager.service';
 import { ExternalSecretsSecretsCache } from './secrets-cache.service';
 import { ExternalSecretsSettingsStore } from './settings-store.service';
-import type {
-	ExternalSecretsSettings,
-	SecretsProvider,
-	SecretsProviderSettings,
-	TestProviderSettingsResult,
-} from './types';
+import type { ExternalSecretsSettings, SecretsProvider, SecretsProviderSettings } from './types';
 
 /**
  * Orchestrates external secrets management
@@ -209,10 +204,7 @@ export class ExternalSecretsManager implements IExternalSecretsManager {
 		this.broadcastReload();
 	}
 
-	async testProviderSettings(
-		provider: string,
-		data: IDataObject,
-	): Promise<TestProviderSettingsResult> {
+	async testProviderSettings(provider: string, data: IDataObject) {
 		const testSettings: SecretsProviderSettings = {
 			connected: true,
 			connectedAt: new Date(),
@@ -242,7 +234,7 @@ export class ExternalSecretsManager implements IExternalSecretsManager {
 
 			const [success, error] = await result.provider.test();
 
-			// Explicitly handle the discriminated union
+			// This mostly forces the "typing" to work correctly
 			if (!success) {
 				return { success: false, testState: 'error', error };
 			}
