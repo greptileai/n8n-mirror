@@ -120,6 +120,8 @@ const handleSourceControlPull = async () => {
 		if (response) {
 			dataTable.value = response;
 			documentTitle.set(`${i18n.baseText('dataTable.dataTables')} > ${response.name}`);
+		} else {
+			await showErrorAndGoBackToList(new Error(i18n.baseText('dataTable.notFound')));
 		}
 	} catch (error) {
 		toast.showError(error, i18n.baseText('dataTable.getDetails.error'));
