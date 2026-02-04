@@ -19,16 +19,10 @@ import type { Logger } from '@n8n/backend-common';
 import type { INodeTypeDescription } from 'n8n-workflow';
 
 import { CodeBuilderAgent } from './code-builder-agent';
+import { SessionChatHandler } from './handlers/session-chat-handler';
 import type { StreamOutput } from '../types/streaming';
 import type { EvaluationLogger } from '../utils/evaluation-logger';
 import type { ChatPayload } from '../workflow-builder-agent';
-import {
-	loadCodeBuilderSession,
-	saveCodeBuilderSession,
-	compactSessionIfNeeded,
-	generateCodeBuilderThreadId,
-	saveSessionMessages,
-} from './utils/code-builder-session';
 
 /**
  * Configuration for CodeWorkflowBuilder
@@ -65,9 +59,8 @@ export interface CodeWorkflowBuilderConfig {
  */
 export class CodeWorkflowBuilder {
 	private codeBuilderAgent: CodeBuilderAgent;
-	private llm: BaseChatModel;
 	private logger?: Logger;
-	private checkpointer?: MemorySaver;
+	private sessionChatHandler?: SessionChatHandler;
 
 	constructor(config: CodeWorkflowBuilderConfig) {
 		this.codeBuilderAgent = new CodeBuilderAgent({
@@ -79,9 +72,16 @@ export class CodeWorkflowBuilder {
 			enableTextEditor: true,
 		});
 
-		this.llm = config.llm;
 		this.logger = config.logger;
-		this.checkpointer = config.checkpointer;
+
+		// Initialize session handler if checkpointer is provided
+		if (config.checkpointer) {
+			this.sessionChatHandler = new SessionChatHandler({
+				checkpointer: config.checkpointer,
+				llm: config.llm,
+				logger: config.logger,
+			});
+		}
 	}
 
 	/**
@@ -97,99 +97,24 @@ export class CodeWorkflowBuilder {
 		userId: string,
 		abortSignal?: AbortSignal,
 	): AsyncGenerator<StreamOutput, void, unknown> {
-		// Extract actual workflow ID from context (payload.id is the message/request ID)
 		const workflowId = payload.workflowContext?.currentWorkflow?.id;
 
 		this.logger?.debug('CodeWorkflowBuilder starting', {
 			userId,
 			workflowId,
 			messageLength: payload.message.length,
-			hasCheckpointer: !!this.checkpointer,
+			hasSessionHandler: !!this.sessionChatHandler,
 		});
 
-		// Load and manage session if checkpointer is available
-		let historyContext: { userMessages: string[]; previousSummary?: string } | undefined;
-
-		if (this.checkpointer && workflowId) {
-			const threadId = generateCodeBuilderThreadId(workflowId, userId);
-
-			// Load existing session
-			let session = await loadCodeBuilderSession(this.checkpointer, threadId);
-
-			this.logger?.debug('Loaded CodeBuilder session', {
-				threadId,
-				userMessagesCount: session.userMessages.length,
-				hasPreviousSummary: !!session.previousSummary,
-			});
-
-			// Compact if needed (when messages exceed threshold)
-			session = await compactSessionIfNeeded(session, this.llm);
-
-			// Build history context for the agent
-			if (session.userMessages.length > 0 || session.previousSummary) {
-				historyContext = {
-					userMessages: session.userMessages,
-					previousSummary: session.previousSummary,
-				};
-			}
-
-			// Track generation success and capture session messages
-			let generationSucceeded = false;
-			let sessionMessages: unknown[] | undefined;
-
-			// Delegate to CodeBuilderAgent with history context
-			for await (const chunk of this.codeBuilderAgent.chat(
+		// Use session handler if available, otherwise delegate directly
+		if (this.sessionChatHandler) {
+			yield* this.sessionChatHandler.execute({
 				payload,
 				userId,
 				abortSignal,
-				historyContext,
-			)) {
-				// Track success when workflow-updated chunk is received
-				if (chunk.messages?.some((msg) => msg.type === 'workflow-updated')) {
-					generationSucceeded = true;
-				}
-
-				// Capture session messages for persistence
-				for (const msg of chunk.messages ?? []) {
-					if (msg.type === 'session-messages') {
-						sessionMessages = msg.messages;
-					}
-				}
-
-				// Don't yield session-messages chunk to frontend (internal use only)
-				const filteredMessages = chunk.messages?.filter((msg) => msg.type !== 'session-messages');
-				if (filteredMessages && filteredMessages.length > 0) {
-					yield { messages: filteredMessages };
-				}
-			}
-
-			// Save current message to session after successful generation
-			session.userMessages.push(payload.message);
-			await saveCodeBuilderSession(this.checkpointer, threadId, session);
-
-			// Save full message history to SessionManager thread for frontend retrieval
-			if (generationSucceeded && sessionMessages) {
-				await saveSessionMessages(
-					this.checkpointer,
-					workflowId,
-					userId,
-					sessionMessages,
-					payload.versionId,
-				);
-
-				this.logger?.debug('Saved session messages to SessionManager thread', {
-					workflowId,
-					userId,
-					messageCount: sessionMessages.length,
-				});
-			}
-
-			this.logger?.debug('Saved CodeBuilder session', {
-				threadId,
-				newMessageCount: session.userMessages.length,
+				agentChat: (p, u, s, h) => this.codeBuilderAgent.chat(p, u, s, h),
 			});
 		} else {
-			// No session management - delegate directly
 			yield* this.codeBuilderAgent.chat(payload, userId, abortSignal);
 		}
 	}

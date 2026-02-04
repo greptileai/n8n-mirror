@@ -19,7 +19,7 @@ import type { ValidationWarning } from '../types';
  * @returns A unique string key
  */
 function getWarningKey(warning: ValidationWarning): string {
-	return `${warning.code}|${warning.nodeName || ''}|${warning.parameterPath || ''}`;
+	return `${warning.code}|${warning.nodeName ?? ''}|${warning.parameterPath ?? ''}`;
 }
 
 /**

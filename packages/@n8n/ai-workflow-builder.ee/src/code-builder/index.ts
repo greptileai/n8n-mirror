@@ -64,6 +64,26 @@ export type {
 	AutoFinalizeResult,
 } from './handlers/auto-finalize-handler';
 
+export { AgentIterationHandler } from './handlers/agent-iteration-handler';
+export type {
+	AgentIterationHandlerConfig,
+	IterationParams,
+	LlmInvocationResult,
+} from './handlers/agent-iteration-handler';
+
+export { FinalResponseHandler } from './handlers/final-response-handler';
+export type {
+	FinalResponseHandlerConfig,
+	FinalResponseParams,
+	FinalResponseResult,
+} from './handlers/final-response-handler';
+
+export { SessionChatHandler } from './handlers/session-chat-handler';
+export type {
+	SessionChatHandlerConfig,
+	SessionChatParams,
+} from './handlers/session-chat-handler';
+
 // Code Workflow Builder
 export {
 	CodeWorkflowBuilder,
