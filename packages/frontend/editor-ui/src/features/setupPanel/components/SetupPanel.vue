@@ -13,7 +13,6 @@ import SetupPanelCards from '@/features/setupPanel/components/SetupPanelCards.vu
 	display: flex;
 	height: 100%;
 	width: 100%;
-	align-items: center;
 	justify-content: center;
 }
 </style>
