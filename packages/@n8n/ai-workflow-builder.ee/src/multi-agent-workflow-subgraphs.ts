@@ -4,7 +4,11 @@ import { StateGraph, END, START, type MemorySaver } from '@langchain/langgraph';
 import type { Logger } from '@n8n/backend-common';
 import type { INodeTypeDescription } from 'n8n-workflow';
 
-import { ResponderAgent } from './agents/responder.agent';
+import {
+	createResponderAgent,
+	invokeResponderAgent,
+	type ResponderAgentType,
+} from './agents/responder.agent';
 import { SupervisorAgent } from './agents/supervisor.agent';
 import {
 	DEFAULT_AUTO_COMPACT_THRESHOLD_TOKENS,
@@ -13,11 +17,12 @@ import {
 } from './constants';
 import { ParentGraphState } from './parent-graph-state';
 import { BuilderSubgraph } from './subgraphs/builder.subgraph';
-import { DiscoverySubgraph } from './subgraphs/discovery.subgraph';
+import { createDiscoveryWrapper, type DiscoveryWrapperType } from './subgraphs/discovery.wrapper';
 import type { BaseSubgraph } from './subgraphs/subgraph-interface';
 import type { ResourceLocatorCallback } from './types/callbacks';
 import type { SubgraphPhase } from './types/coordination';
 import {
+	createDiscoveryMetadata,
 	createErrorMetadata,
 	createResponderMetadata,
 	isSubgraphPhase,
@@ -193,19 +198,20 @@ export function createMultiAgentWorkflowWithSubgraphs(config: MultiAgentSubgraph
 	} = config;
 
 	const supervisorAgent = new SupervisorAgent({ llm: stageLLMs.supervisor });
-	const responderAgent = new ResponderAgent({ llm: stageLLMs.responder });
 
-	// Create subgraph instances
-	const discoverySubgraph = new DiscoverySubgraph();
-	const builderSubgraph = new BuilderSubgraph();
+	// Create Responder agent using LangChain v1 createAgent API
+	const responderAgent: ResponderAgentType = createResponderAgent({ llm: stageLLMs.responder });
 
-	// Compile subgraphs with per-stage LLMs
-	const compiledDiscovery = discoverySubgraph.create({
-		parsedNodeTypes,
+	// Create Discovery wrapper using LangChain v1 createAgent API
+	const discoveryWrapper: DiscoveryWrapperType = createDiscoveryWrapper({
 		llm: stageLLMs.discovery,
+		parsedNodeTypes,
 		logger,
 		featureFlags,
 	});
+
+	// Create Builder subgraph (still uses StateGraph pattern)
+	const builderSubgraph = new BuilderSubgraph();
 	const compiledBuilder = builderSubgraph.create({
 		parsedNodeTypes,
 		llm: stageLLMs.builder,
@@ -237,12 +243,13 @@ export function createMultiAgentWorkflowWithSubgraphs(config: MultiAgentSubgraph
 				};
 			})
 			// Add Responder Node (synthesizes final user-facing response)
-			// Accepts config as second param to propagate callbacks for tracing
+			// Uses LangChain v1 createAgent API with context injection middleware
 			.addNode('responder', async (state, config) => {
 				// Record start time for timing metrics
 				const startTimestamp = Date.now();
 
-				const response = await responderAgent.invoke(
+				const response = await invokeResponderAgent(
+					responderAgent,
 					{
 						messages: state.messages,
 						coordinationLog: state.coordinationLog,
@@ -324,17 +331,84 @@ export function createMultiAgentWorkflowWithSubgraphs(config: MultiAgentSubgraph
 						config,
 					),
 			)
-			// Add Subgraph Nodes (using helper to reduce duplication)
-			.addNode(
-				'discovery_subgraph',
-				createSubgraphNodeHandler(
-					discoverySubgraph,
-					compiledDiscovery,
-					'discovery_subgraph',
-					logger,
-					MAX_DISCOVERY_ITERATIONS,
-				),
-			)
+			// Add Discovery Node (using LangChain v1 createAgent API)
+			.addNode('discovery_subgraph', async (state, config) => {
+				const startTimestamp = Date.now();
+
+				try {
+					// Transform parent state to agent input
+					const input = discoveryWrapper.transformInput(state);
+
+					// Invoke the Discovery agent with recursion limit
+					const invokeConfig: RunnableConfig = {
+						...config,
+						recursionLimit: MAX_DISCOVERY_ITERATIONS,
+					};
+					const output = await discoveryWrapper.invoke(input, invokeConfig);
+
+					// Transform agent output to parent state updates
+					const result = discoveryWrapper.transformOutput(output, state);
+
+					// Prepend in_progress entry to coordination log for timing calculation
+					const inProgressEntry = {
+						phase: 'discovery' as const,
+						status: 'in_progress' as const,
+						timestamp: startTimestamp,
+						summary: 'Starting discovery',
+						metadata: createDiscoveryMetadata({
+							nodesFound: 0,
+							nodeTypes: [],
+							hasBestPractices: false,
+						}),
+					};
+
+					return {
+						...result,
+						coordinationLog: [inProgressEntry, ...result.coordinationLog],
+					};
+				} catch (error) {
+					logger?.error('[discovery_subgraph] ERROR:', { error });
+					const errorMessage =
+						error instanceof Error
+							? error.message
+							: `An error occurred in discovery_subgraph: ${String(error)}`;
+
+					// Route to responder to report error (terminal)
+					return {
+						nextPhase: 'responder',
+						messages: [
+							new HumanMessage({
+								content: `Error in discovery_subgraph: ${errorMessage}`,
+								name: 'system_error',
+							}),
+						],
+						coordinationLog: [
+							{
+								phase: 'discovery' as const,
+								status: 'in_progress' as const,
+								timestamp: startTimestamp,
+								summary: 'Starting discovery',
+								metadata: createDiscoveryMetadata({
+									nodesFound: 0,
+									nodeTypes: [],
+									hasBestPractices: false,
+								}),
+							},
+							{
+								phase: 'discovery' as const,
+								status: 'error' as const,
+								timestamp: Date.now(),
+								summary: `Error: ${errorMessage}`,
+								metadata: createErrorMetadata({
+									failedSubgraph: 'discovery',
+									errorMessage,
+								}),
+							},
+						],
+					};
+				}
+			})
+			// Add Builder Subgraph Node (still uses StateGraph pattern)
 			.addNode(
 				'builder_subgraph',
 				createSubgraphNodeHandler(
