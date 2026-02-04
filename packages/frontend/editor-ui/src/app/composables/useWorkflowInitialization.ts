@@ -208,6 +208,12 @@ export function useWorkflowInitialization(workflowState: WorkflowState) {
 			return;
 		}
 
+		// Handle blank redirect (used by template import to prevent double initialization)
+		if (uiStore.isBlankRedirect) {
+			isLoading.value = false;
+			return;
+		}
+
 		const isAlreadyInitialized =
 			!force && initializedWorkflowId.value && initializedWorkflowId.value === workflowId.value;
 
