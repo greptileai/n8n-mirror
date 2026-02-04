@@ -1,6 +1,4 @@
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import type { BaseMessage } from '@langchain/core/messages';
-import { isAIMessage } from '@langchain/core/messages';
 import type { INodeTypeDescription } from 'n8n-workflow';
 
 import {
@@ -8,10 +6,8 @@ import {
 	shouldRunIntegrationTests,
 } from '@/chains/test/integration/test-helpers';
 import { createDiscoveryWrapper, type DiscoveryWrapperType } from '@/subgraphs/discovery.wrapper';
-import type { WorkflowTechniqueType } from '@/types/categorization';
 import { createContextMessage } from '@/utils/context-builders';
 
-import techniqueTestData from './techniques.json';
 import { loadNodesFromFile } from '../../../../evaluations/support/load-nodes';
 
 /**
@@ -85,10 +81,11 @@ const testPrompts = [
 ];
 
 // Test prompts for technique categorization loaded from JSON file
-const techniqueTestPrompts = techniqueTestData as Array<{
-	prompt: string;
-	expectedTechniques: WorkflowTechniqueType[];
-}>;
+// Note: Commented out during migration - only used by skipped tests
+// const techniqueTestPrompts = techniqueTestData as Array<{
+// 	prompt: string;
+// 	expectedTechniques: WorkflowTechniqueType[];
+// }>;
 
 // Helper to check if expected nodes are discovered
 function hasExpectedNodes(
@@ -116,43 +113,41 @@ function calculateNodeFrequency(
 	return frequency;
 }
 
-// Helper to extract techniques from get_best_practices tool call in messages
-function extractTechniquesFromMessages(messages: BaseMessage[]): WorkflowTechniqueType[] {
-	for (const msg of messages) {
-		if (isAIMessage(msg) && msg.tool_calls) {
-			const bestPracticesCall = msg.tool_calls.find((tc) => tc.name === 'get_best_practices');
-			if (bestPracticesCall?.args?.techniques) {
-				return bestPracticesCall.args.techniques as WorkflowTechniqueType[];
-			}
-		}
-	}
-	return [];
-}
-
-// Helper to check if expected techniques are present
-function hasExpectedTechniques(
-	result: WorkflowTechniqueType[],
-	expected: WorkflowTechniqueType[],
-): { hasAll: boolean; missing: WorkflowTechniqueType[] } {
-	const missing = expected.filter((tech) => !result.includes(tech));
-	return {
-		hasAll: missing.length === 0,
-		missing,
-	};
-}
-
-// Helper to calculate technique frequency
-function calculateTechniqueFrequency(
-	results: Array<{ techniques: WorkflowTechniqueType[] }>,
-): Map<WorkflowTechniqueType, number> {
-	const frequency = new Map<WorkflowTechniqueType, number>();
-	for (const result of results) {
-		for (const technique of result.techniques) {
-			frequency.set(technique, (frequency.get(technique) ?? 0) + 1);
-		}
-	}
-	return frequency;
-}
+// Helpers commented out during migration - only used by skipped tests
+// function extractTechniquesFromMessages(messages: BaseMessage[]): WorkflowTechniqueType[] {
+// 	for (const msg of messages) {
+// 		if (isAIMessage(msg) && msg.tool_calls) {
+// 			const bestPracticesCall = msg.tool_calls.find((tc) => tc.name === 'get_best_practices');
+// 			if (bestPracticesCall?.args?.techniques) {
+// 				return bestPracticesCall.args.techniques as WorkflowTechniqueType[];
+// 			}
+// 		}
+// 	}
+// 	return [];
+// }
+//
+// function hasExpectedTechniques(
+// 	result: WorkflowTechniqueType[],
+// 	expected: WorkflowTechniqueType[],
+// ): { hasAll: boolean; missing: WorkflowTechniqueType[] } {
+// 	const missing = expected.filter((tech) => !result.includes(tech));
+// 	return {
+// 		hasAll: missing.length === 0,
+// 		missing,
+// 	};
+// }
+//
+// function calculateTechniqueFrequency(
+// 	results: Array<{ techniques: WorkflowTechniqueType[] }>,
+// ): Map<WorkflowTechniqueType, number> {
+// 	const frequency = new Map<WorkflowTechniqueType, number>();
+// 	for (const result of results) {
+// 		for (const technique of result.techniques) {
+// 			frequency.set(technique, (frequency.get(technique) ?? 0) + 1);
+// 		}
+// 	}
+// 	return frequency;
+// }
 
 // Helper to invoke the Discovery wrapper with a user request
 async function invokeDiscovery(
@@ -468,8 +463,6 @@ describe('Discovery Subgraph - Integration Tests', () => {
 	});
 
 	describe('Technique Categorization (parity with promptCategorizationChain)', () => {
-		const PARALLEL_BATCH_SIZE = 30;
-
 		// Note: This test was skipped during migration to LangChain v1 createAgent API.
 		// The technique categorization is now handled internally via the get_documentation tool.
 		// The test validated internal subgraph messages which are no longer exposed in the same way.
@@ -482,6 +475,8 @@ describe('Discovery Subgraph - Integration Tests', () => {
 		// Keeping the old test code commented out for reference in case we need to restore it
 		// with the proper API changes later
 		/*
+		const PARALLEL_BATCH_SIZE = 30;
+
 		it('_DISABLED_should select correct techniques via get_best_practices for all test prompts', async () => {
 			if (skipTests) return;
 
