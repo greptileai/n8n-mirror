@@ -338,13 +338,14 @@ export function createGetNodeContextTool(logger?: Logger): BuilderTool {
 					return createErrorResponse(config, validationError);
 				}
 
-				const toolError = new ToolExecutionError(
-					error instanceof Error ? error.message : 'Unknown error occurred',
-					{
-						toolName: GET_NODE_CONTEXT_TOOL.toolName,
-						cause: error instanceof Error ? error : undefined,
-					},
-				);
+				const errorMessage =
+					error instanceof Error
+						? `${error.message}${error.stack ? `\n${error.stack}` : ''}`
+						: 'Unknown error occurred';
+				const toolError = new ToolExecutionError(errorMessage, {
+					toolName: GET_NODE_CONTEXT_TOOL.toolName,
+					cause: error instanceof Error ? error : undefined,
+				});
 				reporter.error(toolError);
 				return createErrorResponse(config, toolError);
 			}
