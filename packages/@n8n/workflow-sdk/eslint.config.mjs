@@ -30,7 +30,6 @@ export default defineConfig(
 			'@typescript-eslint/no-this-alias': 'warn',
 			'@typescript-eslint/no-unnecessary-type-assertion': 'warn',
 			'@typescript-eslint/prefer-as-const': 'warn',
-			'@typescript-eslint/no-restricted-types': 'warn',
 			'n8n-local-rules/no-uncaught-json-parse': 'warn',
 			'import-x/no-cycle': 'warn',
 			'import-x/order': 'warn',
