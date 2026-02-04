@@ -511,4 +511,23 @@ describe('WorkflowRepository', () => {
 			expect(queryBuilder.leftJoin).toHaveBeenCalledWith('workflow.activeVersion', 'activeVersion');
 		});
 	});
+
+	describe('findByIds', () => {
+		it('should return an empty array and not call the database when no workflow ids are provided', async () => {
+			const findSpy = jest.spyOn(workflowRepository, 'find');
+			const workflowIds: string[] = [];
+			const result = await workflowRepository.findByIds(workflowIds);
+
+			expect(result).toEqual([]);
+			expect(findSpy).not.toHaveBeenCalled();
+		});
+
+		it('should call the database when workflow ids are provided', async () => {
+			const findSpy = jest.spyOn(workflowRepository, 'find');
+			const workflowIds = ['workflow1'];
+			const result = await workflowRepository.findByIds(workflowIds);
+			expect(result).toEqual(undefined);
+			expect(findSpy).toHaveBeenCalledTimes(1);
+		});
+	});
 });

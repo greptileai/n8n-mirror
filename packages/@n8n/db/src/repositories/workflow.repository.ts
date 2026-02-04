@@ -119,6 +119,10 @@ export class WorkflowRepository extends Repository<WorkflowEntity> {
 	}
 
 	async findByIds(workflowIds: string[], { fields }: { fields?: string[] } = {}) {
+		if (workflowIds.length === 0) {
+			return [];
+		}
+
 		const options: FindManyOptions<WorkflowEntity> = {
 			where: { id: In(workflowIds) },
 		};

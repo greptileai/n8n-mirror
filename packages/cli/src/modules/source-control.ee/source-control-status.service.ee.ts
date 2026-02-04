@@ -195,10 +195,12 @@ export class SourceControlStatusService {
 		const wfLocalVersionIds =
 			await this.sourceControlImportService.getLocalVersionIdsFromDb(context);
 
+		const wfRemoteById = new Map(wfRemoteVersionIds.map((w) => [w.id, w]));
+		const wfRemoteIds = new Set(wfRemoteVersionIds.map((w) => w.id));
+		const wfLocalIds = new Set(wfLocalVersionIds.map((w) => w.id));
+
 		// Fetch published status for local workflows to determine isLocalPublished
-		const candidateIds = [
-			...new Set([...wfLocalVersionIds.map((w) => w.id), ...wfRemoteVersionIds.map((w) => w.id)]),
-		];
+		const candidateIds = [...new Set([...wfLocalIds, ...wfRemoteIds])];
 		const localWorkflowsWithStatus = await this.workflowRepository.findByIds(candidateIds, {
 			fields: ['id', 'activeVersionId'],
 		});
@@ -217,30 +219,24 @@ export class SourceControlStatusService {
 			// we need to query for all wf in the DB to hide possible deletions,
 			// when a wf went out of scope locally
 			outOfScopeWF = await this.sourceControlImportService.getAllLocalVersionIdsFromDb();
-			outOfScopeWF = outOfScopeWF.filter(
-				(wf) => !wfLocalVersionIds.some((local) => local.id === wf.id),
-			);
+			outOfScopeWF = outOfScopeWF.filter((wf) => !wfLocalIds.has(wf.id));
 		}
 
-		const wfMissingInLocal = wfRemoteVersionIds
-			.filter((remote) => wfLocalVersionIds.findIndex((local) => local.id === remote.id) === -1)
-			.filter(
-				// If we have out of scope workflows, these are workflows, that are not
-				// visible locally, but exists locally but are available in remote
-				// we skip them and hide them from deletion from the user.
-				(remote) => !outOfScopeWF.some((outOfScope) => outOfScope.id === remote.id),
-			);
+		const outOfScopeIds = new Set(outOfScopeWF.map((wf) => wf.id));
 
-		const wfMissingInRemote = wfLocalVersionIds.filter(
-			(local) => wfRemoteVersionIds.findIndex((remote) => remote.id === local.id) === -1,
+		// If we have out of scope workflows, these are workflows, that are not
+		// visible locally, but exist locally but are available in remote
+		// we skip them and hide them from deletion from the user.
+		const wfMissingInLocal = wfRemoteVersionIds.filter(
+			(remote) => !wfLocalIds.has(remote.id) && !outOfScopeIds.has(remote.id),
 		);
+
+		const wfMissingInRemote = wfLocalVersionIds.filter((local) => !wfRemoteIds.has(local.id));
 
 		const wfModifiedInEither: SourceControlWorkflowVersionId[] = [];
 
 		wfLocalVersionIds.forEach((localWorkflow) => {
-			const remoteWorkflowWithSameId = wfRemoteVersionIds.find(
-				(removeWorkflow) => removeWorkflow.id === localWorkflow.id,
-			);
+			const remoteWorkflowWithSameId = wfRemoteById.get(localWorkflow.id);
 
 			if (!remoteWorkflowWithSameId) {
 				return;
