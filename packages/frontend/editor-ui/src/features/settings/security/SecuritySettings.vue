@@ -24,43 +24,34 @@ const { state, isLoading } = useAsyncState(async () => {
 	};
 }, undefined);
 
-async function updatePublishingSetting(value: boolean) {
+async function updatePersonalSpaceSetting(
+	key: 'personalSpacePublishing' | 'personalSpaceSharing',
+	value: boolean,
+	toastNamespace: string,
+) {
 	try {
 		await securitySettingsApi.updateSecuritySettings(rootStore.restApiContext, {
-			personalSpacePublishing: value,
+			[key]: value,
 		});
 		showToast({
 			type: 'success',
 			title: value
-				? i18n.baseText('settings.security.personalSpace.publishing.success.enabled')
-				: i18n.baseText('settings.security.personalSpace.publishing.success.disabled'),
+				? i18n.baseText(
+						`settings.security.personalSpace.${toastNamespace}.success.enabled` as BaseTextKey,
+					)
+				: i18n.baseText(
+						`settings.security.personalSpace.${toastNamespace}.success.disabled` as BaseTextKey,
+					),
 			message: '',
 		});
 	} catch (error) {
 		if (state.value) {
-			state.value = { ...state.value, personalSpacePublishing: !value };
+			state.value = { ...state.value, [key]: !value };
 		}
-		showError(error, i18n.baseText('settings.security.personalSpace.publishing.error'));
-	}
-}
-
-async function updateSharingSetting(value: boolean) {
-	try {
-		await securitySettingsApi.updateSecuritySettings(rootStore.restApiContext, {
-			personalSpaceSharing: value,
-		});
-		showToast({
-			type: 'success',
-			title: value
-				? i18n.baseText('settings.security.personalSpace.sharing.success.enabled' as BaseTextKey)
-				: i18n.baseText('settings.security.personalSpace.sharing.success.disabled' as BaseTextKey),
-			message: '',
-		});
-	} catch (error) {
-		if (state.value) {
-			state.value = { ...state.value, personalSpaceSharing: !value };
-		}
-		showError(error, i18n.baseText('settings.security.personalSpace.sharing.error' as BaseTextKey));
+		showError(
+			error,
+			i18n.baseText(`settings.security.personalSpace.${toastNamespace}.error` as BaseTextKey),
+		);
 	}
 }
 
@@ -81,7 +72,7 @@ const personalSpacePublishing = computed({
 		if (state.value) {
 			state.value = { ...state.value, personalSpacePublishing: value };
 		}
-		await updatePublishingSetting(value);
+		await updatePersonalSpaceSetting('personalSpacePublishing', value, 'publishing');
 	},
 });
 
@@ -90,12 +81,8 @@ const personalSpaceSharing = computed({
 	set: async (value: boolean) => {
 		if (!value) {
 			const confirmed = await message.confirm(
-				i18n.baseText(
-					'settings.security.personalSpace.sharing.confirmMessage.disable.message' as BaseTextKey,
-				),
-				i18n.baseText(
-					'settings.security.personalSpace.sharing.confirmMessage.disable.headline' as BaseTextKey,
-				),
+				i18n.baseText('settings.security.personalSpace.sharing.confirmMessage.disable.message'),
+				i18n.baseText('settings.security.personalSpace.sharing.confirmMessage.disable.headline'),
 				{
 					cancelButtonText: i18n.baseText('generic.cancel'),
 					confirmButtonText: i18n.baseText('generic.confirm'),
@@ -106,7 +93,7 @@ const personalSpaceSharing = computed({
 		if (state.value) {
 			state.value = { ...state.value, personalSpaceSharing: value };
 		}
-		await updateSharingSetting(value);
+		await updatePersonalSpaceSetting('personalSpaceSharing', value, 'sharing');
 	},
 });
 </script>
@@ -143,10 +130,10 @@ const personalSpaceSharing = computed({
 		<div :class="$style.settingsContainer">
 			<div :class="$style.settingsContainerInfo">
 				<N8nText :bold="true">
-					{{ i18n.baseText('settings.security.personalSpace.sharing.title' as BaseTextKey) }}
+					{{ i18n.baseText('settings.security.personalSpace.sharing.title') }}
 				</N8nText>
 				<N8nText size="small" color="text-light">
-					{{ i18n.baseText('settings.security.personalSpace.sharing.description' as BaseTextKey) }}
+					{{ i18n.baseText('settings.security.personalSpace.sharing.description') }}
 				</N8nText>
 			</div>
 			<div :class="$style.settingsContainerAction">

@@ -344,19 +344,32 @@ export class RoleService {
 
 		const scopes = await this.scopeRepository.findByListOrFail(scopeSlugs);
 
-		const scopesAlreadyAssigned = role.scopes.filter((s) => scopeSlugs.includes(s.slug));
+		const alreadyAssignedSlugs = new Set(role.scopes.map((s) => s.slug));
+		const scopesToAdd = scopes.filter((s) => !alreadyAssignedSlugs.has(s.slug));
 
-		if (scopesAlreadyAssigned.length > 0) {
+		if (scopesToAdd.length === 0) {
 			this.logger.debug(
-				`Scopes ${scopesAlreadyAssigned.map((s) => s.slug).join(', ')} are already assigned on role ${roleSlug}`,
+				`All requested scopes ${scopeSlugs.join(', ')} are already assigned on role ${roleSlug}`,
+			);
+			return;
+		}
+
+		if (scopesToAdd.length < scopes.length) {
+			const alreadyAssigned = scopes.filter((s) => alreadyAssignedSlugs.has(s.slug));
+			this.logger.debug(
+				`Scopes ${alreadyAssigned.map((s) => s.slug).join(', ')} are already assigned on role ${roleSlug}`,
 			);
 		}
 
-		this.logger.debug(`Adding scopes ${scopes.map((s) => s.slug).join(', ')} to role ${roleSlug}`);
-		role.scopes.push(...scopes);
+		this.logger.debug(
+			`Adding scopes ${scopesToAdd.map((s) => s.slug).join(', ')} to role ${roleSlug}`,
+		);
+		role.scopes.push(...scopesToAdd);
 		await this.roleRepository.save(role);
 		await this.roleCacheService.refreshCache();
-		this.logger.debug(`Added scopes ${scopes.map((s) => s.slug).join(', ')} to role ${roleSlug}`);
+		this.logger.debug(
+			`Added scopes ${scopesToAdd.map((s) => s.slug).join(', ')} to role ${roleSlug}`,
+		);
 	}
 
 	async removeScopesFromRole(roleSlug: string, scopeSlugs: string[]): Promise<void> {

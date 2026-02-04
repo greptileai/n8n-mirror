@@ -36,10 +36,22 @@ export class SecuritySettingsService {
 		}
 	}
 
-	async isPersonalSpaceSettingEnabled(
-		setting: typeof PERSONAL_SPACE_PUBLISHING_SETTING | typeof PERSONAL_SPACE_SHARING_SETTING,
-	): Promise<boolean> {
-		const row = await this.settingsRepository.findByKey(setting.key);
-		return row?.value === 'true' || row === null; // Default to true for backward compatibility
+	async arePersonalSpaceSettingsEnabled(): Promise<{
+		personalSpacePublishing: boolean;
+		personalSpaceSharing: boolean;
+	}> {
+		const settingKeys = [PERSONAL_SPACE_PUBLISHING_SETTING.key, PERSONAL_SPACE_SHARING_SETTING.key];
+		const rows = await this.settingsRepository.findByKeys(settingKeys);
+		const personalSpacePublishingValue = rows.find(
+			(r) => r.key === PERSONAL_SPACE_PUBLISHING_SETTING.key,
+		)?.value;
+		const personalSpaceSharingValue = rows.find(
+			(r) => r.key === PERSONAL_SPACE_SHARING_SETTING.key,
+		)?.value;
+
+		return {
+			personalSpacePublishing: personalSpacePublishingValue !== 'false', // Default to true for backward compatibility
+			personalSpaceSharing: personalSpaceSharingValue !== 'false', // Default to true for backward compatibility
+		};
 	}
 }

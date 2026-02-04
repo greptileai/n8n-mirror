@@ -104,10 +104,31 @@ export class AuthRolesService {
 		}
 	}
 
-	private async shouldPersonalOwnerHaveSettingScope(settingKey: string): Promise<boolean> {
-		const setting = await this.settingsRepository.findByKey(settingKey);
-		// Default to true if setting doesn't exist (backward compatibility)
-		return setting?.value === 'true' || setting === null;
+	private async getPersonalOwnerSettingsScopes() {
+		const settingKeys = [PERSONAL_SPACE_PUBLISHING_SETTING.key, PERSONAL_SPACE_SHARING_SETTING.key];
+		const rows = await this.settingsRepository.findByKeys(settingKeys);
+		const personalSpacePublishingValue = rows.find(
+			(r) => r.key === PERSONAL_SPACE_PUBLISHING_SETTING.key,
+		)?.value;
+		const personalSpaceSharingValue = rows.find(
+			(r) => r.key === PERSONAL_SPACE_SHARING_SETTING.key,
+		)?.value;
+
+		const scopes = [];
+
+		if (personalSpacePublishingValue === 'true') {
+			scopes.push(...PERSONAL_SPACE_PUBLISHING_SETTING.scopes);
+			this.logger.debug(
+				`${PERSONAL_SPACE_PUBLISHING_SETTING.key} is enabled - allowing ${PERSONAL_SPACE_PUBLISHING_SETTING.scopes.join(', ')} scopes to ${PROJECT_OWNER_ROLE_SLUG} role`,
+			);
+		}
+		if (personalSpaceSharingValue === 'true') {
+			scopes.push(...PERSONAL_SPACE_SHARING_SETTING.scopes);
+			this.logger.debug(
+				`${PERSONAL_SPACE_SHARING_SETTING.key} is enabled - allowing ${PERSONAL_SPACE_SHARING_SETTING.scopes.join(', ')} scopes to ${PROJECT_OWNER_ROLE_SLUG} role`,
+			);
+		}
+		return scopes;
 	}
 
 	/**
@@ -123,15 +144,7 @@ export class AuthRolesService {
 		const scopes = [...defaultScopes];
 		// Special handling for project:personalOwner role
 		if (roleSlug === PROJECT_OWNER_ROLE_SLUG) {
-			for (const setting of [PERSONAL_SPACE_PUBLISHING_SETTING, PERSONAL_SPACE_SHARING_SETTING]) {
-				const shouldHave = await this.shouldPersonalOwnerHaveSettingScope(setting.key);
-				if (shouldHave) {
-					this.logger.debug(
-						`${setting.key} is enabled - allowing ${setting.scopes.join(', ')} scopes to ${PROJECT_OWNER_ROLE_SLUG} role`,
-					);
-					scopes.push(...setting.scopes);
-				}
-			}
+			scopes.push(...(await this.getPersonalOwnerSettingsScopes()));
 		}
 		return scopes;
 	}

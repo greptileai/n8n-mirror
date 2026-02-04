@@ -18,12 +18,17 @@ export class ScopeRepository extends Repository<Scope> {
 	}
 
 	async findByListOrFail(slugs: string[]) {
-		const uniqueSlugs = [...new Set(slugs)];
-		const scopes = await this.findBy({ slug: In(uniqueSlugs) });
-		if (scopes.length !== uniqueSlugs.length) {
-			const invalidScopes = uniqueSlugs.filter((slug) => !scopes.some((s) => s.slug === slug));
-			this.logger.error(`The following scopes are invalid: ${invalidScopes.join(', ')}`);
-			throw new Error(`The following scopes are invalid: ${invalidScopes.join(', ')}`);
+		const uniqueSlugs = new Set(slugs);
+		const scopes = await this.findBy({ slug: In([...uniqueSlugs]) });
+		if (scopes.length !== uniqueSlugs.size) {
+			const foundSlugSet = new Set<string>(scopes.map((s) => s.slug as string));
+			const invalidScopesSet = new Set(uniqueSlugs);
+			for (const slug of foundSlugSet) {
+				invalidScopesSet.delete(slug);
+			}
+			const message = `The following scopes are invalid: ${[...invalidScopesSet].join(', ')}`;
+			this.logger.error(message);
+			throw new Error(message);
 		}
 		return scopes;
 	}

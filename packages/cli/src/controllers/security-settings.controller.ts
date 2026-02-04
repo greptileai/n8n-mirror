@@ -1,12 +1,12 @@
+import { UpdateSecuritySettingsDto } from '@n8n/api-types';
 import { type AuthenticatedRequest } from '@n8n/db';
-import { Body, Post, Get, RestController, GlobalScope } from '@n8n/decorators';
+import { Body, Get, GlobalScope, Post, RestController } from '@n8n/decorators';
 import {
 	PERSONAL_SPACE_PUBLISHING_SETTING,
 	PERSONAL_SPACE_SHARING_SETTING,
 } from '@n8n/permissions';
 import type { Response } from 'express';
 
-import { UpdateSecuritySettingsDto } from '@/dto/security-settings.dto';
 import { SecuritySettingsService } from '@/services/security-settings.service';
 
 @RestController('/settings/security')
@@ -16,16 +16,7 @@ export class SecuritySettingsController {
 	@GlobalScope('securitySettings:manage')
 	@Get('/')
 	async getSecuritySettings(_req: AuthenticatedRequest, _res: Response) {
-		const personalSpacePublishing =
-			await this.securitySettingsService.isPersonalSpaceSettingEnabled(
-				PERSONAL_SPACE_PUBLISHING_SETTING,
-			);
-
-		const personalSpaceSharing = await this.securitySettingsService.isPersonalSpaceSettingEnabled(
-			PERSONAL_SPACE_SHARING_SETTING,
-		);
-
-		return { personalSpacePublishing, personalSpaceSharing };
+		return await this.securitySettingsService.arePersonalSpaceSettingsEnabled();
 	}
 
 	@GlobalScope('securitySettings:manage')
