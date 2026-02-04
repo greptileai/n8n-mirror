@@ -14,7 +14,7 @@ const clickedButtonIndex = ref<number | null>(null);
 const isLoading = ref(false);
 
 async function onClick(link: string, index: number) {
-	if (clickedButtonIndex.value !== null || !isWaiting) {
+	if (clickedButtonIndex.value !== null || !isWaiting || isLoading.value) {
 		return;
 	}
 
@@ -38,7 +38,7 @@ async function onClick(link: string, index: number) {
 				<N8nButton
 					v-if="clickedButtonIndex === null || index === clickedButtonIndex"
 					:type="button.type"
-					:disabled="index === clickedButtonIndex || !isWaiting"
+					:disabled="index === clickedButtonIndex || !isWaiting || isLoading"
 					:loading="isLoading && clickedButtonIndex === null"
 					size="small"
 					@click="onClick(button.link, index)"

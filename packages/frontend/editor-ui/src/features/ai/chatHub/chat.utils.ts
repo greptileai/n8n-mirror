@@ -11,8 +11,6 @@ import {
 	type ChatHubInputModality,
 	type AgentIconOrEmoji,
 	type ChatProviderSettingsDto,
-	type ChatHubMessageWithButtons,
-	chatHubMessageWithButtonsSchema,
 } from '@n8n/api-types';
 import type {
 	ChatMessage,
