@@ -6,6 +6,8 @@ import { ApplicationError } from '@n8n/errors';
 import * as jmespath from 'jmespath';
 import { DateTime, Duration, Interval, Settings } from 'luxon';
 
+import { normalizeExpressionValue } from './expression-value-normalizer';
+
 import { augmentArray, augmentObject } from './augment-object';
 import { AGENT_LANGCHAIN_NODE_TYPE, SCRIPTING_NODE_TYPES, BINARY_MODE_COMBINED } from './constants';
 import { ExpressionError, type ExpressionErrorOptions } from './errors/expression.error';
@@ -103,10 +105,12 @@ export class WorkflowDataProxy {
 		if (this.workflow.settings?.binaryMode !== BINARY_MODE_COMBINED) return data;
 
 		if (Array.isArray(data)) {
-			return data.map((i) => i.json);
+			// Normalize Date objects to ISO strings for consistent expression behavior
+			return data.map((i) => normalizeExpressionValue(i.json));
 		}
 
-		return data.json;
+		// Normalize Date objects to ISO strings for consistent expression behavior
+		return normalizeExpressionValue(data.json);
 	}
 
 	/**
@@ -577,8 +581,8 @@ export class WorkflowDataProxy {
 						}
 
 						if (['data', 'json'].includes(name)) {
-							// JSON-Data
-							return executionData[that.itemIndex].json;
+							// JSON-Data - normalize Date objects to ISO strings for consistent expression behavior
+							return normalizeExpressionValue(executionData[that.itemIndex].json);
 						}
 						if (name === 'binary') {
 							// Binary-Data
@@ -1501,7 +1505,8 @@ export class WorkflowDataProxy {
 						result = result.slice(0, 1);
 					}
 					if (result.length) {
-						return result;
+						// Normalize Date objects to ISO strings for consistent expression behavior
+						return result.map((item) => normalizeExpressionValue(item));
 					}
 					return [];
 				}
@@ -1509,7 +1514,11 @@ export class WorkflowDataProxy {
 				outputIndex = outputIndex || 0;
 				runIndex = runIndex === undefined ? -1 : runIndex;
 
-				return that.getNodeExecutionData(nodeName, false, outputIndex, runIndex);
+				const nodeData = that.getNodeExecutionData(nodeName, false, outputIndex, runIndex);
+				// Normalize Date objects to ISO strings for consistent expression behavior
+				return Array.isArray(nodeData)
+					? nodeData.map((item) => normalizeExpressionValue(item))
+					: normalizeExpressionValue(nodeData);
 			},
 			$tool: {}, // Placeholder
 			$json: {}, // Placeholder
@@ -1537,7 +1546,7 @@ export class WorkflowDataProxy {
 			// deprecated
 			$jmespath: jmespathWrapper,
 			$position: this.itemIndex,
-			$thisItem: that.connectionInputData[that.itemIndex],
+			$thisItem: normalizeExpressionValue(that.connectionInputData[that.itemIndex]),
 			$thisItemIndex: this.itemIndex,
 			$thisRunIndex: this.runIndex,
 			$nodeVersion: that.workflow.getNode(that.activeNodeName)?.typeVersion,
@@ -1559,7 +1568,9 @@ export class WorkflowDataProxy {
 				}
 
 				if (typeof name === 'string' && JSON_ACCESS_KEYS.includes(name)) {
-					return that.nodeDataGetter(that.contextNodeName, true, throwOnMissingExecutionData)?.json;
+					// Normalize Date objects to ISO strings for consistent expression behavior
+					const jsonData = that.nodeDataGetter(that.contextNodeName, true, throwOnMissingExecutionData)?.json;
+					return jsonData ? normalizeExpressionValue(jsonData) : jsonData;
 				}
 				if (name === '$binary') {
 					return that.nodeDataGetter(that.contextNodeName, true, throwOnMissingExecutionData)
