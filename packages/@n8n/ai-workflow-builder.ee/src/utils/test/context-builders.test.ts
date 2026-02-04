@@ -7,7 +7,7 @@ import type { ChatPayload } from '../../workflow-builder-agent';
 import {
 	buildSimplifiedExecutionContext,
 	buildConversationContext,
-	buildWorkflowIndicator,
+	buildWorkflowOverview,
 	buildExecutionContextBlock,
 	buildExecutionSchemaBlock,
 } from '../context-builders';
@@ -595,112 +595,101 @@ describe('buildExecutionSchemaBlock', () => {
 	});
 });
 
-describe('buildWorkflowIndicator', () => {
+describe('buildWorkflowOverview', () => {
 	describe('empty workflow', () => {
 		it('should return ready to build message for empty workflow', () => {
 			const workflow = createWorkflow([]);
-			const result = buildWorkflowIndicator(workflow);
+			const result = buildWorkflowOverview(workflow);
 			expect(result).toBe('Empty workflow - ready to build');
 		});
 	});
 
-	describe('small workflow (≤5 nodes)', () => {
-		it('should list all node names for small workflows', () => {
+	describe('workflow with nodes', () => {
+		it('should include workflow_overview tags', () => {
 			const workflow = createWorkflow([
-				createNode({ id: '1', name: 'Webhook', type: 'n8n-nodes-base.webhook' }),
-				createNode({ id: '2', name: 'Code', type: 'n8n-nodes-base.code' }),
-				createNode({ id: '3', name: 'HTTP Request', type: 'n8n-nodes-base.httpRequest' }),
+				createNode({ id: '1', name: 'Manual Trigger', type: 'n8n-nodes-base.manualTrigger' }),
 			]);
 
-			const result = buildWorkflowIndicator(workflow);
+			const result = buildWorkflowOverview(workflow);
 
-			expect(result).toContain('Workflow has 3 nodes: Webhook, Code, HTTP Request');
-			expect(result).not.toContain('and');
-			expect(result).not.toContain('more');
+			expect(result).toContain('<workflow_overview>');
+			expect(result).toContain('</workflow_overview>');
 		});
-	});
 
-	describe('large workflow (>5 nodes)', () => {
-		it('should list first 5 names and show count for remaining', () => {
+		it('should include node count', () => {
 			const workflow = createWorkflow([
 				createNode({ id: '1', name: 'Node1' }),
 				createNode({ id: '2', name: 'Node2' }),
 				createNode({ id: '3', name: 'Node3' }),
-				createNode({ id: '4', name: 'Node4' }),
-				createNode({ id: '5', name: 'Node5' }),
-				createNode({ id: '6', name: 'Node6' }),
-				createNode({ id: '7', name: 'Node7' }),
-				createNode({ id: '8', name: 'Node8' }),
 			]);
 
-			const result = buildWorkflowIndicator(workflow);
+			const result = buildWorkflowOverview(workflow);
 
-			expect(result).toContain('Workflow has 8 nodes: Node1, Node2, Node3, Node4, Node5');
-			expect(result).toContain('(and 3 more)');
-			expect(result).not.toContain('Node6');
-			expect(result).not.toContain('Node7');
-			expect(result).not.toContain('Node8');
+			expect(result).toContain('Node count: 3');
 		});
-	});
 
-	describe('trigger detection', () => {
-		it('should detect webhook trigger node', () => {
+		it('should include trigger info when single trigger exists', () => {
 			const workflow = createWorkflow([
 				createNode({ id: '1', name: 'My Webhook', type: 'n8n-nodes-base.webhook' }),
 				createNode({ id: '2', name: 'Code', type: 'n8n-nodes-base.code' }),
 			]);
 
-			const result = buildWorkflowIndicator(workflow);
+			const result = buildWorkflowOverview(workflow);
 
 			expect(result).toContain('Trigger: My Webhook (n8n-nodes-base.webhook)');
 		});
 
-		it('should detect manual trigger node', () => {
+		it('should list all triggers when multiple exist', () => {
 			const workflow = createWorkflow([
-				createNode({ id: '1', name: 'Manual Trigger', type: 'n8n-nodes-base.manualTrigger' }),
+				createNode({ id: '1', name: 'Schedule Trigger', type: 'n8n-nodes-base.scheduleTrigger' }),
+				createNode({ id: '2', name: 'Webhook', type: 'n8n-nodes-base.webhook' }),
+				createNode({ id: '3', name: 'Code', type: 'n8n-nodes-base.code' }),
 			]);
 
-			const result = buildWorkflowIndicator(workflow);
+			const result = buildWorkflowOverview(workflow);
 
-			expect(result).toContain('Trigger: Manual Trigger (n8n-nodes-base.manualTrigger)');
+			expect(result).toContain('Triggers (2):');
+			expect(result).toContain('- Schedule Trigger (n8n-nodes-base.scheduleTrigger)');
+			expect(result).toContain('- Webhook (n8n-nodes-base.webhook)');
 		});
 
-		it('should detect any node with "trigger" in type', () => {
-			const workflow = createWorkflow([
-				createNode({ id: '1', name: 'Schedule', type: 'n8n-nodes-base.scheduleTrigger' }),
-			]);
-
-			const result = buildWorkflowIndicator(workflow);
-
-			expect(result).toContain('Trigger: Schedule (n8n-nodes-base.scheduleTrigger)');
-		});
-	});
-
-	describe('workflow without trigger', () => {
-		it('should indicate no trigger node detected', () => {
-			const workflow = createWorkflow([
-				createNode({ id: '1', name: 'Code', type: 'n8n-nodes-base.code' }),
-				createNode({ id: '2', name: 'HTTP Request', type: 'n8n-nodes-base.httpRequest' }),
-			]);
-
-			const result = buildWorkflowIndicator(workflow);
-
-			expect(result).toContain('No trigger node detected');
-		});
-	});
-
-	describe('tool recommendation', () => {
-		it('should recommend get_workflow_overview tool', () => {
+		it('should indicate no triggers when none exist', () => {
 			const workflow = createWorkflow([
 				createNode({ id: '1', name: 'Code', type: 'n8n-nodes-base.code' }),
 			]);
 
-			const result = buildWorkflowIndicator(workflow);
+			const result = buildWorkflowOverview(workflow);
 
-			expect(result).toContain('Use workflow context tools for details:');
-			expect(result).toContain('get_workflow_overview');
-			expect(result).toContain('get_node_context');
-			expect(result).toContain('get_workflow_json');
+			expect(result).toContain('Triggers: None');
+		});
+
+		it('should include mermaid diagram', () => {
+			const workflow = createWorkflow([
+				createNode({ id: '1', name: 'Trigger', type: 'n8n-nodes-base.manualTrigger' }),
+			]);
+
+			const result = buildWorkflowOverview(workflow);
+
+			expect(result).toContain('```mermaid');
+			expect(result).toContain('flowchart TD');
+			expect(result).toContain('```');
+		});
+
+		it('should include node parameters in mermaid comments', () => {
+			const workflow = createWorkflow([
+				createNode({
+					id: '1',
+					name: 'HTTP Request',
+					type: 'n8n-nodes-base.httpRequest',
+					parameters: { url: 'https://api.example.com', method: 'GET' },
+				}),
+			]);
+
+			const result = buildWorkflowOverview(workflow);
+
+			// Parameters should be in mermaid comment lines
+			expect(result).toContain('https://api.example.com');
+			expect(result).toContain('GET');
 		});
 	});
 });

@@ -1,7 +1,8 @@
 import type { BaseMessage } from '@langchain/core/messages';
 import { AIMessage, HumanMessage } from '@langchain/core/messages';
 
-import { MAX_AI_RESPONSE_CHARS, MAX_WORKFLOW_INDICATOR_NODES } from '../constants';
+import { MAX_AI_RESPONSE_CHARS } from '../constants';
+import { mermaidStringify } from '../tools/utils/mermaid.utils';
 import type { CoordinationLogEntry } from '../types/coordination';
 import type { DiscoveryContext } from '../types/discovery-types';
 import type { SimpleWorkflow } from '../types/workflow';
@@ -40,46 +41,59 @@ export function buildWorkflowJsonBlock(workflow: SimpleWorkflow): string {
 }
 
 /**
- * Build a lightweight workflow indicator for context injection.
- * Points to tools for detailed information instead of including full JSON.
- * This significantly reduces token usage for workflows with many nodes.
+ * Finds all trigger nodes in a workflow
  */
-export function buildWorkflowIndicator(workflow: SimpleWorkflow): string {
-	if (workflow.nodes.length === 0) {
-		return 'Empty workflow - ready to build';
-	}
-
-	// Get node names (limit to first N for indicator)
-	const nodeNames = workflow.nodes.map((n) => n.name);
-	const displayNames = nodeNames.slice(0, MAX_WORKFLOW_INDICATOR_NODES);
-	const hasMore =
-		nodeNames.length > MAX_WORKFLOW_INDICATOR_NODES
-			? ` (and ${nodeNames.length - MAX_WORKFLOW_INDICATOR_NODES} more)`
-			: '';
-
-	// Find trigger node
-	const trigger = workflow.nodes.find(
+function findTriggerNodes(
+	nodes: Array<{ name: string; type: string }>,
+): Array<{ name: string; type: string }> {
+	return nodes.filter(
 		(n) =>
 			n.type.toLowerCase().includes('trigger') ||
 			n.type.toLowerCase().includes('webhook') ||
 			n.type === 'n8n-nodes-base.manualTrigger',
 	);
+}
 
-	const parts = [
-		`Workflow has ${workflow.nodes.length} nodes: ${displayNames.join(', ')}${hasMore}`,
-	];
-
-	if (trigger) {
-		parts.push(`Trigger: ${trigger.name} (${trigger.type})`);
-	} else {
-		parts.push('No trigger node detected');
+/**
+ * Build a comprehensive workflow overview with Mermaid diagram.
+ * Includes node connections, types, and parameters for better context.
+ * Use this when the responder needs to understand the full workflow structure.
+ */
+export function buildWorkflowOverview(workflow: SimpleWorkflow): string {
+	if (workflow.nodes.length === 0) {
+		return 'Empty workflow - ready to build';
 	}
 
-	parts.push('');
-	parts.push('Use workflow context tools for details:');
-	parts.push('- get_workflow_overview: Visual Mermaid diagram with node IDs (recommended)');
-	parts.push('- get_node_context: Full details for a specific node including ID');
+	const triggerNodes = findTriggerNodes(workflow.nodes);
 
+	const parts: string[] = ['<workflow_overview>'];
+
+	// Metadata
+	parts.push(`Node count: ${workflow.nodes.length}`);
+	if (triggerNodes.length === 0) {
+		parts.push('Triggers: None');
+	} else if (triggerNodes.length === 1) {
+		parts.push(`Trigger: ${triggerNodes[0].name} (${triggerNodes[0].type})`);
+	} else {
+		parts.push(`Triggers (${triggerNodes.length}):`);
+		for (const trigger of triggerNodes) {
+			parts.push(`  - ${trigger.name} (${trigger.type})`);
+		}
+	}
+
+	// Mermaid diagram with connections and parameters
+	parts.push('');
+	const mermaid = mermaidStringify(
+		{ workflow },
+		{
+			includeNodeType: true,
+			includeNodeParameters: true,
+			includeNodeName: true,
+		},
+	);
+	parts.push(mermaid);
+
+	parts.push('</workflow_overview>');
 	return parts.join('\n');
 }
 

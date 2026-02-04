@@ -16,7 +16,7 @@ import type { CoordinationLogEntry } from '../types/coordination';
 import type { DiscoveryContext } from '../types/discovery-types';
 import { isAIMessage } from '../types/langchain';
 import type { SimpleWorkflow } from '../types/workflow';
-import { buildSimplifiedExecutionContext, buildWorkflowIndicator } from '../utils/context-builders';
+import { buildSimplifiedExecutionContext, buildWorkflowOverview } from '../utils/context-builders';
 import {
 	getErrorEntry,
 	getBuilderOutput,
@@ -137,8 +137,8 @@ export class ResponderAgent {
 		if (builderOutput) {
 			contextParts.push(`**Builder:** ${builderOutput}`);
 		} else if (context.workflowJSON.nodes.length) {
-			// Provide workflow summary using the indicator
-			contextParts.push(`**Workflow:**\n${buildWorkflowIndicator(context.workflowJSON)}`);
+			// Provide workflow overview with Mermaid diagram and parameters
+			contextParts.push(`**Workflow:**\n${buildWorkflowOverview(context.workflowJSON)}`);
 		}
 
 		// Data Table creation guidance
