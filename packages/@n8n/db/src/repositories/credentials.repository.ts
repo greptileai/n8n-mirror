@@ -64,7 +64,14 @@ export class CredentialsRepository extends Repository<CredentialsEntity> {
 			'resolvableAllowFallback',
 		];
 
-		if (!listQueryOptions) return { select: defaultSelect, relations: defaultRelations };
+		const defaultOrder = { createdAt: 'DESC' as const };
+		if (!listQueryOptions) {
+			return {
+				select: defaultSelect,
+				relations: defaultRelations,
+				order: defaultOrder,
+			} as FindManyOptions<CredentialsEntity>;
+		}
 
 		const { filter, select, take, skip } = listQueryOptions;
 
@@ -90,6 +97,10 @@ export class CredentialsRepository extends Repository<CredentialsEntity> {
 		if (!findManyOptions.select) {
 			findManyOptions.select = defaultSelect;
 			findManyOptions.relations = defaultRelations;
+		}
+
+		if (!findManyOptions.order) {
+			findManyOptions.order = { createdAt: 'DESC' as const };
 		}
 
 		if (listQueryOptions.includeData) {
