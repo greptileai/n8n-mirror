@@ -13,6 +13,8 @@ const props = defineProps<{
 	state: NodeSetupState;
 }>();
 
+const expanded = defineModel<boolean>('expanded', { default: true });
+
 const emit = defineEmits<{
 	credentialSelected: [payload: { credentialType: string; credentialId: string }];
 	credentialDeselected: [credentialType: string];
@@ -30,6 +32,10 @@ const nodeDisplayName = computed(() => {
 	return nodeType.value?.displayName ?? props.state.node.name;
 });
 
+const onHeaderClick = () => {
+	expanded.value = !expanded.value;
+};
+
 const onCredentialSelected = (credentialType: string, credentialId: string) => {
 	emit('credentialSelected', { credentialType, credentialId });
 };
@@ -44,8 +50,8 @@ const onTestClick = () => {
 </script>
 
 <template>
-	<div :class="$style.card">
-		<div :class="$style.header">
+	<div :class="[$style.card, { [$style.collapsed]: !expanded }]">
+		<div :class="$style.header" @click="onHeaderClick">
 			<N8nIcon
 				v-if="state.isComplete"
 				icon="circle-check"
@@ -54,40 +60,51 @@ const onTestClick = () => {
 			/>
 			<NodeIcon v-else :node-type="nodeType" :size="24" />
 			<span :class="$style.nodeName">{{ nodeDisplayName }}</span>
-		</div>
-
-		<div :class="$style.content">
-			<div
-				v-for="requirement in state.credentialRequirements"
-				:key="requirement.credentialType"
-				:class="$style.credentialRow"
-			>
-				<CredentialPicker
-					:app-name="requirement.credentialDisplayName"
-					:credential-type="requirement.credentialType"
-					:selected-credential-id="requirement.selectedCredentialId ?? null"
-					@credential-selected="onCredentialSelected(requirement.credentialType, $event)"
-					@credential-deselected="onCredentialDeselected(requirement.credentialType)"
-				/>
-			</div>
-		</div>
-
-		<div :class="$style.footer">
-			<N8nButton
-				:label="i18n.baseText('node.testStep')"
-				:disabled="!state.isComplete"
+			<N8nIcon
+				:class="$style.chevron"
+				:icon="expanded ? 'chevron-up' : 'chevron-down'"
 				size="small"
-				@click="onTestClick"
 			/>
 		</div>
+
+		<template v-if="expanded">
+			<div :class="$style.content">
+				<div
+					v-for="requirement in state.credentialRequirements"
+					:key="requirement.credentialType"
+					:class="$style.credentialRow"
+				>
+					<CredentialPicker
+						:class="$style.credentialPicker"
+						:app-name="requirement.credentialDisplayName"
+						:credential-type="requirement.credentialType"
+						:selected-credential-id="requirement.selectedCredentialId ?? null"
+						@credential-selected="onCredentialSelected(requirement.credentialType, $event)"
+						@credential-deselected="onCredentialDeselected(requirement.credentialType)"
+					/>
+				</div>
+			</div>
+
+			<div :class="$style.footer">
+				<N8nButton
+					:label="i18n.baseText('node.testStep')"
+					:disabled="!state.isComplete"
+					size="small"
+					@click="onTestClick"
+				/>
+			</div>
+		</template>
 	</div>
 </template>
 
 <style module lang="scss">
 .card {
-	background-color: var(--color--background);
-	border: var(--border-width) var(--border-style) var(--color--foreground);
-	border-radius: var(--radius--lg);
+	display: flex;
+	flex-direction: column;
+	gap: var(--spacing--sm);
+	background-color: var(--color--background--light-2);
+	border: var(--border);
+	border-radius: var(--radius);
 	padding: var(--spacing--sm);
 }
 
@@ -95,10 +112,16 @@ const onTestClick = () => {
 	display: flex;
 	align-items: center;
 	gap: var(--spacing--xs);
-	margin-bottom: var(--spacing--sm);
+	cursor: pointer;
+	user-select: none;
+
+	.card:not(.collapsed) & {
+		margin-bottom: var(--spacing--sm);
+	}
 }
 
 .nodeName {
+	flex: 1;
 	font-size: var(--font-size--sm);
 	font-weight: var(--font-weight--bold);
 	color: var(--color--text);
@@ -106,6 +129,10 @@ const onTestClick = () => {
 
 .completeIcon {
 	color: var(--color--success);
+}
+
+.chevron {
+	color: var(--color--text--tint-1);
 }
 
 .content {
@@ -119,11 +146,12 @@ const onTestClick = () => {
 	align-items: center;
 }
 
+.credentialPicker {
+	flex: 1;
+}
+
 .footer {
 	display: flex;
 	justify-content: flex-end;
-	margin-top: var(--spacing--sm);
-	padding-top: var(--spacing--sm);
-	border-top: var(--border-width) var(--border-style) var(--color--foreground);
 }
 </style>
