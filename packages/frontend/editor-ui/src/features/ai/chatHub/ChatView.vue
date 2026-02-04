@@ -895,10 +895,6 @@ function onFilesDropped(files: File[]) {
 	min-width: 300px;
 	overflow: hidden;
 
-	.isMobileDevice & {
-		display: none;
-	}
-
 	.isResizing & {
 		/* Prevent mouse event captured by iframe */
 		pointer-events: none;
