@@ -77,9 +77,9 @@ const workflows = loadTestWorkflows();
 
 describe('Real Workflow Round-Trip', () => {
 	// Download fixtures if needed
-	beforeAll(async () => {
+	beforeAll(() => {
 		try {
-			await ensureFixtures();
+			ensureFixtures();
 		} catch (error) {
 			if (error instanceof FixtureDownloadError) {
 				throw new Error(
@@ -89,7 +89,7 @@ describe('Real Workflow Round-Trip', () => {
 			}
 			throw error;
 		}
-	}, 120000);
+	});
 
 	if (workflows.length === 0) {
 		it('should have fixtures available (run tests again after download)', () => {
@@ -229,9 +229,9 @@ describe('Real Workflow Round-Trip', () => {
 });
 
 describe('Real Workflow Patterns', () => {
-	beforeAll(async () => {
-		await ensureFixtures();
-	}, 120000);
+	beforeAll(() => {
+		ensureFixtures();
+	});
 
 	it('should handle AI agent workflows with subnodes', () => {
 		expect(workflows.length).toBeGreaterThan(0);
@@ -312,9 +312,9 @@ describe('Real Workflow Patterns', () => {
 });
 
 describe('Expression Preservation', () => {
-	beforeAll(async () => {
-		await ensureFixtures();
-	}, 120000);
+	beforeAll(() => {
+		ensureFixtures();
+	});
 
 	function extractExpressions(json: WorkflowJSON): string[] {
 		const expressions: string[] = [];

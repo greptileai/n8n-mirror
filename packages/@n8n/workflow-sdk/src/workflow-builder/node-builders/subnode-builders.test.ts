@@ -5,9 +5,9 @@
  * Run with: pnpm test subnodes.test.ts
  */
 
-import type { LanguageModelInstance } from '../../types/base';
-import type * as SubnodeBuildersModule from './subnode-builders';
 import type * as NodeBuilderModule from './node-builder';
+import type * as SubnodeBuildersModule from './subnode-builders';
+import type { LanguageModelInstance } from '../../types/base';
 import type * as WorkflowBuilderModule from '../../workflow-builder';
 
 // =============================================================================

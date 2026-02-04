@@ -16,11 +16,6 @@ import { switchCaseHandler } from './workflow-builder/plugins/composite-handlers
 import { registerDefaultPlugins } from './workflow-builder/plugins/defaults';
 import { PluginRegistry, pluginRegistry } from './workflow-builder/plugins/registry';
 import { jsonSerializer } from './workflow-builder/plugins/serializers/json-serializer';
-import { agentValidator } from './workflow-builder/plugins/validators/agent-validator';
-import { disconnectedNodeValidator } from './workflow-builder/plugins/validators/disconnected-node-validator';
-import { maxNodesValidator } from './workflow-builder/plugins/validators/max-nodes-validator';
-import { missingTriggerValidator } from './workflow-builder/plugins/validators/missing-trigger-validator';
-import { noNodesValidator } from './workflow-builder/plugins/validators/no-nodes-validator';
 import type {
 	ValidatorPlugin,
 	PluginContext,
@@ -28,6 +23,11 @@ import type {
 	CompositeHandlerPlugin,
 	MutablePluginContext,
 } from './workflow-builder/plugins/types';
+import { agentValidator } from './workflow-builder/plugins/validators/agent-validator';
+import { disconnectedNodeValidator } from './workflow-builder/plugins/validators/disconnected-node-validator';
+import { maxNodesValidator } from './workflow-builder/plugins/validators/max-nodes-validator';
+import { missingTriggerValidator } from './workflow-builder/plugins/validators/missing-trigger-validator';
+import { noNodesValidator } from './workflow-builder/plugins/validators/no-nodes-validator';
 
 // Helper to create mock validators
 function createMockValidator(

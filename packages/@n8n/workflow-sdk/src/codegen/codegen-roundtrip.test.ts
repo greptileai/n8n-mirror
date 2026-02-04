@@ -1895,9 +1895,9 @@ return workflow('test-id', 'Test Workflow')
 
 describe('Codegen Roundtrip with Real Workflows', () => {
 	// Download fixtures if needed (runs once before all tests in this file)
-	beforeAll(async () => {
+	beforeAll(() => {
 		try {
-			await ensureFixtures();
+			ensureFixtures();
 		} catch (error) {
 			if (error instanceof FixtureDownloadError) {
 				throw new Error(
@@ -1907,7 +1907,7 @@ describe('Codegen Roundtrip with Real Workflows', () => {
 			}
 			throw error;
 		}
-	}, 120000); // 2 minute timeout for downloading fixtures
+	});
 
 	if (workflows.length === 0) {
 		it('should have fixtures available (run tests again after download)', () => {

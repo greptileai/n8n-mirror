@@ -1,7 +1,6 @@
+import { describe, it, expect } from '@jest/globals';
 import * as fs from 'fs';
 import * as path from 'path';
-
-import { describe, it, expect } from '@jest/globals';
 
 import { generateCode } from './code-generator';
 import { buildCompositeTree } from './composite-builder';

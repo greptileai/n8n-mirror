@@ -12,6 +12,8 @@ import type {
 	WorkflowBuilderOptions,
 } from './types/base';
 import { isNodeChain } from './types/base';
+import type { ValidationOptions, ValidationResult, ValidationErrorCode } from './validation/index';
+import { ValidationError, ValidationWarning } from './validation/index';
 import { resolveTargetNodeName as resolveTargetNodeNameUtil } from './workflow-builder/connection-utils';
 import { isInputTarget, cloneNodeWithId } from './workflow-builder/node-builders/node-builder';
 import { shouldGeneratePinData } from './workflow-builder/pin-data-utils';
@@ -24,8 +26,6 @@ import type {
 	ValidationIssue,
 	SerializerContext,
 } from './workflow-builder/plugins/types';
-import type { ValidationOptions, ValidationResult, ValidationErrorCode } from './validation/index';
-import { ValidationError, ValidationWarning } from './validation/index';
 import { generateDeterministicNodeId } from './workflow-builder/string-utils';
 import { addNodeWithSubnodes as addNodeWithSubnodesUtil } from './workflow-builder/subnode-utils';
 import { parseWorkflowJSON } from './workflow-builder/workflow-import';
@@ -490,8 +490,8 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 	}
 
 	validate(options: ValidationOptions = {}): ValidationResult {
-		const errors: Array<ValidationError> = [];
-		const warnings: Array<ValidationWarning> = [];
+		const errors: ValidationError[] = [];
+		const warnings: ValidationWarning[] = [];
 
 		// Run plugin-based validators (use provided registry or global)
 		const registry = this._registry ?? pluginRegistry;
@@ -539,8 +539,8 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 	 */
 	private collectValidationIssues(
 		issues: ValidationIssue[],
-		errors: Array<ValidationError>,
-		warnings: Array<ValidationWarning>,
+		errors: ValidationError[],
+		warnings: ValidationWarning[],
 		ValidationErrorClass: typeof ValidationError,
 		ValidationWarningClass: typeof ValidationWarning,
 	): void {
