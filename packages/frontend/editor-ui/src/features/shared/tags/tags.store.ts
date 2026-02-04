@@ -5,7 +5,6 @@ import { defineStore } from 'pinia';
 import { useRootStore } from '@n8n/stores/useRootStore';
 import { computed, ref } from 'vue';
 import { hasPermission } from '@/app/utils/rbac/permissions';
-import { injectWorkflowState } from '@/app/composables/useWorkflowState';
 import {
 	useWorkflowDocumentStore,
 	createWorkflowDocumentId,
@@ -30,7 +29,6 @@ const createTagsStore = (id: typeof STORES.TAGS | typeof STORES.ANNOTATION_TAGS)
 
 			const rootStore = useRootStore();
 			const workflowsStore = useWorkflowsStore();
-			const workflowState = injectWorkflowState();
 
 			// Computed
 
@@ -134,9 +132,6 @@ const createTagsStore = (id: typeof STORES.TAGS | typeof STORES.ANNOTATION_TAGS)
 					const workflowDocumentId = createWorkflowDocumentId(workflowsStore.workflowId);
 					const workflowDocumentStore = useWorkflowDocumentStore(workflowDocumentId);
 					workflowDocumentStore.removeTag(id);
-
-					// Keep workflowState in sync for backward compatibility
-					workflowState.removeWorkflowTagId(id);
 				}
 
 				return deleted;

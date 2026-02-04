@@ -992,9 +992,6 @@ export function useWorkflowHelpers() {
 		const workflowDocumentId = createWorkflowDocumentId(workflowData.id);
 		const workflowDocumentStore = useWorkflowDocumentStore(workflowDocumentId);
 		workflowDocumentStore.setTags(tagIds);
-
-		// Keep workflowState in sync for backward compatibility
-		ws.setWorkflowTagIds(tagIds);
 		tagsStore.upsertTags(tags);
 
 		return { workflowDocumentStore };

@@ -238,9 +238,6 @@ export function useWorkflowSaving({
 
 			if (tags) {
 				const tagIds = convertWorkflowTagsToIds(workflowData.tags);
-				workflowState.setWorkflowTagIds(tagIds);
-
-				// Also update workflowDocumentStore (source of truth)
 				const workflowDocumentId = createWorkflowDocumentId(currentWorkflow);
 				const workflowDocumentStore = useWorkflowDocumentStore(workflowDocumentId);
 				workflowDocumentStore.setTags(tagIds);
@@ -474,9 +471,6 @@ export function useWorkflowSaving({
 			});
 
 			const tagIds = convertWorkflowTagsToIds(workflowData.tags);
-			workflowState.setWorkflowTagIds(tagIds);
-
-			// Also update workflowDocumentStore (source of truth)
 			const workflowDocumentId = createWorkflowDocumentId(workflowData.id);
 			const workflowDocumentStore = useWorkflowDocumentStore(workflowDocumentId);
 			workflowDocumentStore.setTags(tagIds);
