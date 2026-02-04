@@ -6,7 +6,6 @@ import {
 	IMPORT_CURL_MODAL_KEY,
 	LOG_STREAM_MODAL_KEY,
 	MFA_SETUP_MODAL_KEY,
-	NODE_PINNING_MODAL_KEY,
 	NPS_SURVEY_MODAL_KEY,
 	VERSIONS_MODAL_KEY,
 	VIEWS,
@@ -129,7 +128,6 @@ export const useUIStore = defineStore(STORES.UI, () => {
 				CREDENTIAL_SELECT_MODAL_KEY,
 				DUPLICATE_MODAL_KEY,
 				PERSONALIZATION_MODAL_KEY,
-				NODE_PINNING_MODAL_KEY,
 				INVITE_USER_MODAL_KEY,
 				TAGS_MANAGER_MODAL_KEY,
 				ANNOTATION_TAGS_MANAGER_MODAL_KEY,
@@ -267,7 +265,12 @@ export const useUIStore = defineStore(STORES.UI, () => {
 	});
 
 	const modalStack = ref<string[]>([]);
-	const sidebarMenuCollapsed = useLocalStorage<boolean | null>('sidebar.collapsed', null);
+	const sidebarMenuCollapsed = useLocalStorage<boolean | null>('sidebar.collapsed', null, {
+		serializer: {
+			read: (v) => (v === 'null' ? null : v === 'true'),
+			write: (v) => String(v),
+		},
+	});
 	const currentView = ref<string>('');
 	const stateIsDirty = ref<boolean>(false);
 	const dirtyStateSetCount = ref<number>(0);

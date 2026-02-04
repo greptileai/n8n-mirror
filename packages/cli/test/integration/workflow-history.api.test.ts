@@ -310,6 +310,21 @@ describe('GET /workflow-history/workflow/:workflowId/version/:versionId', () => 
 });
 
 describe('PATCH /workflow-history/workflow/:workflowId/versions/:versionId', () => {
+	beforeEach(() => {
+		testServer.license.enable('feat:namedVersions');
+	});
+
+	test('should return 403 when license is disabled', async () => {
+		testServer.license.disable('feat:namedVersions');
+
+		const workflow = await createWorkflow(undefined, owner);
+		const version = await createWorkflowHistoryItem(workflow.id);
+		const response = await authOwnerAgent
+			.patch(`/workflow-history/workflow/${workflow.id}/versions/${version.versionId}`)
+			.send({ name: 'Updated Name' });
+		expect(response.status).toBe(403);
+	});
+
 	test('should return 404 on invalid workflow ID', async () => {
 		const workflow = await createWorkflow(undefined, owner);
 		const version = await createWorkflowHistoryItem(workflow.id);
