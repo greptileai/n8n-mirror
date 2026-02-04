@@ -587,6 +587,7 @@ describe('Zammad Node', () => {
 						case 'additionalFields':
 							return {
 								customFieldsUi: {
+									// eslint-disable-next-line
 									customFieldPairs: [{ name: 'linear', value: '1234' }],
 								},
 							};
