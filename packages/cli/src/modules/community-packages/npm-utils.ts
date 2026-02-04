@@ -63,9 +63,12 @@ export async function executeNpmCommand(
 		...(shell && { shell }),
 	};
 
+	const hasOptions = cwd !== undefined || shell !== undefined;
+
 	try {
-		const commandResult = await asyncExecFile('npm', args, execOptions);
-		return commandResult.stdout;
+		const commandResult = await asyncExecFile('npm', args, hasOptions ? execOptions : undefined);
+		const stdout = commandResult.stdout;
+		return Buffer.isBuffer(stdout) ? stdout.toString('utf8') : stdout;
 	} catch (error) {
 		if (doNotHandleError) {
 			throw error;
