@@ -228,6 +228,6 @@ export class LmChatImaginaryLlm implements INodeType {
 | `new ChatOpenAI({ ... })` | `supplyModel(this, { type: 'openai', ... })` |
 | Custom provider | `class MyModel extends BaseChatModel { ... }` |
 | `return { response: model }` | `return supplyModel(this, model)` |
-| `return { response: logWrapper(memory, this) }` | `return supplyMemoery(this, memory)` |
+| `return { response: logWrapper(memory, this) }` | `return supplyMemory(this, memory)` |
 | LangChain message types | `Message` with roles: `system`, `human`, `ai`, `tool` |
 | `tool_calls[].args` | `toolCalls[].arguments` |
