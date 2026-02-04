@@ -8,9 +8,8 @@ import { mock } from 'jest-mock-extended';
 import type { IExecuteFunctions, INodeExecutionData } from 'n8n-workflow';
 import { NodeConnectionTypes } from 'n8n-workflow';
 
-import { logAiEvent } from '@utils/helpers';
-import type { N8nBinaryLoader } from '@utils/N8nBinaryLoader';
-import type { N8nJsonLoader } from '@utils/N8nJsonLoader';
+import { logAiEvent } from '@n8n/ai-node-sdk';
+import type { N8nBinaryLoader, N8nJsonLoader } from '@n8n/ai-node-sdk';
 
 import type { VectorStoreNodeConstructorArgs } from '../../types';
 import { handleInsertOperation } from '../insertOperation';

@@ -13,7 +13,7 @@ import type { ClientOptions } from 'openai';
 
 import { checkDomainRestrictions } from '@utils/checkDomainRestrictions';
 import { getProxyAgent } from '@utils/httpProxyAgent';
-import { logWrapper } from '@utils/logWrapper';
+import { logWrapper } from '@n8n/ai-node-sdk';
 import { getConnectionHintNoticeField } from '@utils/sharedFields';
 
 const modelParameter: INodeProperties = {

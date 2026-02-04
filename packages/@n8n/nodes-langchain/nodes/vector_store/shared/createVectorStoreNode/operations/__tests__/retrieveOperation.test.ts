@@ -6,7 +6,7 @@ import { mock } from 'jest-mock-extended';
 import type { ISupplyDataFunctions } from 'n8n-workflow';
 import { NodeConnectionTypes } from 'n8n-workflow';
 
-import { logWrapper } from '@utils/logWrapper';
+import { logWrapper } from '@n8n/ai-node-sdk';
 
 import type { VectorStoreNodeConstructorArgs } from '../../types';
 import { handleRetrieveOperation } from '../retrieveOperation';

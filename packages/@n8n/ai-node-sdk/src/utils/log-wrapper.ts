@@ -1,3 +1,4 @@
+import type { BaseDocumentLoader } from '@langchain/classic/dist/document_loaders/base';
 import type { BaseChatMemory } from '@langchain/community/memory/chat_memory';
 import type { BaseCallbackConfig, Callbacks } from '@langchain/core/callbacks/manager';
 import type { BaseChatMessageHistory } from '@langchain/core/chat_history';
@@ -9,9 +10,8 @@ import { BaseRetriever } from '@langchain/core/retrievers';
 import { BaseDocumentCompressor } from '@langchain/core/retrievers/document_compressors';
 import type { StructuredTool, Tool } from '@langchain/core/tools';
 import { VectorStore } from '@langchain/core/vectorstores';
-import { TextSplitter } from '@langchain/textsplitters';
-import type { BaseDocumentLoader } from '@langchain/classic/dist/document_loaders/base';
 import { OpenAIEmbeddings, AzureOpenAIEmbeddings } from '@langchain/openai';
+import { TextSplitter } from '@langchain/textsplitters';
 import type {
 	IDataObject,
 	IExecuteFunctions,
@@ -27,13 +27,14 @@ import {
 	deepCopy,
 } from 'n8n-workflow';
 
+import { isToolsInstance, isBaseChatMemory, isBaseChatMessageHistory } from '../guards';
 import {
 	validateEmbedQueryInput,
 	validateEmbedDocumentsInput,
-} from './embeddings/embeddingInputValidation';
-import { logAiEvent, isToolsInstance, isBaseChatMemory, isBaseChatMessageHistory } from './helpers';
-import { N8nBinaryLoader } from './N8nBinaryLoader';
-import { N8nJsonLoader } from './N8nJsonLoader';
+} from './embeddings-input-validation';
+import { logAiEvent } from './log-ai-event';
+import { N8nBinaryLoader } from './n8n-binary-loader';
+import { N8nJsonLoader } from './n8n-json-loader';
 
 export async function callMethodAsync<T>(
 	this: T,
@@ -50,7 +51,7 @@ export async function callMethodAsync<T>(
 	} catch (e) {
 		const connectedNode = parameters.executeFunctions.getNode();
 
-		const error = new NodeOperationError(connectedNode, e, {
+		const error = new NodeOperationError(connectedNode, e as Error, {
 			functionality: 'configuration-node',
 		});
 
@@ -91,7 +92,7 @@ export function callMethodSync<T>(
 		return parameters.method.call(this, ...parameters.arguments);
 	} catch (e) {
 		const connectedNode = parameters.executeFunctions.getNode();
-		const error = new NodeOperationError(connectedNode, e);
+		const error = new NodeOperationError(connectedNode, e as Error);
 		parameters.executeFunctions.addOutputData(
 			parameters.connectionType,
 			parameters.currentNodeRunIndex,

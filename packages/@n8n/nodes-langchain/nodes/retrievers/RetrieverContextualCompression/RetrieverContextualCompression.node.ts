@@ -10,7 +10,7 @@ import {
 	type SupplyData,
 } from 'n8n-workflow';
 
-import { logWrapper } from '@utils/logWrapper';
+import { logWrapper } from '@n8n/ai-node-sdk';
 
 export class RetrieverContextualCompression implements INodeType {
 	description: INodeTypeDescription = {
