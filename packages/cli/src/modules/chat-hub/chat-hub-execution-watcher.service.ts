@@ -57,11 +57,11 @@ export class ChatHubExecutionWatcherService {
 		const context = await this.executionStore.get(executionId);
 		if (!context) return;
 
-		if (!context.isResuming) return;
+		if (!context.awaitingResume) return;
 
 		this.logger.debug('Chat hub execution resumed, notifying frontend', { executionId });
 
-		await this.executionStore.update(executionId, { isResuming: false });
+		await this.executionStore.update(executionId, { awaitingResume: false });
 
 		// External resume (button click, Wait node, Form, Slack HITL, etc.)
 		// Create new message for the follow-up response
@@ -176,8 +176,11 @@ export class ChatHubExecutionWatcherService {
 			}
 		}
 
-		// Not auto-resuming - mark context as resuming for external resume trigger
-		await this.executionStore.markAsResuming(executionId);
+		// Not auto-resuming - mark context as pending resume from external trigger
+		await this.executionStore.update(executionId, {
+			awaitingResume: true,
+			createMessageOnResume: true,
+		});
 	}
 
 	/**
@@ -196,11 +199,11 @@ export class ChatHubExecutionWatcherService {
 		const newMessageId = uuidv4();
 		await this.createNextMessage(context, newMessageId, execution.id);
 
-		// Update context with new message ID and mark as waiting
+		// Update context with new message ID and mark pending resume
 		await this.executionStore.update(execution.id, {
 			previousMessageId: context.messageId,
 			messageId: newMessageId,
-			isResuming: true,
+			awaitingResume: true,
 			createMessageOnResume: false,
 		});
 

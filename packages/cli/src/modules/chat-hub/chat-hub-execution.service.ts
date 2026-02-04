@@ -382,7 +382,7 @@ export class ChatHubExecutionService {
 			previousMessageId,
 			model,
 			responseMode,
-			isResuming: false,
+			awaitingResume: false,
 			createMessageOnResume: false,
 			workflowId: workflowData.id,
 		});
@@ -452,7 +452,7 @@ export class ChatHubExecutionService {
 		await this.chatHubExecutionStore.update(execution.id, {
 			previousMessageId,
 			messageId,
-			isResuming: true,
+			awaitingResume: true,
 			createMessageOnResume: false,
 		});
 

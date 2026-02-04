@@ -49,7 +49,7 @@ describe('ChatHubExecutionWatcherService', () => {
 			previousMessageId: PREV_MESSAGE_ID,
 			model: { provider: 'n8n', workflowId: WORKFLOW_ID },
 			responseMode: 'lastNode',
-			isResuming: false,
+			awaitingResume: false,
 			createMessageOnResume: false,
 			...overrides,
 		}) as ChatHubExecutionContext;
@@ -81,7 +81,7 @@ describe('ChatHubExecutionWatcherService', () => {
 		});
 
 		it('should skip if not resuming', async () => {
-			executionStore.get.mockResolvedValue(createContext({ isResuming: false }));
+			executionStore.get.mockResolvedValue(createContext({ awaitingResume: false }));
 
 			await service.handleExecutionResumed(createResumeContext(EXECUTION_ID));
 
@@ -89,12 +89,12 @@ describe('ChatHubExecutionWatcherService', () => {
 		});
 
 		it('should notify frontend when execution resumes', async () => {
-			const context = createContext({ isResuming: true });
+			const context = createContext({ awaitingResume: true });
 			executionStore.get.mockResolvedValue(context);
 
 			await service.handleExecutionResumed(createResumeContext(EXECUTION_ID));
 
-			expect(executionStore.update).toHaveBeenCalledWith(EXECUTION_ID, { isResuming: false });
+			expect(executionStore.update).toHaveBeenCalledWith(EXECUTION_ID, { awaitingResume: false });
 			expect(chatStreamService.startExecution).toHaveBeenCalledWith(USER_ID, SESSION_ID);
 			expect(chatStreamService.startStream).toHaveBeenCalledWith({
 				userId: USER_ID,
@@ -108,7 +108,7 @@ describe('ChatHubExecutionWatcherService', () => {
 
 		it('should create new message on resume when createMessageOnResume is true', async () => {
 			const context = createContext({
-				isResuming: true,
+				awaitingResume: true,
 				createMessageOnResume: true,
 				messageId: WAITING_MESSAGE_ID,
 			});
@@ -340,7 +340,10 @@ describe('ChatHubExecutionWatcherService', () => {
 					createAfterContext(EXECUTION_ID, createRunData({ status: 'waiting' })),
 				);
 
-				expect(executionStore.markAsResuming).toHaveBeenCalledWith(EXECUTION_ID);
+				expect(executionStore.update).toHaveBeenCalledWith(EXECUTION_ID, {
+					awaitingResume: true,
+					createMessageOnResume: true,
+				});
 			});
 
 			describe('auto-resume in responseNodes mode', () => {
@@ -387,7 +390,7 @@ describe('ChatHubExecutionWatcherService', () => {
 					expect(executionStore.update).toHaveBeenCalledWith(EXECUTION_ID, {
 						previousMessageId: MESSAGE_ID,
 						messageId: MOCK_NEW_MESSAGE_ID,
-						isResuming: true,
+						awaitingResume: true,
 						createMessageOnResume: false,
 					});
 
@@ -414,7 +417,6 @@ describe('ChatHubExecutionWatcherService', () => {
 					);
 
 					expect(executionManager.runWorkflow).toHaveBeenCalled();
-					expect(executionStore.markAsResuming).not.toHaveBeenCalled();
 				});
 
 				it('should not auto-resume when chat node is in sendAndWait mode', async () => {
@@ -432,7 +434,10 @@ describe('ChatHubExecutionWatcherService', () => {
 					);
 
 					expect(executionManager.runWorkflow).not.toHaveBeenCalled();
-					expect(executionStore.markAsResuming).toHaveBeenCalledWith(EXECUTION_ID);
+					expect(executionStore.update).toHaveBeenCalledWith(EXECUTION_ID, {
+						awaitingResume: true,
+						createMessageOnResume: true,
+					});
 				});
 
 				it('should mark as resuming when execution not found', async () => {
@@ -445,7 +450,10 @@ describe('ChatHubExecutionWatcherService', () => {
 						createAfterContext(EXECUTION_ID, createRunData({ status: 'waiting' })),
 					);
 
-					expect(executionStore.markAsResuming).toHaveBeenCalledWith(EXECUTION_ID);
+					expect(executionStore.update).toHaveBeenCalledWith(EXECUTION_ID, {
+						awaitingResume: true,
+						createMessageOnResume: true,
+					});
 				});
 			});
 		});

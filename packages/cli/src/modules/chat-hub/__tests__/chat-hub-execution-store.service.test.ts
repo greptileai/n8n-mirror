@@ -24,7 +24,7 @@ const createContext = (overrides?: Partial<ChatHubExecutionContext>): ChatHubExe
 	previousMessageId: PREV_MESSAGE_ID,
 	model: { provider: 'n8n', workflowId: WORKFLOW_ID },
 	responseMode: 'lastNode',
-	isResuming: false,
+	awaitingResume: false,
 	createMessageOnResume: false,
 	...overrides,
 });
@@ -114,10 +114,10 @@ describe('ChatHubExecutionStore', () => {
 				const context = createContext();
 				await store.register(context);
 
-				await store.update(EXECUTION_ID, { isResuming: true, messageId: 'new-message-id' });
+				await store.update(EXECUTION_ID, { awaitingResume: true, messageId: 'new-message-id' });
 
 				const updated = await store.get(EXECUTION_ID);
-				expect(updated?.isResuming).toBe(true);
+				expect(updated?.awaitingResume).toBe(true);
 				expect(updated?.messageId).toBe('new-message-id');
 				// Original fields should be preserved
 				expect(updated?.sessionId).toBe(SESSION_ID);
@@ -125,7 +125,7 @@ describe('ChatHubExecutionStore', () => {
 			});
 
 			it('should log warning and do nothing for non-existent execution', async () => {
-				await store.update('non-existent', { isResuming: true });
+				await store.update('non-existent', { awaitingResume: true });
 
 				expect(logger.warn).toHaveBeenCalledWith(
 					'Attempted to update non-existent execution context: non-existent',
@@ -140,7 +140,7 @@ describe('ChatHubExecutionStore', () => {
 				jest.advanceTimersByTime(30 * 60 * 1000);
 
 				// Update should reset the timer
-				await store.update(EXECUTION_ID, { isResuming: true });
+				await store.update(EXECUTION_ID, { awaitingResume: true });
 
 				// Fast-forward another 30 minutes (total 60 minutes from start)
 				jest.advanceTimersByTime(30 * 60 * 1000);
@@ -155,27 +155,6 @@ describe('ChatHubExecutionStore', () => {
 				// Now should be cleaned up
 				const afterCleanup = await store.get(EXECUTION_ID);
 				expect(afterCleanup).toBeNull();
-			});
-		});
-
-		describe('markAsResuming', () => {
-			it('should set isResuming and createMessageOnResume to true', async () => {
-				const context = createContext({ isResuming: false, createMessageOnResume: false });
-				await store.register(context);
-
-				await store.markAsResuming(EXECUTION_ID);
-
-				const updated = await store.get(EXECUTION_ID);
-				expect(updated?.isResuming).toBe(true);
-				expect(updated?.createMessageOnResume).toBe(true);
-			});
-
-			it('should do nothing for non-existent execution', async () => {
-				await store.markAsResuming('non-existent');
-
-				expect(logger.warn).toHaveBeenCalledWith(
-					'Attempted to update non-existent execution context: non-existent',
-				);
 			});
 		});
 
@@ -293,11 +272,11 @@ describe('ChatHubExecutionStore', () => {
 				expect((await store.get('333'))?.messageId).toBe('msg-3');
 
 				// Update one
-				await store.update('222', { isResuming: true });
+				await store.update('222', { awaitingResume: true });
 
-				expect((await store.get('111'))?.isResuming).toBe(false);
-				expect((await store.get('222'))?.isResuming).toBe(true);
-				expect((await store.get('333'))?.isResuming).toBe(false);
+				expect((await store.get('111'))?.awaitingResume).toBe(false);
+				expect((await store.get('222'))?.awaitingResume).toBe(true);
+				expect((await store.get('333'))?.awaitingResume).toBe(false);
 
 				// Remove one
 				await store.remove('111');
@@ -462,11 +441,11 @@ describe('ChatHubExecutionStore', () => {
 					redisClientService,
 				);
 
-				await store.update(EXECUTION_ID, { isResuming: true });
+				await store.update(EXECUTION_ID, { awaitingResume: true });
 
 				expect(mockRedisClient.set).toHaveBeenCalledWith(
 					`n8n:chat-hub:exec:${EXECUTION_ID}`,
-					expect.stringContaining('"isResuming":true'),
+					expect.stringContaining('"awaitingResume":true'),
 					'EX',
 					3600,
 				);
@@ -486,7 +465,7 @@ describe('ChatHubExecutionStore', () => {
 					redisClientService,
 				);
 
-				await store.update(EXECUTION_ID, { isResuming: true });
+				await store.update(EXECUTION_ID, { awaitingResume: true });
 
 				expect(logger.warn).toHaveBeenCalledWith(
 					`Attempted to update non-existent execution context: ${EXECUTION_ID}`,
@@ -532,33 +511,6 @@ describe('ChatHubExecutionStore', () => {
 				expect(logger.error).toHaveBeenCalledWith(
 					`Failed to delete Redis context for execution ${EXECUTION_ID}`,
 					expect.any(Object),
-				);
-
-				store.shutdown();
-			});
-		});
-
-		describe('markAsResuming', () => {
-			it('should update isResuming and createMessageOnResume in Redis', async () => {
-				const context = createContext();
-				mockRedisClient.get.mockResolvedValue(JSON.stringify(context));
-
-				const store = new ChatHubExecutionStore(
-					logger,
-					instanceSettings,
-					executionsConfig,
-					globalConfig,
-					chatHubConfig,
-					redisClientService,
-				);
-
-				await store.markAsResuming(EXECUTION_ID);
-
-				expect(mockRedisClient.set).toHaveBeenCalledWith(
-					`n8n:chat-hub:exec:${EXECUTION_ID}`,
-					expect.stringMatching(/"isResuming":true.*"createMessageOnResume":true/),
-					'EX',
-					3600,
 				);
 
 				store.shutdown();

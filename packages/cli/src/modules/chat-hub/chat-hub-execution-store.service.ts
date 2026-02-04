@@ -30,8 +30,8 @@ export interface ChatHubExecutionContext {
 	model: ChatHubConversationModel;
 	/** Response mode: 'lastNode' or 'responseNodes' */
 	responseMode: NonStreamingResponseMode;
-	/** Set true if this execution is resuming now */
-	isResuming: boolean;
+	/** True when execution is waiting to be resumed later */
+	awaitingResume: boolean;
 	/** True if a new message needs to be created when execution resumes (resume caused by chat-hub external reasons) */
 	createMessageOnResume: boolean;
 	/** Workflow ID (for cleanup of temporary workflows) */
@@ -119,13 +119,6 @@ export class ChatHubExecutionStore {
 			// Reset cleanup timer
 			this.scheduleCleanup(executionId);
 		}
-	}
-
-	/**
-	 * Mark an execution as resuming from an external trigger (button click, Wait node, Form, etc.)
-	 */
-	async markAsResuming(executionId: string): Promise<void> {
-		await this.update(executionId, { isResuming: true, createMessageOnResume: true });
 	}
 
 	/**
