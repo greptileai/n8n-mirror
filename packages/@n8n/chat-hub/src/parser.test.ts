@@ -1,3 +1,5 @@
+/* eslint-disable n8n-local-rules/no-json-parse-json-stringify */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import type { ChatMessageContentChunk } from '@n8n/api-types';
 import assert from 'assert';
 
@@ -265,5 +267,71 @@ describe(appendChunkToParsedMessageItems, () => {
 		expect(items[1].type).toBe('artifact-create');
 		assert(items[1].type === 'artifact-create');
 		expect(items[1].isIncomplete).toBe(false);
+	});
+
+	describe('immutability (pure function behavior)', () => {
+		it('should not mutate input items array with incomplete commands', () => {
+			const originalItems: ChatMessageContentChunk[] = [
+				{
+					type: 'artifact-create',
+					content: '<command:artifact-create>\n<title>Test',
+					command: { title: 'Test', type: '', content: '' },
+					isIncomplete: true,
+				},
+			];
+
+			// Deep clone to compare later
+			const clonedOriginal = JSON.parse(JSON.stringify(originalItems));
+
+			const result = appendChunkToParsedMessageItems(
+				originalItems,
+				'</title>\n<type>md</type>\n<content>Content</content>\n</command:artifact-create>',
+			);
+
+			// Original should remain unchanged
+			expect(originalItems).toEqual(clonedOriginal);
+
+			// Result should have the updated item
+			expect(result).toHaveLength(1);
+			assert(result[0].type === 'artifact-create');
+			expect(result[0].isIncomplete).toBe(false);
+			expect(result[0].command.type).toBe('md');
+		});
+
+		it('should not mutate hidden items', () => {
+			const originalItems: ChatMessageContentChunk[] = [
+				{ type: 'text', content: 'hello' },
+				{ type: 'hidden', content: '<com' },
+			];
+
+			const clonedOriginal = JSON.parse(JSON.stringify(originalItems));
+
+			const result = appendChunkToParsedMessageItems(originalItems, 'mand:artifact-create>');
+
+			// Original should remain unchanged
+			expect(originalItems).toEqual(clonedOriginal);
+
+			// Result should have parsed the command
+			expect(result).toHaveLength(2);
+			expect(result[0].type).toBe('text');
+			expect(result[1].type).toBe('artifact-create');
+		});
+
+		it('should not mutate text items when appending more text', () => {
+			const originalItems: ChatMessageContentChunk[] = [{ type: 'text', content: 'hello' }];
+
+			const clonedOriginal = JSON.parse(JSON.stringify(originalItems));
+
+			const result = appendChunkToParsedMessageItems(originalItems, ' world');
+
+			// Original should remain unchanged
+			expect(originalItems).toEqual(clonedOriginal);
+			expect(originalItems[0].content).toBe('hello');
+
+			// Result should have concatenated text
+			expect(result).toHaveLength(1);
+			expect(result[0].type).toBe('text');
+			expect(result[0].content).toBe('hello world');
+		});
 	});
 });

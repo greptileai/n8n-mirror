@@ -20,9 +20,9 @@ export function appendChunkToParsedMessageItems(
 			remaining = lastItem.content + chunk;
 			result.pop(); // Remove it so we can re-parse
 		} else if (lastItem.type !== 'text' && lastItem.isIncomplete) {
-			// Append chunk to the incomplete command's content
-			lastItem.content += chunk;
-			remaining = lastItem.content;
+			// Incomplete command - append chunk and re-parse
+			// Don't mutate the original item, create new content string
+			remaining = lastItem.content + chunk;
 			result.pop(); // Remove it so we can re-parse
 		}
 	}
@@ -109,7 +109,8 @@ function addTextToResult(result: ChatMessageContentChunk[], textContent: string)
 	if (result.length > 0) {
 		const lastItem = result[result.length - 1];
 		if (lastItem.type === 'text') {
-			lastItem.content += textContent;
+			// Don't mutate the original item, create a new one
+			result[result.length - 1] = { type: 'text', content: lastItem.content + textContent };
 			return;
 		}
 	}
