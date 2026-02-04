@@ -110,7 +110,7 @@ export class ChatHubExecutionWatcherService {
 		const context = await this.executionStore.get(executionId);
 		if (!context) return; // Not a tracked chat hub execution
 
-		this.logger.debug('Handling workflow execution completition', { executionId });
+		this.logger.debug('Handling workflow execution completion', { executionId });
 
 		if (!['success', 'waiting', 'canceled'].includes(runData.status)) {
 			const errorMessage =
