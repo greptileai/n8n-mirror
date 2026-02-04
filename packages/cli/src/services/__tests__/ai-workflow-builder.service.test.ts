@@ -79,6 +79,7 @@ describe('WorkflowBuilderService', () => {
 		(mockLicense.loadCertStr as jest.Mock).mockResolvedValue('test-cert');
 		(mockLicense.getConsumerId as jest.Mock).mockReturnValue('test-consumer-id');
 		(mockInstanceSettings.instanceId as unknown) = 'test-instance-id';
+		(mockInstanceSettings.generatedTypesDir as unknown) = undefined;
 		mockConfig.aiAssistant = { baseUrl: '' };
 
 		// Reset the mocked AiWorkflowBuilderService
@@ -132,6 +133,7 @@ describe('WorkflowBuilderService', () => {
 				expect.any(String), // n8nVersion
 				expect.any(Function), // onCreditsUpdated callback
 				expect.any(Function), // onTelemetryEvent callback
+				undefined, // generatedTypesDir
 				expect.any(Function), // resourceLocatorCallbackFactory
 			);
 
@@ -175,6 +177,7 @@ describe('WorkflowBuilderService', () => {
 				expect.any(String), // n8nVersion
 				expect.any(Function), // onCreditsUpdated callback
 				expect.any(Function), // onTelemetryEvent callback
+				undefined, // generatedTypesDir
 				expect.any(Function), // resourceLocatorCallbackFactory
 			);
 		});
