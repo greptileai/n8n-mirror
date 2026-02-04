@@ -50,6 +50,7 @@ import {
 	type ChatHubStreamError,
 	type ChatHubExecutionBegin,
 	type ChatHubExecutionEnd,
+	type ChatMessageContentChunk,
 } from '@n8n/api-types';
 import type {
 	CredentialsMap,
@@ -74,7 +75,7 @@ import { deepCopy, type INode } from 'n8n-workflow';
 import { convertFileToBinaryData } from '@/app/utils/fileUtils';
 import { ResponseError } from '@n8n/rest-api-client';
 import { STORES } from '@n8n/stores/constants';
-import { appendChunkToParsedMessageItems, type ChatMessageContentChunk } from '@n8n/chat-hub';
+import { appendChunkToParsedMessageItems } from '@n8n/chat-hub';
 
 export const useChatStore = defineStore(STORES.CHAT_HUB, () => {
 	const rootStore = useRootStore();
