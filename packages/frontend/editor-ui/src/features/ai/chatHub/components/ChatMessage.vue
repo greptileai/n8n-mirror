@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import ChatAgentAvatar from '@/features/ai/chatHub/components/ChatAgentAvatar.vue';
 import ChatTypingIndicator from '@/features/ai/chatHub/components/ChatTypingIndicator.vue';
-import type { AgentIconOrEmoji, ChatMessageId, ChatModelDto } from '@n8n/api-types';
+import type {
+	AgentIconOrEmoji,
+	ChatMessageContentChunk,
+	ChatMessageId,
+	ChatModelDto,
+} from '@n8n/api-types';
 import { N8nButton, N8nIcon, N8nIconButton, N8nInput } from '@n8n/design-system';
 import { useSpeechSynthesis } from '@vueuse/core';
 import {
@@ -23,7 +28,6 @@ import { useDeviceSupport } from '@n8n/composables/useDeviceSupport';
 import { useI18n } from '@n8n/i18n';
 import ChatMarkdownChunk from '@/features/ai/chatHub/components/ChatMarkdownChunk.vue';
 import CopyButton from '@/features/ai/chatHub/components/CopyButton.vue';
-import { parseMessage, type ParsedMessageItem } from '@n8n/chat-hub';
 
 interface MergedAttachment {
 	isNew: boolean;
@@ -101,9 +105,12 @@ const activeCodeBlockTeleport = computed<{
 	return null;
 });
 
-const parsedContent = computed(() => parseMessage(message));
 const messageChunks = computed(() =>
-	parsedContent.value.flatMap<ParsedMessageItem>((chunk, index, arr) => {
+	message.content.flatMap<ChatMessageContentChunk>((chunk, index, arr) => {
+		if (chunk.type === 'hidden') {
+			return [];
+		}
+
 		if (chunk.type !== 'text') {
 			const prev = arr[index - 1];
 			return prev?.type === chunk.type && prev.command.title === chunk.command.title ? [] : [chunk]; // dedupe command

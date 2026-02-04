@@ -27,7 +27,6 @@ import {
 	type ChatHubLLMProvider,
 	PROVIDER_CREDENTIAL_TYPE_MAP,
 	type ChatHubConversationModel,
-	type ChatHubMessageDto,
 	type ChatMessageId,
 	type ChatHubSendMessageRequest,
 	type ChatModelDto,
@@ -56,6 +55,7 @@ import { useFileDrop } from '@/features/ai/chatHub/composables/useFileDrop';
 import {
 	type ChatHubConversationModelWithCachedDisplayName,
 	chatHubConversationModelWithCachedDisplayNameSchema,
+	type ChatMessage as ChatMessageType,
 	type MessagingState,
 } from '@/features/ai/chatHub/chat.types';
 import { useI18n } from '@n8n/i18n';
@@ -67,6 +67,7 @@ import ChatGreetings from './components/ChatGreetings.vue';
 import { useChatPushHandler } from './composables/useChatPushHandler';
 import { useResizablePanel } from '@/app/composables/useResizablePanel';
 import ChatArtifactViewer from './components/ChatArtifactViewer.vue';
+import { collectChatArtifacts } from '@n8n/chat-hub';
 
 const router = useRouter();
 const route = useRoute();
@@ -276,7 +277,9 @@ const { credentialsByProvider, selectCredential } = useChatCredentials(
 );
 
 const chatMessages = computed(() => chatStore.getActiveMessages(sessionId.value));
-const currentArtifacts = computed(() => chatStore.artifactsBySession.get(sessionId.value) ?? []);
+const currentArtifacts = computed(() =>
+	collectChatArtifacts(chatMessages.value.flatMap((message) => message.content)),
+);
 const selectedArtifact = computed(() => {
 	const artifacts = currentArtifacts.value;
 	if (artifacts.length === 0) return null;
@@ -619,7 +622,7 @@ async function handleEditMessage(
 	editingMessageId.value = undefined;
 }
 
-async function handleRegenerateMessage(message: ChatHubMessageDto) {
+async function handleRegenerateMessage(message: ChatMessageType) {
 	if (
 		isResponding.value ||
 		message.type !== 'ai' ||

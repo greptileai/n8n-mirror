@@ -392,12 +392,28 @@ export interface ChatHubSessionDto {
 	tools: INode[];
 }
 
+export type ChatMessageContentChunk =
+	| { type: 'text'; content: string }
+	| { type: 'hidden'; content: string }
+	| {
+			type: 'artifact-create';
+			content: string;
+			command: ChatArtifactCreateCommand;
+			isIncomplete: boolean;
+	  }
+	| {
+			type: 'artifact-edit';
+			content: string;
+			command: ChatArtifactEditCommand;
+			isIncomplete: boolean;
+	  };
+
 export interface ChatHubMessageDto {
 	id: ChatMessageId;
 	sessionId: ChatSessionId;
 	type: ChatHubMessageType;
 	name: string;
-	content: string;
+	content: ChatMessageContentChunk[];
 	provider: ChatHubProvider | null;
 	model: string | null;
 	workflowId: string | null;
@@ -553,21 +569,12 @@ export interface ChatArtifact {
 	 */
 	type: string;
 	content: string;
-	/**
-	 * Whether the artifact is complete or not (for streaming)
-	 */
-	isIncomplete: boolean;
-	/**
-	 * ID of the message that last updated this artifact
-	 */
-	updatedIn: ChatMessageId;
 }
 
 export interface ChatArtifactCreateCommand {
 	title: string;
 	type: string;
 	content: string;
-	isIncomplete: boolean;
 }
 
 export interface ChatArtifactEditCommand {
@@ -575,5 +582,4 @@ export interface ChatArtifactEditCommand {
 	oldString: string;
 	newString: string;
 	replaceAll: boolean;
-	isIncomplete: boolean;
 }

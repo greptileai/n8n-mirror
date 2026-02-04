@@ -66,7 +66,7 @@ import {
 } from './chat-hub.types';
 import { getMaxContextWindowTokens } from './context-limits';
 import { inE2ETests } from '../../constants';
-import { reconstructArtifacts } from '@n8n/chat-hub';
+import { parseMessage, collectChatArtifacts } from '@n8n/chat-hub';
 
 @Service()
 export class ChatHubWorkflowService {
@@ -1298,7 +1298,7 @@ Respond the title only:`,
 	}
 
 	private buildArtifactContext(history: ChatHubMessage[]): string {
-		const artifacts = reconstructArtifacts(history);
+		const artifacts = collectChatArtifacts(history.flatMap(parseMessage));
 		if (artifacts.length === 0) {
 			return '';
 		}

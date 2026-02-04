@@ -9,7 +9,7 @@ This package provides shared utility functions and types for the Chat Hub featur
 ## Usage
 
 ```typescript
-import { parseArtifactCreateCommands, reconstructArtifacts } from '@n8n/chat-hub';
+import { parseArtifactCreateCommands, collectChatArtifacts } from '@n8n/chat-hub';
 ```
 
 ## Development

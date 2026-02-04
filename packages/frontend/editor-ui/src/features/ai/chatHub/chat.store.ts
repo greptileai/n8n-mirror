@@ -50,7 +50,6 @@ import {
 	type ChatHubStreamError,
 	type ChatHubExecutionBegin,
 	type ChatHubExecutionEnd,
-	type ChatArtifact,
 } from '@n8n/api-types';
 import type {
 	CredentialsMap,
@@ -75,7 +74,7 @@ import { deepCopy, type INode } from 'n8n-workflow';
 import { convertFileToBinaryData } from '@/app/utils/fileUtils';
 import { ResponseError } from '@n8n/rest-api-client';
 import { STORES } from '@n8n/stores/constants';
-import { reconstructArtifacts } from '@n8n/chat-hub';
+import { appendChunkToParsedMessageItems, type ChatMessageContentChunk } from '@n8n/chat-hub';
 
 export const useChatStore = defineStore(STORES.CHAT_HUB, () => {
 	const rootStore = useRootStore();
@@ -97,7 +96,6 @@ export const useChatStore = defineStore(STORES.CHAT_HUB, () => {
 	const settingsLoading = ref(false);
 	const settings = ref<Record<ChatHubLLMProvider, ChatProviderSettingsDto> | null>(null);
 	const conversationsBySession = ref<Map<ChatSessionId, ChatConversation>>(new Map());
-	const artifactsBySession = ref<Map<ChatSessionId, ChatArtifact[]>>(new Map());
 
 	const getConversation = (sessionId: ChatSessionId): ChatConversation | undefined =>
 		conversationsBySession.value.get(sessionId);
@@ -264,7 +262,7 @@ export const useChatStore = defineStore(STORES.CHAT_HUB, () => {
 			throw new Error(`Message with ID ${messageId} not found in session ${sessionId}`);
 		}
 
-		message.content = content;
+		message.content = [{ type: 'text', content }];
 	}
 
 	function appendMessage(sessionId: ChatSessionId, messageId: ChatMessageId, chunk: string) {
@@ -274,22 +272,14 @@ export const useChatStore = defineStore(STORES.CHAT_HUB, () => {
 			throw new Error(`Message with ID ${messageId} not found in session ${sessionId}`);
 		}
 
-		message.content += chunk;
-		artifactsBySession.value.set(
-			sessionId,
-			reconstructArtifacts(
-				conversationsBySession.value
-					.get(sessionId)
-					?.activeMessageChain.map((c) => conversation.messages[c]) ?? [],
-			),
-		);
+		message.content = appendChunkToParsedMessageItems(message.content, chunk);
 	}
 
 	function updateMessage(
 		sessionId: ChatSessionId,
 		messageId: ChatMessageId,
 		status: ChatHubMessageStatus,
-		content?: string,
+		content?: ChatMessageContentChunk[],
 	) {
 		const conversation = ensureConversation(sessionId);
 		const message = conversation.messages[messageId];
@@ -375,10 +365,6 @@ export const useChatStore = defineStore(STORES.CHAT_HUB, () => {
 			messages,
 			activeMessageChain,
 		});
-		artifactsBySession.value?.set(
-			sessionId,
-			reconstructArtifacts(activeMessageChain.map((i) => messages[i])),
-		);
 		sessions.value.byId[sessionId] = session;
 	}
 
@@ -957,9 +943,9 @@ export const useChatStore = defineStore(STORES.CHAT_HUB, () => {
 
 		// Update the message with error content and status
 		if (message.content) {
-			message.content += '\n\n' + error;
+			message.content = appendChunkToParsedMessageItems(message.content, '\n\n' + error);
 		} else {
-			message.content = error;
+			message.content = [{ type: 'text', content: error }];
 		}
 		message.status = 'error';
 
@@ -1098,7 +1084,7 @@ export const useChatStore = defineStore(STORES.CHAT_HUB, () => {
 			sessionId: data.sessionId,
 			type: 'human',
 			name: 'User',
-			content: data.content,
+			content: [{ type: 'text', content: data.content }],
 			previousMessageId: data.previousMessageId,
 			retryOfMessageId: null,
 			revisionOfMessageId: null,
@@ -1153,7 +1139,7 @@ export const useChatStore = defineStore(STORES.CHAT_HUB, () => {
 			sessionId: data.sessionId,
 			type: 'human',
 			name: originalMessage?.name ?? 'User',
-			content: data.content,
+			content: [{ type: 'text', content: data.content }],
 			previousMessageId: originalMessage?.previousMessageId ?? null,
 			retryOfMessageId: null,
 			revisionOfMessageId: data.revisionOfMessageId,
@@ -1204,7 +1190,6 @@ export const useChatStore = defineStore(STORES.CHAT_HUB, () => {
 		deleteSession,
 		updateToolsInSession,
 		conversationsBySession,
-		artifactsBySession,
 
 		/**
 		 * conversation

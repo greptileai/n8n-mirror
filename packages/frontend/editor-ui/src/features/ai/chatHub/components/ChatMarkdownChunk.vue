@@ -2,10 +2,10 @@
 import VueMarkdown from 'vue-markdown-render';
 import { useChatHubMarkdownOptions } from '@/features/ai/chatHub/composables/useChatHubMarkdownOptions';
 import { ref, useCssModule } from 'vue';
-import type { ParsedMessageItem } from '@n8n/chat-hub';
+import type { ChatMessageContentChunk } from '@n8n/api-types';
 
 const { source, singlePre = false } = defineProps<{
-	source: ParsedMessageItem;
+	source: ChatMessageContentChunk;
 	singlePre?: boolean;
 }>();
 
@@ -50,15 +50,16 @@ defineExpose({
 		@mousemove="handleMouseMove"
 		@mouseleave="handleMouseLeave"
 	/>
+	<div v-else-if="source.type === 'hidden'" />
 	<button
-		v-else-if="source.type === 'artifact-edit' && !source.command.isIncomplete"
+		v-else-if="source.type === 'artifact-edit' && !source.isIncomplete"
 		:class="$style.command"
 		@click="emit('openArtifact', source.command.title)"
 	>
 		Updated <b>{{ source.command.title }}</b>
 	</button>
 	<button
-		v-else-if="!source.command.isIncomplete"
+		v-else-if="!source.isIncomplete"
 		:class="$style.command"
 		@click="emit('openArtifact', source.command.title)"
 	>

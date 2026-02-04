@@ -65,7 +65,10 @@ function handleReadAloud() {
 
 <template>
 	<div :class="$style.actions" data-test-id="chat-message-actions">
-		<CopyButton :content="message.content" data-test-id="chat-message-copy" />
+		<CopyButton
+			:content="message.content.map((c) => c.content).join('\n\n')"
+			data-test-id="chat-message-copy"
+		/>
 		<N8nTooltip
 			v-if="isSpeechSynthesisAvailable && message.type === 'ai'"
 			placement="bottom"
