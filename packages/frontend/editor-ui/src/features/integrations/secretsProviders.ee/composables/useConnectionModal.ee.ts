@@ -35,7 +35,6 @@ export function useConnectionModal(options: UseConnectionModalOptions) {
 
 	// State
 	const providerKey = ref<string | undefined>(options.providerKey?.value);
-	const connectionId = ref<string | undefined>(undefined);
 	const connectionName = ref('');
 	const originalConnectionName = ref('');
 	const connectionNameBlurred = ref(false);
@@ -232,11 +231,8 @@ export function useConnectionModal(options: UseConnectionModalOptions) {
 		if (!providerKey.value) return;
 
 		try {
-			const { id, name, type, settings, projects } = await connection.getConnection(
-				providerKey.value,
-			);
+			const { name, type, settings, projects } = await connection.getConnection(providerKey.value);
 
-			connectionId.value = id;
 			connectionName.value = name;
 			originalConnectionName.value = name;
 			connectionNameBlurred.value = true;
@@ -252,6 +248,7 @@ export function useConnectionModal(options: UseConnectionModalOptions) {
 			selectedProviderType.value = providerTypes.value.find(
 				(providerType) => providerType.type === type,
 			);
+			await connection.testConnection(providerKey.value);
 		} catch (error) {
 			toast.showError(error, i18n.baseText('generic.error'), error?.response?.data?.data.error);
 		}
@@ -270,10 +267,9 @@ export function useConnectionModal(options: UseConnectionModalOptions) {
 			projectIds: [],
 		};
 
-		const createdConnection = await connection.createConnection(connectionData);
+		await connection.createConnection(connectionData);
 
 		// Transition to edit mode after successful creation
-		connectionId.value = createdConnection.id;
 		providerKey.value = connectionName.value.trim();
 
 		// Update saved state
@@ -281,7 +277,7 @@ export function useConnectionModal(options: UseConnectionModalOptions) {
 		originalConnectionName.value = connectionName.value.trim();
 
 		// Test connection automatically
-		if (connectionId.value) {
+		if (providerKey.value) {
 			await connection.testConnection(providerKey.value);
 		}
 
@@ -292,7 +288,7 @@ export function useConnectionModal(options: UseConnectionModalOptions) {
 	 * Updates an existing secrets provider connection
 	 */
 	async function updateExistingConnection(): Promise<boolean> {
-		if (!providerKey.value || !connectionId.value || !selectedProviderType.value) return false;
+		if (!providerKey.value || !selectedProviderType.value) return false;
 
 		const scopeProjectIds = isSharedGlobally.value ? [] : projectIds.value.slice(0, 1);
 		const updateData = {
@@ -310,7 +306,7 @@ export function useConnectionModal(options: UseConnectionModalOptions) {
 		originalIsSharedGlobally.value = isSharedGlobally.value;
 
 		// Test connection automatically
-		await connection.testConnection(connectionId.value);
+		await connection.testConnection(providerKey.value);
 
 		return true;
 	}
