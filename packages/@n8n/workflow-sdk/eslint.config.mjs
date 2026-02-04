@@ -64,12 +64,6 @@ export default defineConfig(
 			'n8n-local-rules/no-interpolation-in-regular-string': 'off',
 			// These identifiers are used as object keys for type mappings
 			'id-denylist': 'off',
-
-			// TODO: Fix these issues incrementally
-			'@typescript-eslint/no-unsafe-assignment': 'warn',
-			'@typescript-eslint/no-unsafe-member-access': 'warn',
-			'@typescript-eslint/no-unsafe-call': 'warn',
-			'@typescript-eslint/no-unsafe-argument': 'warn',
 		},
 	},
 );
