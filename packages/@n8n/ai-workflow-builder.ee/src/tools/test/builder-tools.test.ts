@@ -95,6 +95,60 @@ jest.mock('../validate-configuration.tool', () => ({
 	},
 }));
 
+jest.mock('../get-execution-schema.tool', () => ({
+	GET_EXECUTION_SCHEMA_TOOL: {
+		toolName: 'get_execution_schema',
+		displayTitle: 'Getting execution schema',
+	},
+}));
+
+jest.mock('../get-execution-logs.tool', () => ({
+	GET_EXECUTION_LOGS_TOOL: {
+		toolName: 'get_execution_logs',
+		displayTitle: 'Getting execution logs',
+	},
+}));
+
+jest.mock('../get-expression-data-mapping.tool', () => ({
+	GET_EXPRESSION_DATA_MAPPING_TOOL: {
+		toolName: 'get_expression_data_mapping',
+		displayTitle: 'Getting expression data mapping',
+	},
+}));
+
+jest.mock('../get-workflow-overview.tool', () => ({
+	GET_WORKFLOW_OVERVIEW_TOOL: {
+		toolName: 'get_workflow_overview',
+		displayTitle: 'Getting workflow overview',
+	},
+}));
+
+jest.mock('../get-node-context.tool', () => ({
+	GET_NODE_CONTEXT_TOOL: {
+		toolName: 'get_node_context',
+		displayTitle: 'Getting node context',
+	},
+}));
+
+jest.mock('@/code-builder/constants', () => ({
+	CODE_BUILDER_TEXT_EDITOR_TOOL: {
+		toolName: 'str_replace_based_edit_tool',
+		displayTitle: 'Editing code',
+	},
+	CODE_BUILDER_VALIDATE_TOOL: {
+		toolName: 'validate_workflow',
+		displayTitle: 'Validating workflow',
+	},
+	CODE_BUILDER_GET_NODE_TYPES_TOOL: {
+		toolName: 'get_node_types',
+		displayTitle: 'Getting node types',
+	},
+	CODE_BUILDER_GET_SUGGESTED_NODES_TOOL: {
+		toolName: 'get_suggested_nodes',
+		displayTitle: 'Getting suggested nodes',
+	},
+}));
+
 describe('builder-tools', () => {
 	let parsedNodeTypes: INodeTypeDescription[];
 
@@ -110,12 +164,14 @@ describe('builder-tools', () => {
 				featureFlags: { templateExamples: true },
 			});
 
-			// 17 tools: best_practices, workflow_examples, node_search, node_details, add_node,
+			// 22 tools: best_practices, workflow_examples, node_search, node_details, add_node,
 			// connect_nodes, remove_connection, remove_node, rename_node, update_node_parameters,
 			// get_node_parameter, validate_structure, validate_configuration,
+			// get_execution_schema, get_execution_logs, get_expression_data_mapping,
+			// get_workflow_overview, get_node_context,
 			// + 4 CodeBuilderAgent tools: str_replace_based_edit_tool, validate_workflow,
 			// get_node_types, get_suggested_nodes
-			expect(tools).toHaveLength(17);
+			expect(tools).toHaveLength(22);
 			expect(getAddNodeToolBase).toHaveBeenCalledWith(parsedNodeTypes);
 		});
 
@@ -125,7 +181,7 @@ describe('builder-tools', () => {
 				featureFlags: { templateExamples: false },
 			});
 
-			expect(tools).toHaveLength(16);
+			expect(tools).toHaveLength(21);
 		});
 
 		it('should exclude workflow examples tool when feature flag is not provided', () => {
@@ -133,7 +189,7 @@ describe('builder-tools', () => {
 				nodeTypes: parsedNodeTypes,
 			});
 
-			expect(tools).toHaveLength(16);
+			expect(tools).toHaveLength(21);
 		});
 
 		it('should work with empty node types array', () => {
@@ -141,7 +197,7 @@ describe('builder-tools', () => {
 				nodeTypes: [],
 			});
 
-			expect(tools).toHaveLength(16);
+			expect(tools).toHaveLength(21);
 			expect(getAddNodeToolBase).toHaveBeenCalledWith([]);
 		});
 
