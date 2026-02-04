@@ -1683,7 +1683,6 @@ export function useCanvasOperations() {
 		for (const sticky of stickyNodes) {
 			const stickyRect = getNodeRect(sticky);
 			const stickyLeftEdge = sticky.position[0];
-			const stickyRightEdge = stickyLeftEdge + stickyRect.width;
 			const stickyTop = sticky.position[1];
 			const stickyBottom = stickyTop + stickyRect.height;
 			const overlapsVertically = !(stickyBottom <= affectedMinY || stickyTop >= affectedMaxY);
@@ -1746,18 +1745,16 @@ export function useCanvasOperations() {
 
 			// Classify behavior based on sticky's relationship to insertion point and nodes
 			if (associatedWithMovedNode && overlapsVertically) {
-				// Sticky has nodes that will move - check if insertion point will be inside after movement
+				// Sticky has nodes that will move - check if new node will be close enough to the sticky after movement
 				const stickyLeftAfterMove = stickyLeftEdge + PUSH_NODES_OFFSET;
-				const stickyRightAfterMove = stickyRightEdge + PUSH_NODES_OFFSET;
-				const insertWillBeInsideStickyAfterMove =
-					insertX >= stickyLeftAfterMove && insertX <= stickyRightAfterMove;
+				const newNodeRightEdge = insertX + nodeSize[0];
+				// Calculate distance between new node's right edge and sticky's left edge after move
+				const distanceToStickyAfterMove = stickyLeftAfterMove - newNodeRightEdge;
+				// If distance is less than a third of PUSH_NODES_OFFSET, stretch the sticky to include the new node
+				const isNewNodeCloseToSticky = distanceToStickyAfterMove < PUSH_NODES_OFFSET / 3;
 
-				if (
-					insertCenterInsideSticky &&
-					insertCenterNearStickyCenter &&
-					insertWillBeInsideStickyAfterMove
-				) {
-					// Insertion is between contained nodes - move AND stretch
+				if (insertCenterInsideSticky && insertCenterNearStickyCenter && isNewNodeCloseToSticky) {
+					// Insertion is between contained nodes and close enough - move AND stretch
 					stickiesToMoveAndStretch.push(sticky);
 				} else {
 					// Insertion is outside sticky bounds after move - just move
