@@ -9,6 +9,7 @@ import type superagent from 'superagent';
 import request from 'supertest';
 import { URL } from 'url';
 
+import { AuthHandlerRegistry } from '@/auth/auth-handler.registry';
 import { AuthService } from '@/auth/auth.service';
 import { AUTH_COOKIE_NAME } from '@/constants';
 import { ControllerRegistry } from '@/controller.registry';
@@ -209,8 +210,8 @@ export const setupTestServer = ({
 						break;
 
 					case 'ldap': {
-						const { LdapService } = await import('@/ldap.ee/ldap.service.ee');
-						await import('@/ldap.ee/ldap.controller.ee');
+						const { LdapService } = await import('@/modules/ldap.ee/ldap.service.ee');
+						await import('@/modules/ldap.ee/ldap.controller.ee');
 						testServer.license.enable('feat:ldap');
 						await Container.get(LdapService).init();
 						break;
@@ -324,6 +325,8 @@ export const setupTestServer = ({
 
 			await Container.get(ModuleRegistry).initModules('main');
 			Container.get(ControllerRegistry).activate(app);
+
+			await Container.get(AuthHandlerRegistry).init();
 		}
 	});
 
