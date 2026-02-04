@@ -24,6 +24,13 @@ import type {
 	ValidationIssue,
 	SerializerContext,
 } from './workflow-builder/plugins/types';
+import type {
+	ValidationOptions,
+	ValidationResult,
+	ValidationError,
+	ValidationWarning,
+	ValidationErrorCode,
+} from './validation/index';
 import { generateDeterministicNodeId } from './workflow-builder/string-utils';
 import { addNodeWithSubnodes as addNodeWithSubnodesUtil } from './workflow-builder/subnode-utils';
 import { parseWorkflowJSON } from './workflow-builder/workflow-import';
@@ -487,12 +494,10 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 		this._nodes = newNodes;
 	}
 
-	validate(
-		options: import('./validation/index').ValidationOptions = {},
-	): import('./validation/index').ValidationResult {
+	validate(options: ValidationOptions = {}): ValidationResult {
 		const { ValidationError, ValidationWarning } = require('./validation/index');
-		const errors: Array<import('./validation/index').ValidationError> = [];
-		const warnings: Array<import('./validation/index').ValidationWarning> = [];
+		const errors: Array<ValidationError> = [];
+		const warnings: Array<ValidationWarning> = [];
 
 		// Run plugin-based validators (use provided registry or global)
 		const registry = this._registry ?? pluginRegistry;
@@ -540,15 +545,15 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 	 */
 	private collectValidationIssues(
 		issues: ValidationIssue[],
-		errors: Array<import('./validation/index').ValidationError>,
-		warnings: Array<import('./validation/index').ValidationWarning>,
-		ValidationErrorClass: typeof import('./validation/index').ValidationError,
-		ValidationWarningClass: typeof import('./validation/index').ValidationWarning,
+		errors: Array<ValidationError>,
+		warnings: Array<ValidationWarning>,
+		ValidationErrorClass: typeof ValidationError,
+		ValidationWarningClass: typeof ValidationWarning,
 	): void {
 		for (const issue of issues) {
 			// Cast code to ValidationErrorCode - plugins can use custom codes
 			// that extend the built-in set
-			const code = issue.code as import('./validation/index').ValidationErrorCode;
+			const code = issue.code as ValidationErrorCode;
 			if (issue.severity === 'error') {
 				errors.push(new ValidationErrorClass(code, issue.message, issue.nodeName));
 			} else {

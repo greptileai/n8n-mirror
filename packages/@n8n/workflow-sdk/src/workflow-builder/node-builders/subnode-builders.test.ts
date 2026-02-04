@@ -6,6 +6,9 @@
  */
 
 import type { LanguageModelInstance } from '../../types/base';
+import type * as SubnodeBuildersModule from './subnode-builders';
+import type * as NodeBuilderModule from './node-builder';
+import type * as WorkflowBuilderModule from '../../workflow-builder';
 
 // =============================================================================
 // Tests for Subnode Factory Functions
@@ -13,7 +16,7 @@ import type { LanguageModelInstance } from '../../types/base';
 
 describe('subnode factories', () => {
 	// Import the module - will fail until implemented
-	let subnodeBuilders: typeof import('./subnode-builders');
+	let subnodeBuilders: typeof SubnodeBuildersModule;
 
 	beforeAll(async () => {
 		try {
@@ -217,7 +220,7 @@ describe('subnode factories', () => {
 // =============================================================================
 
 describe('SubnodeConfig type safety', () => {
-	let subnodeBuilders: typeof import('./subnode-builders');
+	let subnodeBuilders: typeof SubnodeBuildersModule;
 
 	beforeAll(async () => {
 		try {
@@ -279,8 +282,8 @@ describe('SubnodeConfig type safety', () => {
 // =============================================================================
 
 describe('subnode integration with node builder', () => {
-	let subnodeBuilders: typeof import('./subnode-builders');
-	let nodeBuilders: typeof import('./node-builder');
+	let subnodeBuilders: typeof SubnodeBuildersModule;
+	let nodeBuilders: typeof NodeBuilderModule;
 
 	beforeAll(async () => {
 		try {
@@ -348,7 +351,7 @@ describe('subnode integration with node builder', () => {
 // =============================================================================
 
 describe('tool() with fromAi() support', () => {
-	let subnodeBuilders: typeof import('./subnode-builders');
+	let subnodeBuilders: typeof SubnodeBuildersModule;
 
 	beforeAll(async () => {
 		try {
@@ -519,9 +522,9 @@ describe('tool() with fromAi() support', () => {
 // =============================================================================
 
 describe('subnode reuse across multiple parents', () => {
-	let subnodeBuilders: typeof import('./subnode-builders');
-	let nodeBuilders: typeof import('./node-builder');
-	let workflowBuilders: typeof import('../../workflow-builder');
+	let subnodeBuilders: typeof SubnodeBuildersModule;
+	let nodeBuilders: typeof NodeBuilderModule;
+	let workflowBuilders: typeof WorkflowBuilderModule;
 
 	beforeAll(async () => {
 		subnodeBuilders = await import('./subnode-builders');

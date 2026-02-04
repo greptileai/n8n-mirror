@@ -8,6 +8,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
+import type * as GenerateTypesModule from '../generate-types/generate-types';
+
 // We'll import these functions once implemented
 // For now, we define the expected interfaces and test structure
 
@@ -336,7 +338,7 @@ const mockTriggerNode: NodeTypeDescription = {
 
 describe('generate-types', () => {
 	// Import the module - will fail until implemented
-	let generateTypes: typeof import('../generate-types/generate-types');
+	let generateTypes: typeof GenerateTypesModule;
 
 	beforeAll(async () => {
 		// Dynamic import to handle module not existing yet

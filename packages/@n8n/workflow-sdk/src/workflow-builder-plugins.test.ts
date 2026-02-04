@@ -6,7 +6,7 @@
  * composite handling, and serialization.
  */
 
-import type { NodeInstance, WorkflowJSON, IfElseComposite } from './types/base';
+import type { NodeInstance, WorkflowJSON, IfElseComposite, GraphNode } from './types/base';
 import { workflow } from './workflow-builder';
 import { splitInBatches } from './workflow-builder/control-flow-builders/split-in-batches';
 import { node, trigger, ifElse, switchCase } from './workflow-builder/node-builders/node-builder';
@@ -875,7 +875,7 @@ describe('WorkflowBuilder plugin integration', () => {
 			});
 
 			const ctx: PluginContext = {
-				nodes: nodesMap as unknown as ReadonlyMap<string, import('./types/base').GraphNode>,
+				nodes: nodesMap as unknown as ReadonlyMap<string, GraphNode>,
 				workflowId: 'test',
 				workflowName: 'Test',
 				settings: {},
@@ -915,7 +915,7 @@ describe('WorkflowBuilder plugin integration', () => {
 			});
 
 			const ctx: PluginContext & { validationOptions?: { allowDisconnectedNodes?: boolean } } = {
-				nodes: nodesMap as unknown as ReadonlyMap<string, import('./types/base').GraphNode>,
+				nodes: nodesMap as unknown as ReadonlyMap<string, GraphNode>,
 				workflowId: 'test',
 				workflowName: 'Test',
 				settings: {},
@@ -978,7 +978,7 @@ describe('WorkflowBuilder plugin integration', () => {
 			});
 
 			const ctx: PluginContext = {
-				nodes: nodesMap as unknown as ReadonlyMap<string, import('./types/base').GraphNode>,
+				nodes: nodesMap as unknown as ReadonlyMap<string, GraphNode>,
 				workflowId: 'test',
 				workflowName: 'Test',
 				settings: {},
@@ -1014,7 +1014,7 @@ describe('WorkflowBuilder plugin integration', () => {
 			});
 
 			const ctx: PluginContext = {
-				nodes: nodesMap as unknown as ReadonlyMap<string, import('./types/base').GraphNode>,
+				nodes: nodesMap as unknown as ReadonlyMap<string, GraphNode>,
 				workflowId: 'test',
 				workflowName: 'Test',
 				settings: {},
@@ -1052,7 +1052,7 @@ describe('WorkflowBuilder plugin integration', () => {
 			});
 
 			const ctx: PluginContext = {
-				nodes: nodesMap as unknown as ReadonlyMap<string, import('./types/base').GraphNode>,
+				nodes: nodesMap as unknown as ReadonlyMap<string, GraphNode>,
 				workflowId: 'test',
 				workflowName: 'Test',
 				settings: {},
@@ -1100,7 +1100,7 @@ describe('WorkflowBuilder plugin integration', () => {
 			});
 
 			const ctx: PluginContext = {
-				nodes: nodesMap as unknown as ReadonlyMap<string, import('./types/base').GraphNode>,
+				nodes: nodesMap as unknown as ReadonlyMap<string, GraphNode>,
 				workflowId: 'test',
 				workflowName: 'Test',
 				settings: {},
@@ -1135,7 +1135,7 @@ describe('WorkflowBuilder plugin integration', () => {
 			});
 
 			const ctx: PluginContext = {
-				nodes: nodesMap as unknown as ReadonlyMap<string, import('./types/base').GraphNode>,
+				nodes: nodesMap as unknown as ReadonlyMap<string, GraphNode>,
 				workflowId: 'test',
 				workflowName: 'Test',
 				settings: {},
@@ -1160,7 +1160,7 @@ describe('WorkflowBuilder plugin integration', () => {
 			});
 
 			const ctx: PluginContext = {
-				nodes: nodesMap as unknown as ReadonlyMap<string, import('./types/base').GraphNode>,
+				nodes: nodesMap as unknown as ReadonlyMap<string, GraphNode>,
 				workflowId: 'test',
 				workflowName: 'Test',
 				settings: {},
@@ -1183,7 +1183,7 @@ describe('WorkflowBuilder plugin integration', () => {
 			});
 
 			const ctx: PluginContext = {
-				nodes: nodesMap as unknown as ReadonlyMap<string, import('./types/base').GraphNode>,
+				nodes: nodesMap as unknown as ReadonlyMap<string, GraphNode>,
 				workflowId: 'test',
 				workflowName: 'Test',
 				settings: {},
@@ -1429,7 +1429,7 @@ describe('WorkflowBuilder plugin integration', () => {
 			});
 
 			const ctx: PluginContext = {
-				nodes: nodesMap as unknown as ReadonlyMap<string, import('./types/base').GraphNode>,
+				nodes: nodesMap as unknown as ReadonlyMap<string, GraphNode>,
 				workflowId: 'test',
 				workflowName: 'Test',
 				settings: {},
@@ -1459,7 +1459,7 @@ describe('WorkflowBuilder plugin integration', () => {
 			};
 
 			const ctx: PluginContext = {
-				nodes: nodesMap as unknown as ReadonlyMap<string, import('./types/base').GraphNode>,
+				nodes: nodesMap as unknown as ReadonlyMap<string, GraphNode>,
 				workflowId: 'test',
 				workflowName: 'Test',
 				settings: {},
@@ -1497,7 +1497,7 @@ describe('WorkflowBuilder plugin integration', () => {
 			};
 
 			const ctx: PluginContext = {
-				nodes: nodesMap as unknown as ReadonlyMap<string, import('./types/base').GraphNode>,
+				nodes: nodesMap as unknown as ReadonlyMap<string, GraphNode>,
 				workflowId: 'test',
 				workflowName: 'Test',
 				settings: {},
@@ -1536,7 +1536,7 @@ describe('WorkflowBuilder plugin integration', () => {
 			};
 
 			const ctx: PluginContext = {
-				nodes: nodesMap as unknown as ReadonlyMap<string, import('./types/base').GraphNode>,
+				nodes: nodesMap as unknown as ReadonlyMap<string, GraphNode>,
 				workflowId: 'test',
 				workflowName: 'Test',
 				settings: {},
