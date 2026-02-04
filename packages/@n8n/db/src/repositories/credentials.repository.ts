@@ -32,6 +32,19 @@ export class CredentialsRepository extends Repository<CredentialsEntity> {
 		return await this.find(findManyOptions);
 	}
 
+	async findManyAndCount(
+		listQueryOptions?: ListQuery.Options & { includeData?: boolean; user?: User },
+		credentialIds?: string[],
+	): Promise<[CredentialsEntity[], number]> {
+		const findManyOptions = this.toFindManyOptions(listQueryOptions);
+
+		if (credentialIds) {
+			findManyOptions.where = { ...findManyOptions.where, id: In(credentialIds) };
+		}
+
+		return await this.findAndCount(findManyOptions);
+	}
+
 	private toFindManyOptions(listQueryOptions?: ListQuery.Options & { includeData?: boolean }) {
 		const findManyOptions: FindManyOptions<CredentialsEntity> = {};
 
