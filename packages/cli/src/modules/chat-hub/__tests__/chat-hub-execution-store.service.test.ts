@@ -86,7 +86,7 @@ describe('ChatHubExecutionStore', () => {
 
 				await store.register(context);
 
-				// Fast-forward 1 hour (EXECUTION_CONTEXT_TTL)
+				// Fast-forward 1 hour (N8N_CHAT_HUB_EXECUTION_CONTEXT_TTL)
 				jest.advanceTimersByTime(60 * 60 * 1000);
 
 				const retrieved = await store.get(EXECUTION_ID);
@@ -218,7 +218,7 @@ describe('ChatHubExecutionStore', () => {
 				// Verify it exists
 				expect(await store.get(EXECUTION_ID)).not.toBeNull();
 
-				// Fast-forward 1 hour (EXECUTION_CONTEXT_TTL)
+				// Fast-forward 1 hour (N8N_CHAT_HUB_EXECUTION_CONTEXT_TTL)
 				jest.advanceTimersByTime(60 * 60 * 1000);
 
 				// Should be cleaned up
