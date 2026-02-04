@@ -344,6 +344,8 @@ function initializeRoute() {
 	}
 
 	// Handle debug mode event binding (data loading is handled by WorkflowLayout)
+	// Always remove first to prevent duplicate listeners, then add only if on debug route
+	canvasEventBus.off('saved:workflow', onSaveFromWithinExecutionDebug);
 	if (route.name === VIEWS.EXECUTION_DEBUG) {
 		canvasEventBus.on('saved:workflow', onSaveFromWithinExecutionDebug);
 	}
@@ -1869,6 +1871,7 @@ onBeforeUnmount(() => {
 	removeExecutionOpenedEventBindings();
 	removeCommandBarEventBindings();
 	unregisterCustomActions();
+	canvasEventBus.off('saved:workflow', onSaveFromWithinExecutionDebug);
 	if (!isDemoRoute.value) {
 		pushConnectionStore.pushDisconnect();
 	}
