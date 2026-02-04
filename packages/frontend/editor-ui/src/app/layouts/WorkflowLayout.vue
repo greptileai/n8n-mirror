@@ -46,11 +46,12 @@ watch(
 );
 
 // Watch for entering debug mode on the same workflow (e.g., from executions tab)
-// The workflowId watch won't trigger because the ID doesn't change
+// The workflowId watch won't trigger because the ID doesn't change.
+// Skip if isLoading is true - initializeWorkflow already handles debug mode.
 watch(
 	isDebugRoute,
 	async (isDebug, wasDebug) => {
-		if (isDebug && !wasDebug) {
+		if (isDebug && !wasDebug && !isLoading.value) {
 			await handleDebugModeRoute();
 		}
 	},
