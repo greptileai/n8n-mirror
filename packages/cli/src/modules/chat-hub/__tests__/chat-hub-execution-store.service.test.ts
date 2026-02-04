@@ -26,7 +26,6 @@ const createContext = (overrides?: Partial<ChatHubExecutionContext>): ChatHubExe
 	responseMode: 'lastNode',
 	isResuming: false,
 	createMessageOnResume: false,
-	timestamp: Date.now(),
 	...overrides,
 });
 

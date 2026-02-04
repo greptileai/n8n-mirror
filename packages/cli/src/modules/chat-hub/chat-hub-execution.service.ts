@@ -51,8 +51,8 @@ export class ChatHubExecutionService {
 		private readonly instanceSettings: InstanceSettings,
 		private readonly chatStreamService: ChatStreamService,
 		private readonly chatHubWorkflowService: ChatHubWorkflowService,
+		private readonly chatHubExecutionStore: ChatHubExecutionStore,
 		private readonly messageRepository: ChatHubMessageRepository,
-		private readonly executionStore: ChatHubExecutionStore,
 	) {
 		this.logger = this.logger.scoped('chat-hub');
 	}
@@ -374,7 +374,7 @@ export class ChatHubExecutionService {
 		const messageId = uuidv4();
 
 		// 2. Register execution context for watcher to handle completion
-		await this.executionStore.register({
+		await this.chatHubExecutionStore.register({
 			executionId,
 			sessionId,
 			userId: user.id,
@@ -384,7 +384,6 @@ export class ChatHubExecutionService {
 			responseMode,
 			isResuming: false,
 			createMessageOnResume: false,
-			timestamp: Date.now(),
 			workflowId: workflowData.id,
 		});
 
@@ -450,7 +449,7 @@ export class ChatHubExecutionService {
 		});
 
 		// Mark as resuming with new message ID
-		await this.executionStore.update(execution.id, {
+		await this.chatHubExecutionStore.update(execution.id, {
 			previousMessageId,
 			messageId,
 			isResuming: true,

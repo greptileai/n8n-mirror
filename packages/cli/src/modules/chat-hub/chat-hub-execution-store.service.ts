@@ -34,8 +34,6 @@ export interface ChatHubExecutionContext {
 	isResuming: boolean;
 	/** True if a new message needs to be created when execution resumes (resume caused by chat-hub external reasons) */
 	createMessageOnResume: boolean;
-	/** Timestamp when the context was registered */
-	timestamp: number;
 	/** Workflow ID (for cleanup of temporary workflows) */
 	workflowId?: string;
 }

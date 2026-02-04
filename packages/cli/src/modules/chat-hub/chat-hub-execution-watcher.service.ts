@@ -1,5 +1,4 @@
 import { Logger } from '@n8n/backend-common';
-import { ExecutionsConfig } from '@n8n/config';
 import { ExecutionRepository, type IExecutionResponse } from '@n8n/db';
 import {
 	OnLifecycleEvent,
@@ -7,16 +6,15 @@ import {
 	type WorkflowExecuteResumeContext,
 } from '@n8n/decorators';
 import { Service } from '@n8n/di';
-import { InstanceSettings } from 'n8n-core';
 import { v4 as uuidv4 } from 'uuid';
 
 import { ChatExecutionManager } from '@/chat/chat-execution-manager';
 
-import { ChatHubExecutionService } from './chat-hub-execution.service';
 import {
 	ChatHubExecutionStore,
 	type ChatHubExecutionContext,
 } from './chat-hub-execution-store.service';
+import { ChatHubExecutionService } from './chat-hub-execution.service';
 import { ChatHubMessageRepository } from './chat-message.repository';
 import { ChatStreamService } from './chat-stream.service';
 import { getLastNodeExecuted, shouldResumeImmediately } from '../../chat/utils';
@@ -38,8 +36,6 @@ export class ChatHubExecutionWatcherService {
 		private readonly executionRepository: ExecutionRepository,
 		private readonly chatStreamService: ChatStreamService,
 		private readonly executionManager: ChatExecutionManager,
-		private readonly executionsConfig: ExecutionsConfig,
-		private readonly instanceSettings: InstanceSettings,
 	) {
 		this.logger = this.logger.scoped('chat-hub');
 	}
@@ -56,14 +52,6 @@ export class ChatHubExecutionWatcherService {
 	@OnLifecycleEvent('workflowExecuteResume')
 	async handleExecutionResumed(ctx: WorkflowExecuteResumeContext): Promise<void> {
 		const { executionId } = ctx;
-
-		const isQueueMode = this.executionsConfig.mode === 'queue';
-		const isWorker = this.instanceSettings.isWorker;
-
-		// In queue mode, only worker should process this event.
-		if (isQueueMode && !isWorker) {
-			return;
-		}
 
 		// Check if this is a tracked chat hub execution
 		const context = await this.executionStore.get(executionId);
@@ -118,14 +106,6 @@ export class ChatHubExecutionWatcherService {
 	@OnLifecycleEvent('workflowExecuteAfter')
 	async handleWorkflowExecuteAfter(ctx: WorkflowExecuteAfterContext): Promise<void> {
 		const { runData, executionId } = ctx;
-
-		const isQueueMode = this.executionsConfig.mode === 'queue';
-		const isWorker = this.instanceSettings.isWorker;
-
-		// In queue mode, only worker should process this event.
-		if (isQueueMode && !isWorker) {
-			return;
-		}
 
 		const context = await this.executionStore.get(executionId);
 		if (!context) return; // Not a tracked chat hub execution

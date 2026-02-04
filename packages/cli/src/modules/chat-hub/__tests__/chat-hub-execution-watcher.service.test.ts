@@ -1,9 +1,7 @@
 import type { Logger } from '@n8n/backend-common';
-import type { ExecutionsConfig } from '@n8n/config';
 import type { ExecutionRepository, IExecutionResponse } from '@n8n/db';
 import type { WorkflowExecuteAfterContext, WorkflowExecuteResumeContext } from '@n8n/decorators';
 import { mock } from 'jest-mock-extended';
-import type { InstanceSettings } from 'n8n-core';
 import type { IRun } from 'n8n-workflow';
 
 import type { ChatExecutionManager } from '@/chat/chat-execution-manager';
@@ -39,32 +37,25 @@ describe('ChatHubExecutionWatcherService', () => {
 	const executionRepository = mock<ExecutionRepository>();
 	const chatStreamService = mock<ChatStreamService>();
 	const executionManager = mock<ChatExecutionManager>();
-	const executionsConfig = mock<ExecutionsConfig>();
-	const instanceSettings = mock<InstanceSettings>();
 
 	let service: ChatHubExecutionWatcherService;
 
-	const createContext = (
-		overrides?: Partial<ChatHubExecutionContext>,
-	): ChatHubExecutionContext => ({
-		executionId: EXECUTION_ID,
-		sessionId: SESSION_ID,
-		userId: USER_ID,
-		messageId: MESSAGE_ID,
-		previousMessageId: PREV_MESSAGE_ID,
-		model: { provider: 'n8n', workflowId: WORKFLOW_ID },
-		responseMode: 'lastNode',
-		isResuming: false,
-		createMessageOnResume: false,
-		timestamp: Date.now(),
-		...overrides,
-	});
+	const createContext = (overrides?: Partial<ChatHubExecutionContext>): ChatHubExecutionContext =>
+		({
+			executionId: EXECUTION_ID,
+			sessionId: SESSION_ID,
+			userId: USER_ID,
+			messageId: MESSAGE_ID,
+			previousMessageId: PREV_MESSAGE_ID,
+			model: { provider: 'n8n', workflowId: WORKFLOW_ID },
+			responseMode: 'lastNode',
+			isResuming: false,
+			createMessageOnResume: false,
+			...overrides,
+		}) as ChatHubExecutionContext;
 
 	beforeEach(() => {
 		jest.clearAllMocks();
-
-		Object.defineProperty(instanceSettings, 'isWorker', { value: false, configurable: true });
-		executionsConfig.mode = 'regular';
 
 		service = new ChatHubExecutionWatcherService(
 			logger,
@@ -74,33 +65,12 @@ describe('ChatHubExecutionWatcherService', () => {
 			executionRepository,
 			chatStreamService,
 			executionManager,
-			executionsConfig,
-			instanceSettings,
 		);
 	});
 
 	describe('handleExecutionResumed', () => {
 		const createResumeContext = (executionId: string): WorkflowExecuteResumeContext =>
 			({ executionId }) as WorkflowExecuteResumeContext;
-
-		it('should skip in queue mode when not a worker', async () => {
-			executionsConfig.mode = 'queue';
-			Object.defineProperty(instanceSettings, 'isWorker', { value: false, configurable: true });
-
-			await service.handleExecutionResumed(createResumeContext(EXECUTION_ID));
-
-			expect(executionStore.get).not.toHaveBeenCalled();
-		});
-
-		it('should process in queue mode when is a worker', async () => {
-			executionsConfig.mode = 'queue';
-			Object.defineProperty(instanceSettings, 'isWorker', { value: true, configurable: true });
-			executionStore.get.mockResolvedValue(createContext({ isResuming: true }));
-
-			await service.handleExecutionResumed(createResumeContext(EXECUTION_ID));
-
-			expect(executionStore.get).toHaveBeenCalledWith(EXECUTION_ID);
-		});
 
 		it('should skip if context not found', async () => {
 			executionStore.get.mockResolvedValue(null);
@@ -201,26 +171,6 @@ describe('ChatHubExecutionWatcherService', () => {
 
 		const createAfterContext = (executionId: string, runData: IRun): WorkflowExecuteAfterContext =>
 			({ executionId, runData }) as WorkflowExecuteAfterContext;
-
-		it('should skip in queue mode when not a worker', async () => {
-			executionsConfig.mode = 'queue';
-			Object.defineProperty(instanceSettings, 'isWorker', { value: false, configurable: true });
-
-			await service.handleWorkflowExecuteAfter(createAfterContext(EXECUTION_ID, createRunData()));
-
-			expect(executionStore.get).not.toHaveBeenCalled();
-		});
-
-		it('should process in queue mode when is a worker', async () => {
-			executionsConfig.mode = 'queue';
-			Object.defineProperty(instanceSettings, 'isWorker', { value: true, configurable: true });
-			executionStore.get.mockResolvedValue(createContext());
-			chatHubExecutionService.extractMessage.mockReturnValue('Hello');
-
-			await service.handleWorkflowExecuteAfter(createAfterContext(EXECUTION_ID, createRunData()));
-
-			expect(executionStore.get).toHaveBeenCalledWith(EXECUTION_ID);
-		});
 
 		it('should skip if context not found', async () => {
 			executionStore.get.mockResolvedValue(null);
