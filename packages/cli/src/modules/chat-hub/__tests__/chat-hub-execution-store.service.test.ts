@@ -1,5 +1,5 @@
 import type { Logger } from '@n8n/backend-common';
-import type { ExecutionsConfig, GlobalConfig } from '@n8n/config';
+import type { ChatHubConfig, ExecutionsConfig, GlobalConfig } from '@n8n/config';
 import { mock } from 'jest-mock-extended';
 import type { InstanceSettings } from 'n8n-core';
 
@@ -37,6 +37,7 @@ describe('ChatHubExecutionStore', () => {
 	const instanceSettings = mock<InstanceSettings>();
 	const executionsConfig = mock<ExecutionsConfig>();
 	const globalConfig = mock<GlobalConfig>();
+	const chatHubConfig = mock<ChatHubConfig>();
 	const redisClientService = mock<RedisClientService>();
 
 	beforeEach(() => {
@@ -46,6 +47,7 @@ describe('ChatHubExecutionStore', () => {
 		Object.defineProperty(instanceSettings, 'isMultiMain', { value: false, configurable: true });
 		executionsConfig.mode = 'regular';
 		globalConfig.redis = { prefix: 'n8n' } as GlobalConfig['redis'];
+		chatHubConfig.executionContextTtl = 3600;
 	});
 
 	afterEach(() => {
@@ -61,6 +63,7 @@ describe('ChatHubExecutionStore', () => {
 				instanceSettings,
 				executionsConfig,
 				globalConfig,
+				chatHubConfig,
 				redisClientService,
 			);
 		});
@@ -330,6 +333,7 @@ describe('ChatHubExecutionStore', () => {
 				instanceSettings,
 				executionsConfig,
 				globalConfig,
+				chatHubConfig,
 				redisClientService,
 			);
 
@@ -347,6 +351,7 @@ describe('ChatHubExecutionStore', () => {
 				instanceSettings,
 				executionsConfig,
 				globalConfig,
+				chatHubConfig,
 				redisClientService,
 			);
 
@@ -362,6 +367,7 @@ describe('ChatHubExecutionStore', () => {
 					instanceSettings,
 					executionsConfig,
 					globalConfig,
+					chatHubConfig,
 					redisClientService,
 				);
 
@@ -388,6 +394,7 @@ describe('ChatHubExecutionStore', () => {
 					instanceSettings,
 					executionsConfig,
 					globalConfig,
+					chatHubConfig,
 					redisClientService,
 				);
 
@@ -407,6 +414,7 @@ describe('ChatHubExecutionStore', () => {
 					instanceSettings,
 					executionsConfig,
 					globalConfig,
+					chatHubConfig,
 					redisClientService,
 				);
 
@@ -424,6 +432,7 @@ describe('ChatHubExecutionStore', () => {
 					instanceSettings,
 					executionsConfig,
 					globalConfig,
+					chatHubConfig,
 					redisClientService,
 				);
 
@@ -449,6 +458,7 @@ describe('ChatHubExecutionStore', () => {
 					instanceSettings,
 					executionsConfig,
 					globalConfig,
+					chatHubConfig,
 					redisClientService,
 				);
 
@@ -471,6 +481,7 @@ describe('ChatHubExecutionStore', () => {
 					instanceSettings,
 					executionsConfig,
 					globalConfig,
+					chatHubConfig,
 					redisClientService,
 				);
 
@@ -492,6 +503,7 @@ describe('ChatHubExecutionStore', () => {
 					instanceSettings,
 					executionsConfig,
 					globalConfig,
+					chatHubConfig,
 					redisClientService,
 				);
 
@@ -510,6 +522,7 @@ describe('ChatHubExecutionStore', () => {
 					instanceSettings,
 					executionsConfig,
 					globalConfig,
+					chatHubConfig,
 					redisClientService,
 				);
 
@@ -534,6 +547,7 @@ describe('ChatHubExecutionStore', () => {
 					instanceSettings,
 					executionsConfig,
 					globalConfig,
+					chatHubConfig,
 					redisClientService,
 				);
 
@@ -556,6 +570,7 @@ describe('ChatHubExecutionStore', () => {
 					instanceSettings,
 					executionsConfig,
 					globalConfig,
+					chatHubConfig,
 					redisClientService,
 				);
 
@@ -574,6 +589,7 @@ describe('ChatHubExecutionStore', () => {
 					instanceSettings,
 					executionsConfig,
 					globalConfig,
+					chatHubConfig,
 					redisClientService,
 				);
 
@@ -600,6 +616,7 @@ describe('ChatHubExecutionStore', () => {
 				instanceSettings,
 				executionsConfig,
 				globalConfig,
+				chatHubConfig,
 				redisClientService,
 			);
 
@@ -621,6 +638,7 @@ describe('ChatHubExecutionStore', () => {
 				instanceSettings,
 				executionsConfig,
 				globalConfig,
+				chatHubConfig,
 				redisClientService,
 			);
 
@@ -642,6 +660,7 @@ describe('ChatHubExecutionStore', () => {
 				instanceSettings,
 				executionsConfig,
 				globalConfig,
+				chatHubConfig,
 				redisClientService,
 			);
 

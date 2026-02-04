@@ -1,5 +1,5 @@
 import type { Logger } from '@n8n/backend-common';
-import type { ExecutionsConfig, GlobalConfig } from '@n8n/config';
+import type { ChatHubConfig, ExecutionsConfig, GlobalConfig } from '@n8n/config';
 import { mock } from 'jest-mock-extended';
 import type { InstanceSettings } from 'n8n-core';
 
@@ -13,6 +13,7 @@ describe('ChatStreamStateService', () => {
 	const instanceSettings = mock<InstanceSettings>();
 	const executionsConfig = mock<ExecutionsConfig>();
 	const globalConfig = mock<GlobalConfig>();
+	const chatHubConfig = mock<ChatHubConfig>();
 	const redisClientService = mock<RedisClientService>();
 
 	beforeEach(() => {
@@ -22,6 +23,8 @@ describe('ChatStreamStateService', () => {
 		Object.defineProperty(instanceSettings, 'isMultiMain', { value: false, configurable: true });
 		executionsConfig.mode = 'regular';
 		globalConfig.redis = { prefix: 'n8n' } as GlobalConfig['redis'];
+		chatHubConfig.streamStateTtl = 300;
+		chatHubConfig.maxBufferedChunks = 1000;
 	});
 
 	afterEach(() => {
@@ -37,6 +40,7 @@ describe('ChatStreamStateService', () => {
 				instanceSettings,
 				executionsConfig,
 				globalConfig,
+				chatHubConfig,
 				redisClientService,
 			);
 		});
@@ -360,6 +364,7 @@ describe('ChatStreamStateService', () => {
 				instanceSettings,
 				executionsConfig,
 				globalConfig,
+				chatHubConfig,
 				redisClientService,
 			);
 
@@ -377,6 +382,7 @@ describe('ChatStreamStateService', () => {
 				instanceSettings,
 				executionsConfig,
 				globalConfig,
+				chatHubConfig,
 				redisClientService,
 			);
 
@@ -392,6 +398,7 @@ describe('ChatStreamStateService', () => {
 					instanceSettings,
 					executionsConfig,
 					globalConfig,
+					chatHubConfig,
 					redisClientService,
 				);
 
@@ -420,6 +427,7 @@ describe('ChatStreamStateService', () => {
 					instanceSettings,
 					executionsConfig,
 					globalConfig,
+					chatHubConfig,
 					redisClientService,
 				);
 
@@ -448,6 +456,7 @@ describe('ChatStreamStateService', () => {
 					instanceSettings,
 					executionsConfig,
 					globalConfig,
+					chatHubConfig,
 					redisClientService,
 				);
 
@@ -467,6 +476,7 @@ describe('ChatStreamStateService', () => {
 					instanceSettings,
 					executionsConfig,
 					globalConfig,
+					chatHubConfig,
 					redisClientService,
 				);
 
@@ -484,6 +494,7 @@ describe('ChatStreamStateService', () => {
 					instanceSettings,
 					executionsConfig,
 					globalConfig,
+					chatHubConfig,
 					redisClientService,
 				);
 
@@ -515,6 +526,7 @@ describe('ChatStreamStateService', () => {
 					instanceSettings,
 					executionsConfig,
 					globalConfig,
+					chatHubConfig,
 					redisClientService,
 				);
 
@@ -538,6 +550,7 @@ describe('ChatStreamStateService', () => {
 					instanceSettings,
 					executionsConfig,
 					globalConfig,
+					chatHubConfig,
 					redisClientService,
 				);
 
@@ -559,6 +572,7 @@ describe('ChatStreamStateService', () => {
 					instanceSettings,
 					executionsConfig,
 					globalConfig,
+					chatHubConfig,
 					redisClientService,
 				);
 
@@ -588,6 +602,7 @@ describe('ChatStreamStateService', () => {
 					instanceSettings,
 					executionsConfig,
 					globalConfig,
+					chatHubConfig,
 					redisClientService,
 				);
 
@@ -620,6 +635,7 @@ describe('ChatStreamStateService', () => {
 					instanceSettings,
 					executionsConfig,
 					globalConfig,
+					chatHubConfig,
 					redisClientService,
 				);
 
@@ -641,6 +657,7 @@ describe('ChatStreamStateService', () => {
 					instanceSettings,
 					executionsConfig,
 					globalConfig,
+					chatHubConfig,
 					redisClientService,
 				);
 

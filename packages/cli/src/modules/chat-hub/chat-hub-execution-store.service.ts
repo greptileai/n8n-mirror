@@ -1,6 +1,6 @@
 import type { ChatHubConversationModel, ChatMessageId, ChatSessionId } from '@n8n/api-types';
 import { Logger } from '@n8n/backend-common';
-import { ExecutionsConfig, GlobalConfig } from '@n8n/config';
+import { ChatHubConfig, ExecutionsConfig, GlobalConfig } from '@n8n/config';
 import { Time } from '@n8n/constants';
 import { OnShutdown } from '@n8n/decorators';
 import { Service } from '@n8n/di';
@@ -41,17 +41,6 @@ export interface ChatHubExecutionContext {
 }
 
 /**
- * TTL for execution context in seconds.
- * This is the max duration for a single non-streaming Workflow Agent execution on Chat hub,
- * including waiting time. Once this TTL expires, the responses produced by these
- * executions won't be captured or sent to the user on frontend.
- * */
-const EXECUTION_CONTEXT_TTL = 60 * 60; // 1 hour
-
-/** TTL for cleanup timers in single-main mode */
-const CLEANUP_DELAY_MS = EXECUTION_CONTEXT_TTL * Time.seconds.toMilliseconds;
-
-/**
  * Service responsible for storing execution context for non-streaming chat hub executions.
  * This enables the event-driven architecture where the watcher service can handle
  * execution completion via lifecycle events.
@@ -65,6 +54,7 @@ export class ChatHubExecutionStore {
 
 	private readonly useRedis: boolean;
 	private readonly redisPrefix: string;
+	private readonly cleanupDelayMs: number;
 	private redisClient: Redis | Cluster | null = null;
 
 	constructor(
@@ -72,11 +62,13 @@ export class ChatHubExecutionStore {
 		private readonly instanceSettings: InstanceSettings,
 		private readonly executionsConfig: ExecutionsConfig,
 		private readonly globalConfig: GlobalConfig,
+		private readonly chatHubConfig: ChatHubConfig,
 		private readonly redisClientService: RedisClientService,
 	) {
 		this.logger = this.logger.scoped('chat-hub');
 		this.useRedis = this.instanceSettings.isMultiMain || this.executionsConfig.mode === 'queue';
 		this.redisPrefix = `${this.globalConfig.redis.prefix}:chat-hub-exec:`;
+		this.cleanupDelayMs = this.chatHubConfig.executionContextTtl * Time.seconds.toMilliseconds;
 
 		if (this.useRedis) {
 			this.redisClient = this.redisClientService.createClient({ type: 'subscriber(n8n)' });
@@ -194,7 +186,7 @@ export class ChatHubExecutionStore {
 		try {
 			await this.redisClient.setex(
 				this.getContextKey(executionId),
-				EXECUTION_CONTEXT_TTL,
+				this.chatHubConfig.executionContextTtl,
 				JSON.stringify(context),
 			);
 		} catch (error) {
@@ -219,7 +211,7 @@ export class ChatHubExecutionStore {
 			this.memoryStore.delete(executionId);
 			this.cleanupTimers.delete(executionId);
 			this.logger.debug(`Cleaned up expired execution context for ${executionId}`);
-		}, CLEANUP_DELAY_MS);
+		}, this.cleanupDelayMs);
 
 		this.cleanupTimers.set(executionId, timer);
 	}
