@@ -1,8 +1,4 @@
-import {
-	createTaskRunnerFilter,
-	filterOutUserCodeErrors,
-	isUserCodeError,
-} from '../filters/task-runner';
+import { createTaskRunnerFilter, isUserCodeError } from '../filters/task-runner';
 import type { ErrorEvent, EventHint, Exception } from '../types';
 
 describe('task-runner filters', () => {
@@ -71,135 +67,17 @@ describe('task-runner filters', () => {
 
 		it('should return false when no stacktrace', () => {
 			const exception: Exception = {};
-
 			expect(isUserCodeError(exception)).toBe(false);
 		});
 
 		it('should return false when no frames', () => {
-			const exception: Exception = {
-				stacktrace: {},
-			};
-
+			const exception: Exception = { stacktrace: {} };
 			expect(isUserCodeError(exception)).toBe(false);
 		});
 
 		it('should return false for empty frames array', () => {
-			const exception: Exception = {
-				stacktrace: {
-					frames: [],
-				},
-			};
-
+			const exception: Exception = { stacktrace: { frames: [] } };
 			expect(isUserCodeError(exception)).toBe(false);
-		});
-	});
-
-	describe('filterOutUserCodeErrors', () => {
-		it('should return true for user code error in event', () => {
-			const event: ErrorEvent = {
-				type: undefined,
-				event_id: '123',
-				exception: {
-					values: [
-						{
-							type: 'ReferenceError',
-							value: 'fetch is not defined',
-							stacktrace: {
-								frames: [
-									{ filename: 'node:vm', function: 'runInContext' },
-									{ filename: 'evalmachine.<anonymous>', function: 'VmCodeWrapper' },
-								],
-							},
-						},
-					],
-				},
-			};
-
-			expect(filterOutUserCodeErrors(event)).toBe(true);
-		});
-
-		it('should return false for platform error in event', () => {
-			const event: ErrorEvent = {
-				type: undefined,
-				event_id: '123',
-				exception: {
-					values: [
-						{
-							type: 'Error',
-							value: 'Internal error',
-							stacktrace: {
-								frames: [
-									{ filename: 'app:///dist/runner.js', function: 'executeTask' },
-									{ filename: 'app:///dist/runner.js', function: 'runForAllItems' },
-								],
-							},
-						},
-					],
-				},
-			};
-
-			expect(filterOutUserCodeErrors(event)).toBe(false);
-		});
-
-		it('should return false when no exception', () => {
-			const event: ErrorEvent = { type: undefined, event_id: '123' };
-
-			expect(filterOutUserCodeErrors(event)).toBe(false);
-		});
-
-		it('should return false when no exception values', () => {
-			const event: ErrorEvent = {
-				type: undefined,
-				event_id: '123',
-				exception: {},
-			};
-
-			expect(filterOutUserCodeErrors(event)).toBe(false);
-		});
-
-		it('should return false when exception values is empty', () => {
-			const event: ErrorEvent = {
-				type: undefined,
-				event_id: '123',
-				exception: { values: [] },
-			};
-
-			expect(filterOutUserCodeErrors(event)).toBe(false);
-		});
-
-		it('should return false for null event', () => {
-			expect(filterOutUserCodeErrors(null as unknown as ErrorEvent)).toBe(false);
-		});
-
-		it('should return false for undefined event', () => {
-			expect(filterOutUserCodeErrors(undefined as unknown as ErrorEvent)).toBe(false);
-		});
-
-		it('should only check first exception value', () => {
-			const event: ErrorEvent = {
-				type: undefined,
-				event_id: '123',
-				exception: {
-					values: [
-						{
-							type: 'Error',
-							value: 'Platform error',
-							stacktrace: {
-								frames: [{ filename: 'app:///dist/runner.js', function: 'main' }],
-							},
-						},
-						{
-							type: 'Error',
-							value: 'User code error',
-							stacktrace: {
-								frames: [{ filename: 'evalmachine.<anonymous>', function: 'userFn' }],
-							},
-						},
-					],
-				},
-			};
-
-			expect(filterOutUserCodeErrors(event)).toBe(false);
 		});
 	});
 
@@ -212,11 +90,6 @@ describe('task-runner filters', () => {
 
 		const createHint = (originalException?: unknown): EventHint => ({
 			originalException,
-		});
-
-		it('should return a function', () => {
-			const filter = createTaskRunnerFilter();
-			expect(typeof filter).toBe('function');
 		});
 
 		it('should filter out user code errors', () => {
@@ -251,19 +124,18 @@ describe('task-runner filters', () => {
 
 		it('should not filter out errors without exception', () => {
 			const filter = createTaskRunnerFilter();
-			const event = createEvent();
-
-			expect(filter(event, createHint())).toBe(false);
+			expect(filter(createEvent(), createHint())).toBe(false);
 		});
 
-		it('should match ErrorFilter signature', () => {
+		it('should not filter out errors with empty exception values', () => {
 			const filter = createTaskRunnerFilter();
-			const event = createEvent();
-			const hint = createHint(new Error('test'));
+			expect(filter(createEvent({ values: [] }), createHint())).toBe(false);
+		});
 
-			// Should accept both event and hint without type errors
-			const result = filter(event, hint);
-			expect(typeof result).toBe('boolean');
+		it('should not filter out null/undefined events', () => {
+			const filter = createTaskRunnerFilter();
+			expect(filter(null as unknown as ErrorEvent, createHint())).toBe(false);
+			expect(filter(undefined as unknown as ErrorEvent, createHint())).toBe(false);
 		});
 	});
 });

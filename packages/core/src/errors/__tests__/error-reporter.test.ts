@@ -1,6 +1,6 @@
 import type { Logger } from '@n8n/backend-common';
-import { QueryFailedError } from '@n8n/typeorm';
 import { createBackendBeforeSend } from '@n8n/sentry-config';
+import { QueryFailedError } from '@n8n/typeorm';
 import type { ErrorEvent } from '@sentry/node';
 import { AxiosError } from 'axios';
 import { mock } from 'jest-mock-extended';

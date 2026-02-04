@@ -2,13 +2,6 @@ import { AxiosError } from 'axios';
 
 import type { IgnoredErrorPattern } from '../types';
 
-/**
- * Default ignored errors for the frontend.
- * These are errors that are typically:
- * - External/transient (network errors)
- * - Expected behavior (ResizeObserver limits)
- * - Editor state issues (CodeMirror range errors)
- */
 export const DEFAULT_IGNORED_ERRORS: readonly IgnoredErrorPattern[] = [
 	{ instanceof: AxiosError },
 	{ instanceof: RangeError, message: /Position \d+ is out of range for changeset of length \d+/ },
@@ -17,13 +10,6 @@ export const DEFAULT_IGNORED_ERRORS: readonly IgnoredErrorPattern[] = [
 	{ instanceof: Error, message: /ResizeObserver/ },
 ] as const;
 
-/**
- * Checks if an error matches any of the ignored patterns.
- *
- * @param originalException - The error to check
- * @param ignoredPatterns - Array of patterns to check against
- * @returns true if the error matches any pattern and should be filtered out
- */
 export function matchesIgnoredPattern(
 	originalException: unknown,
 	ignoredPatterns: readonly IgnoredErrorPattern[] = DEFAULT_IGNORED_ERRORS,

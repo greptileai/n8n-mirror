@@ -2,12 +2,7 @@ import { ApplicationError, BaseError } from 'n8n-workflow';
 
 import type { ErrorEvent } from '../types';
 
-/**
- * Filters out SQLite errors that indicate disk/IO issues.
- * These are environmental problems, not application bugs.
- *
- * @returns true if the error should be filtered out
- */
+/** SQLite disk/IO errors - environmental problems, not application bugs */
 export function isIgnoredSqliteError(originalException: unknown): boolean {
 	return (
 		originalException instanceof Error &&
@@ -17,12 +12,7 @@ export function isIgnoredSqliteError(originalException: unknown): boolean {
 	);
 }
 
-/**
- * Filters out n8n errors that are warnings or info level.
- * These are expected/handled conditions, not bugs.
- *
- * @returns true if the error should be filtered out
- */
+/** n8n errors at warning/info level - expected conditions, not bugs */
 export function isIgnoredN8nError(originalException: unknown): boolean {
 	if (originalException instanceof ApplicationError || originalException instanceof BaseError) {
 		return originalException.level === 'warning' || originalException.level === 'info';
@@ -30,12 +20,7 @@ export function isIgnoredN8nError(originalException: unknown): boolean {
 	return false;
 }
 
-/**
- * Filters out errors with a cause that has warning/info level.
- * Handles underlying errors propagating from dependencies like ai-assistant-sdk.
- *
- * @returns true if the error should be filtered out
- */
+/** Errors with a cause at warning/info level (e.g. from ai-assistant-sdk) */
 export function hasIgnoredCause(originalException: unknown): boolean {
 	if (
 		originalException instanceof Error &&
@@ -49,11 +34,6 @@ export function hasIgnoredCause(originalException: unknown): boolean {
 	return false;
 }
 
-/**
- * Checks if a BaseError should not be reported.
- *
- * @returns true if the error should be filtered out
- */
 export function shouldNotReportBaseError(originalException: unknown): boolean {
 	if (originalException instanceof BaseError) {
 		return !originalException.shouldReport;
@@ -61,10 +41,7 @@ export function shouldNotReportBaseError(originalException: unknown): boolean {
 	return false;
 }
 
-/**
- * Extracts event details from n8n errors (ApplicationError or BaseError).
- * Mutates the event to add level, extra, and tags from the error.
- */
+/** Extracts level, extra, and tags from n8n errors onto the Sentry event */
 export function extractEventDetailsFromN8nError(
 	event: ErrorEvent,
 	originalException: ApplicationError | BaseError,
