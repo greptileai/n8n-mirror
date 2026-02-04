@@ -114,7 +114,19 @@ const onAddColumn = async (column: DataTableColumnCreatePayload): Promise<AddCol
 
 // Handler for source control pull events - stored to ensure proper cleanup
 const handleSourceControlPull = async () => {
-	await initialize();
+	// Bypass cache and fetch fresh data from API after pull
+	loading.value = true;
+	try {
+		const response = await dataTableStore.fetchDataTableDetails(props.id, props.projectId);
+		if (response) {
+			dataTable.value = response;
+			documentTitle.set(`${i18n.baseText('dataTable.dataTables')} > ${response.name}`);
+		}
+	} catch (error) {
+		toast.showError(error, i18n.baseText('dataTable.getDetails.error'));
+	} finally {
+		loading.value = false;
+	}
 };
 
 onMounted(async () => {
