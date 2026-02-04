@@ -25,18 +25,17 @@ pnpm dev
 
 ### Option A: OpenAI-Compatible APIs (easiest)
 
-Use `createOpenAiModel` for providers that follow the OpenAI API format:
+Pass config directly to `supplyModel` for providers that follow the OpenAI API format:
 
 ```typescript
-import { createOpenAiModel, supplyModel } from '@n8n/ai-node-sdk';
+import { supplyModel } from '@n8n/ai-node-sdk';
 
-const model = createOpenAiModel({
+return supplyModel(this, {
+  type: 'openai',
   modelId: 'model-name',
   apiKey: 'your-api-key',
   baseURL: 'https://api.provider.com/v1',  // OpenRouter, DeepSeek, etc.
 });
-
-return supplyModel(this, model);
 ```
 
 ### Option B: Custom API (full control)
@@ -96,25 +95,24 @@ async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyD
 **After (SDK):**
 
 ```typescript
-import { createOpenAiModel, supplyModel } from '@n8n/ai-node-sdk';
+import { supplyModel } from '@n8n/ai-node-sdk';
 
 async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyData> {
   const credentials = await this.getCredentials<{ url: string; apiKey: string }>('openRouterApi');
   const modelName = this.getNodeParameter('model', itemIndex) as string;
   const options = this.getNodeParameter('options', itemIndex, {}) as { temperature?: number };
 
-  const model = createOpenAiModel({
+  return supplyModel(this, {
+    type: 'openai',
     modelId: modelName,
     apiKey: credentials.apiKey,
     baseURL: credentials.url,
     ...options,
   });
-
-  return supplyModel(this, model);
 }
 ```
 
-> **Note:** `createOpenAiModel` uses the SDK's built-in OpenAI-compatible implementation.
+> **Note:** `type: 'openai'` uses the SDK's built-in OpenAI-compatible implementation.
 > Works with OpenRouter, DeepSeek, Azure OpenAI, and any provider following the OpenAI API format.
 
 ---
@@ -226,8 +224,8 @@ export class LmChatImaginaryLlm implements INodeType {
 
 | Before (LangChain) | After (SDK) |
 |--------------------|-------------|
-| `import { ChatOpenAI } from '@langchain/openai'` | `import { createOpenAiModel, supplyModel } from '@n8n/ai-node-sdk'` |
-| `new ChatOpenAI({ ... })` | `createOpenAiModel({ modelId, apiKey, baseURL })` |
+| `import { ChatOpenAI } from '@langchain/openai'` | `import { supplyModel } from '@n8n/ai-node-sdk'` |
+| `new ChatOpenAI({ ... })` | `supplyModel(this, { type: 'openai', ... })` |
 | Custom provider | `class MyModel extends BaseChatModel { ... }` |
 | `return { response: model }` | `return supplyModel(this, model)` |
 | `return { response: logWrapper(memory, this) }` | `return supplyMemoery(this, memory)` |
