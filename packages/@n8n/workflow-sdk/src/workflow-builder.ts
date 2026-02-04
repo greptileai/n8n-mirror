@@ -29,6 +29,7 @@ registerDefaultPlugins(pluginRegistry);
 import { isNodeChain } from './types/base';
 import { isInputTarget, cloneNodeWithId } from './node-builder';
 import { generateDeterministicNodeId } from './workflow-builder/string-utils';
+import { shouldGeneratePinData } from './workflow-builder/pin-data-utils';
 
 /**
  * Internal workflow builder implementation
@@ -670,15 +671,8 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 				continue;
 			}
 
-			// Only generate for nodes that:
-			// 1. Have newCredential() in credentials (or subnodes), OR
-			// 2. Are HTTP Request/Webhook nodes, OR
-			// 3. Are Data Table nodes without a table configured
-			if (
-				!this.hasNewCredential(node) &&
-				!this.isHttpRequestOrWebhook(node.type) &&
-				!this.isDataTableWithoutTable(node)
-			) {
+			// Only generate for nodes that meet pin data criteria
+			if (!shouldGeneratePinData(node)) {
 				continue;
 			}
 
@@ -691,67 +685,6 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 		}
 
 		return this;
-	}
-
-	private hasNewCredential(node: NodeInstance<string, string, unknown>): boolean {
-		// Check main node credentials
-		const creds = node.config?.credentials;
-		if (creds) {
-			const hasNew = Object.values(creds).some(
-				(cred) => cred && typeof cred === 'object' && '__newCredential' in cred,
-			);
-			if (hasNew) return true;
-		}
-
-		// Check subnode credentials recursively
-		const subnodes = node.config?.subnodes;
-		if (subnodes) {
-			for (const value of Object.values(subnodes)) {
-				if (!value) continue;
-				// Handle both single subnodes and arrays
-				const subnodeArray = Array.isArray(value) ? value : [value];
-				for (const subnode of subnodeArray) {
-					// Subnodes have a config property with credentials and potentially nested subnodes
-					if (subnode && typeof subnode === 'object' && 'config' in subnode) {
-						if (this.hasNewCredential(subnode as NodeInstance<string, string, unknown>)) {
-							return true;
-						}
-					}
-				}
-			}
-		}
-
-		return false;
-	}
-
-	private isHttpRequestOrWebhook(type: string): boolean {
-		return type === 'n8n-nodes-base.httpRequest' || type === 'n8n-nodes-base.webhook';
-	}
-
-	private isDataTableWithoutTable(node: NodeInstance<string, string, unknown>): boolean {
-		if (node.type !== 'n8n-nodes-base.dataTable') {
-			return false;
-		}
-
-		// Check if dataTableId parameter has a value
-		const params = node.config?.parameters as Record<string, unknown> | undefined;
-		const dataTableId = params?.dataTableId as { value?: unknown } | undefined;
-
-		// No table configured if dataTableId is missing or has empty value
-		if (!dataTableId?.value) {
-			return true;
-		}
-
-		// Check if value is a placeholder (user needs to fill in)
-		if (
-			typeof dataTableId.value === 'object' &&
-			dataTableId.value !== null &&
-			'__placeholder' in dataTableId.value
-		) {
-			return true;
-		}
-
-		return false;
 	}
 
 	/**
