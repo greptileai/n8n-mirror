@@ -1,7 +1,7 @@
 import { HumanMessage, AIMessage } from '@langchain/core/messages';
 import type { NodeExecutionSchema, Schema } from 'n8n-workflow';
 
-import { createNode, createWorkflow } from '../../../test/test-utils';
+import { createNode, createWorkflow, createMockRunData } from '../../../test/test-utils';
 import { MAX_AI_RESPONSE_CHARS } from '../../constants';
 import type { CoordinationLogEntry } from '../../types/coordination';
 import type { ChatPayload } from '../../workflow-builder-agent';
@@ -120,11 +120,14 @@ describe('buildSimplifiedExecutionContext', () => {
 		it('should detect nodes with empty output', () => {
 			const workflowContext: ChatPayload['workflowContext'] = {
 				executionData: {
-					runData: {
-						'Schedule Trigger1': [],
-						'Get Articles': [],
-						'Split Articles1': [],
-					},
+					runData: createMockRunData({
+						'Schedule Trigger1': [{ json: { triggered: true } }],
+						'Get Articles': [
+							{ json: { article: 'Article 1' } },
+							{ json: { article: 'Article 2' } },
+						],
+						'Split Articles1': [], // Node ran but produced 0 items
+					}),
 					lastNodeExecuted: 'Split Articles1',
 				},
 				executionSchema: [
@@ -152,11 +155,11 @@ describe('buildSimplifiedExecutionContext', () => {
 		it('should detect both incomplete execution and empty output', () => {
 			const workflowContext: ChatPayload['workflowContext'] = {
 				executionData: {
-					runData: {
-						'Schedule Trigger1': [],
-						'Get Articles': [],
-						'Filter Node': [],
-					},
+					runData: createMockRunData({
+						'Schedule Trigger1': [{ json: { triggered: true } }],
+						'Get Articles': [{ json: { article: 'test' } }],
+						'Filter Node': [], // Node ran but produced 0 items
+					}),
 					lastNodeExecuted: 'Filter Node',
 				},
 				executionSchema: [createMockNodeSchema('Filter Node', [])],

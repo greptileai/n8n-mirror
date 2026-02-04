@@ -322,9 +322,12 @@ function countNodeOutputItems(runData: RunData, nodeName: string): number {
 
 	if (!mainOutput || mainOutput.length === 0) return 0;
 
-	// Count items in the first output connection
-	const firstOutputItems = mainOutput[0];
-	return firstOutputItems?.length ?? 0;
+	// Sum items across all output branches (for Switch, If, Router nodes that output to multiple branches)
+	let totalItems = 0;
+	for (const branchOutput of mainOutput) {
+		totalItems += branchOutput?.length ?? 0;
+	}
+	return totalItems;
 }
 
 /**
@@ -455,15 +458,17 @@ export function buildSimplifiedExecutionContext(
 	const activeNodeNames = (workflowNodes ?? []).filter((n) => !n.disabled).map((n) => n.name);
 	const nodesNotExecuted = activeNodeNames.filter((name) => !runDataNodeNames.includes(name));
 
-	// 3. Detect empty outputs using executionSchema
-	// A node with empty value array means it ran but produced no items
-	const nodesWithEmptyOutput = (workflowContext.executionSchema ?? [])
-		.filter((schema) => {
-			const value = schema.schema?.value;
-			// Explicitly check type before checking length to avoid implicit contract with schema format
-			return value !== undefined && Array.isArray(value) && value.length === 0;
-		})
-		.map((schema) => schema.nodeName);
+	// 3. Detect empty outputs using runData directly (more reliable than executionSchema)
+	// A node that ran but produced 0 items across all output branches
+	// Only check nodes that have actual execution data (not empty arrays)
+	const nodesWithEmptyOutput = runDataNodeNames.filter((nodeName) => {
+		const nodeData = runData?.[nodeName];
+		// Skip if no execution data or empty execution array (node may not have run)
+		if (!nodeData || nodeData.length === 0) return false;
+		// Check if node ran but produced 0 items
+		const itemCount = countNodeOutputItems(runData, nodeName);
+		return itemCount === 0;
+	});
 
 	// 4. Determine status based on findings
 	// Note: nodesNotExecuted may include nodes on branches that weren't taken
