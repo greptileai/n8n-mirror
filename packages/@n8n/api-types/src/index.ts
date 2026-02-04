@@ -53,7 +53,26 @@ export {
 	type ChatHubAgentTool,
 	UpdateChatSettingsRequest,
 	type ChatProviderSettingsDto,
+	type ChatSendMessageResponse,
+	type ChatReconnectResponse,
+	ChatReconnectRequest,
 } from './chat-hub';
+
+export type {
+	ChatHubPushMessage,
+	ChatHubStreamEvent,
+	ChatHubStreamBegin,
+	ChatHubStreamChunk,
+	ChatHubStreamEnd,
+	ChatHubStreamError,
+	ChatHubStreamMetadata,
+	ChatHubExecutionEvent,
+	ChatHubExecutionBegin,
+	ChatHubExecutionEnd,
+	ChatHubHumanMessageCreated,
+	ChatHubMessageEdited,
+	ChatHubAttachmentInfo,
+} from './push/chat-hub';
 
 export type { Collaborator } from './push/collaboration';
 export type { HeartbeatMessage } from './push/heartbeat';
@@ -163,6 +182,12 @@ export type {
 	SecretsProviderConnectionTestState,
 	SecretProviderConnection,
 	SecretProviderTypeResponse,
-	AutocompletionSecretsResponse,
+	SecretCompletionsResponse,
 	TestSecretProviderConnectionResponse,
+	ReloadSecretProviderConnectionResponse,
+} from './schemas/secrets-provider.schema';
+
+export {
+	testSecretProviderConnectionResponseSchema,
+	reloadSecretProviderConnectionResponseSchema,
 } from './schemas/secrets-provider.schema';

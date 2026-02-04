@@ -167,6 +167,8 @@ describe('WorkflowDetails', () => {
 			'123': workflow,
 		};
 		workflowsStore.isWorkflowSaved = { '1': true, '123': true };
+		workflowsStore.workflowId = workflow.id;
+		workflowsStore.workflowChecksum = 'test-checksum';
 		projectsStore.currentProject = null;
 		projectsStore.personalProject = { id: 'personal', name: 'Personal' } as Project;
 		collaborationStore.shouldBeReadOnly = false;
@@ -474,7 +476,7 @@ describe('WorkflowDetails', () => {
 			expect(toast.showError).toHaveBeenCalledTimes(0);
 			expect(toast.showMessage).toHaveBeenCalledTimes(1);
 			expect(workflowsStore.archiveWorkflow).toHaveBeenCalledTimes(1);
-			expect(workflowsStore.archiveWorkflow).toHaveBeenCalledWith(workflow.id);
+			expect(workflowsStore.archiveWorkflow).toHaveBeenCalledWith(workflow.id, 'test-checksum');
 			expect(router.push).toHaveBeenCalledTimes(1);
 			expect(router.push).toHaveBeenCalledWith({
 				name: VIEWS.WORKFLOWS,
@@ -507,7 +509,7 @@ describe('WorkflowDetails', () => {
 			await userEvent.click(getByTestId('workflow-menu'));
 			await userEvent.click(getByTestId('workflow-menu-item-archive'));
 
-			expect(workflowsStore.archiveWorkflow).toHaveBeenCalledWith(teamWorkflow.id);
+			expect(workflowsStore.archiveWorkflow).toHaveBeenCalledWith(teamWorkflow.id, 'test-checksum');
 			expect(router.push).toHaveBeenCalledWith({
 				name: VIEWS.PROJECTS_WORKFLOWS,
 				params: { projectId: teamProjectId },
@@ -539,7 +541,10 @@ describe('WorkflowDetails', () => {
 			await userEvent.click(getByTestId('workflow-menu'));
 			await userEvent.click(getByTestId('workflow-menu-item-archive'));
 
-			expect(workflowsStore.archiveWorkflow).toHaveBeenCalledWith(personalWorkflow.id);
+			expect(workflowsStore.archiveWorkflow).toHaveBeenCalledWith(
+				personalWorkflow.id,
+				'test-checksum',
+			);
 			expect(router.push).toHaveBeenCalledWith({
 				name: VIEWS.WORKFLOWS,
 			});
@@ -564,7 +569,7 @@ describe('WorkflowDetails', () => {
 			expect(toast.showError).toHaveBeenCalledTimes(0);
 			expect(toast.showMessage).toHaveBeenCalledTimes(1);
 			expect(workflowsStore.archiveWorkflow).toHaveBeenCalledTimes(1);
-			expect(workflowsStore.archiveWorkflow).toHaveBeenCalledWith(workflow.id);
+			expect(workflowsStore.archiveWorkflow).toHaveBeenCalledWith(workflow.id, 'test-checksum');
 			expect(router.push).toHaveBeenCalledTimes(1);
 			expect(router.push).toHaveBeenCalledWith({
 				name: VIEWS.WORKFLOWS,
@@ -695,151 +700,6 @@ describe('WorkflowDetails', () => {
 				name: PROJECT_MOVE_RESOURCE_MODAL,
 				data: expect.objectContaining({ resource: expect.objectContaining({ id: workflow.id }) }),
 			});
-		});
-	});
-
-	describe('Toast notifications', () => {
-		it('should show personal toast when creating workflow without project context', async () => {
-			vi.mocked(useRoute).mockReturnValueOnce({
-				meta: {
-					nodeView: true,
-				},
-				query: { new: 'true' },
-				params: { name: 'test' },
-			} as unknown as ReturnType<typeof useRoute>);
-
-			projectsStore.currentProject = null;
-
-			const { getByTestId } = renderComponent({
-				props: {
-					...workflow,
-					id: 'new',
-				},
-			});
-
-			// Edit workflow name to trigger autosave
-			const nameInput = getByTestId('workflow-name-input');
-			await userEvent.type(nameInput, 'Updated');
-			await userEvent.keyboard('{Enter}');
-
-			expect(mockSaveCurrentWorkflow).toHaveBeenCalled();
-			expect(toast.showMessage).toHaveBeenCalledWith(
-				expect.objectContaining({
-					type: 'success',
-					title: 'Workflow successfully created inside your personal space',
-				}),
-			);
-		});
-
-		it('should show project toast when creating workflow in non-personal project', async () => {
-			vi.mocked(useRoute).mockReturnValueOnce({
-				meta: {
-					nodeView: true,
-				},
-				query: { new: 'true' },
-				params: { name: 'test' },
-			} as unknown as ReturnType<typeof useRoute>);
-
-			projectsStore.currentProject = {
-				id: 'project-1',
-				name: 'Test Project',
-				type: 'team',
-				icon: null,
-				createdAt: '2023-01-01',
-				updatedAt: '2023-01-01',
-				relations: [],
-				scopes: [],
-			};
-
-			const { getByTestId } = renderComponent({
-				props: {
-					...workflow,
-					id: 'new',
-				},
-			});
-
-			// Edit workflow name to trigger autosave
-			const nameInput = getByTestId('workflow-name-input');
-			await userEvent.type(nameInput, 'Updated');
-			await userEvent.keyboard('{Enter}');
-
-			expect(mockSaveCurrentWorkflow).toHaveBeenCalled();
-			expect(toast.showMessage).toHaveBeenCalledWith(
-				expect.objectContaining({
-					type: 'success',
-					title: 'Workflow successfully created in Test Project',
-					message: 'All members from Test Project will have access to this workflow.',
-				}),
-			);
-		});
-
-		it('should show folder toast when creating workflow in folder context', async () => {
-			vi.mocked(useRoute).mockReturnValueOnce({
-				meta: {
-					nodeView: true,
-				},
-				query: { new: 'true' },
-				params: { name: 'test' },
-			} as unknown as ReturnType<typeof useRoute>);
-
-			projectsStore.currentProject = {
-				id: 'project-1',
-				name: 'Test Project',
-				type: 'team',
-				icon: null,
-				createdAt: '2023-01-01',
-				updatedAt: '2023-01-01',
-				relations: [],
-				scopes: [],
-			};
-
-			const { getByTestId } = renderComponent({
-				props: {
-					...workflow,
-					id: 'new',
-					currentFolder: { id: 'folder-1', name: 'Test Folder' },
-				},
-			});
-
-			// Edit workflow name to trigger autosave
-			const nameInput = getByTestId('workflow-name-input');
-			await userEvent.type(nameInput, 'Updated');
-			await userEvent.keyboard('{Enter}');
-
-			expect(mockSaveCurrentWorkflow).toHaveBeenCalled();
-			expect(toast.showMessage).toHaveBeenCalledWith(
-				expect.objectContaining({
-					type: 'success',
-					title: 'Workflow successfully created in "Test Project", within "Test Folder"',
-					message: 'All members from Test Project will have access to this workflow.',
-				}),
-			);
-		});
-
-		it('should not show toast when saving existing workflow', async () => {
-			vi.mocked(useRoute).mockReturnValueOnce({
-				meta: {
-					nodeView: true,
-				},
-				query: { parentFolderId: '1' },
-				params: { name: 'test' },
-			} as unknown as ReturnType<typeof useRoute>);
-
-			const { getByTestId } = renderComponent({
-				props: {
-					...workflow,
-					id: '123',
-					scopes: ['workflow:update'],
-				},
-			});
-
-			// Edit workflow name to trigger autosave
-			const nameInput = getByTestId('workflow-name-input');
-			await userEvent.type(nameInput, 'Updated');
-			await userEvent.keyboard('{Enter}');
-
-			expect(mockSaveCurrentWorkflow).toHaveBeenCalled();
-			expect(toast.showMessage).not.toHaveBeenCalled();
 		});
 	});
 

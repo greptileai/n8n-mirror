@@ -74,7 +74,6 @@ export class WorkflowRepository extends Repository<WorkflowEntity> {
 		const result = await this.find({
 			select: { id: true },
 			where: { activeVersionId: Not(IsNull()) },
-			relations: { shared: { project: { projectRelations: true } } },
 		});
 
 		return result.map(({ id }) => id);
@@ -101,9 +100,9 @@ export class WorkflowRepository extends Repository<WorkflowEntity> {
 
 		const dbType = this.globalConfig.database.type;
 
-		if (['postgresdb'].includes(dbType)) {
+		if (dbType === 'postgresdb') {
 			qb.where("workflow.settings ->> 'errorWorkflow' IS NOT NULL");
-		} else if (['mysqldb', 'mariadb', 'sqlite'].includes(dbType)) {
+		} else if (dbType === 'sqlite') {
 			qb.where("JSON_EXTRACT(workflow.settings, '$.errorWorkflow') IS NOT NULL");
 		}
 
@@ -114,7 +113,7 @@ export class WorkflowRepository extends Repository<WorkflowEntity> {
 	async findById(workflowId: string) {
 		return await this.findOne({
 			where: { id: workflowId },
-			relations: { shared: { project: { projectRelations: true } }, activeVersion: true },
+			relations: { shared: { project: true }, activeVersion: true },
 		});
 	}
 
@@ -137,17 +136,11 @@ export class WorkflowRepository extends Repository<WorkflowEntity> {
 
 	async updateWorkflowTriggerCount(id: string, triggerCount: number): Promise<UpdateResult> {
 		const qb = this.createQueryBuilder('workflow');
-		const dbType = this.globalConfig.database.type;
 		return await qb
 			.update()
 			.set({
 				triggerCount,
-				updatedAt: () => {
-					if (['mysqldb', 'mariadb'].includes(dbType)) {
-						return 'updatedAt';
-					}
-					return '"updatedAt"';
-				},
+				updatedAt: () => '"updatedAt"',
 			})
 			.where('id = :id', { id })
 			.execute();
@@ -501,13 +494,9 @@ export class WorkflowRepository extends Repository<WorkflowEntity> {
 
 			if (filter.availableInMCP) {
 				// When filtering for true, only match explicit true values
-				if (['postgresdb'].includes(dbType)) {
+				if (dbType === 'postgresdb') {
 					qb.andWhere("workflow.settings ->> 'availableInMCP' = :availableInMCP", {
 						availableInMCP: 'true',
-					});
-				} else if (['mysqldb', 'mariadb'].includes(dbType)) {
-					qb.andWhere("JSON_EXTRACT(workflow.settings, '$.availableInMCP') = :availableInMCP", {
-						availableInMCP: true,
 					});
 				} else if (dbType === 'sqlite') {
 					qb.andWhere("JSON_EXTRACT(workflow.settings, '$.availableInMCP') = :availableInMCP", {
@@ -516,15 +505,10 @@ export class WorkflowRepository extends Repository<WorkflowEntity> {
 				}
 			} else {
 				// When filtering for false, match explicit false OR null/undefined (field not set)
-				if (['postgresdb'].includes(dbType)) {
+				if (dbType === 'postgresdb') {
 					qb.andWhere(
 						"(workflow.settings ->> 'availableInMCP' = :availableInMCP OR workflow.settings ->> 'availableInMCP' IS NULL)",
 						{ availableInMCP: 'false' },
-					);
-				} else if (['mysqldb', 'mariadb'].includes(dbType)) {
-					qb.andWhere(
-						"(JSON_EXTRACT(workflow.settings, '$.availableInMCP') = :availableInMCP OR JSON_EXTRACT(workflow.settings, '$.availableInMCP') IS NULL)",
-						{ availableInMCP: false },
 					);
 				} else if (dbType === 'sqlite') {
 					qb.andWhere(
@@ -568,7 +552,7 @@ export class WorkflowRepository extends Repository<WorkflowEntity> {
 					`COALESCE("activeVersion"."nodes"::text, "workflow"."nodes"::text) LIKE :${paramName}`,
 				);
 			} else {
-				// SQLite and MySQL store nodes as text
+				// SQLite stores nodes as text
 				conditions.push(`COALESCE(activeVersion.nodes, workflow.nodes) LIKE :${paramName}`);
 			}
 		});
@@ -903,9 +887,8 @@ export class WorkflowRepository extends Repository<WorkflowEntity> {
 	}
 
 	async updateActiveState(workflowId: string, newState: boolean) {
-		const workflow = await this.findById(workflowId);
-
-		if (!workflow) {
+		const wfExists = await this.existsBy({ id: workflowId });
+		if (!wfExists) {
 			throw new UserError(`Workflow "${workflowId}" not found.`);
 		}
 
