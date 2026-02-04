@@ -57,7 +57,9 @@ export function useWorkflowInitialization(workflowState: WorkflowState) {
 		openWorkflowTemplateFromJSON,
 	} = useCanvasOperations();
 	const { fetchAndSetParentFolder } = useParentFolder();
-	const { applyExecutionData } = useExecutionDebugging();
+	// Pass workflowState to useExecutionDebugging since we're in the same component
+	// that provides WorkflowStateKey (WorkflowLayout), so inject won't work
+	const { applyExecutionData } = useExecutionDebugging(workflowState);
 
 	const isLoading = ref(true);
 	const initializedWorkflowId = ref<string | undefined>();
