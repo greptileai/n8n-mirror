@@ -39,6 +39,30 @@ jobs:
         with:
           build-command: pnpm build
 
+      - name: Smoke test pnpm start (1s)
+        shell: pwsh
+        run: |
+          # Start pnpm start in background
+          $p = Start-Process -FilePath "pnpm" -ArgumentList "start" -PassThru -NoNewWindow
+
+          # Give it a moment to fail if it's going to
+          Start-Sleep -Seconds 1
+
+          # If it exited, treat as failure
+          if ($p.HasExited) {
+            Write-Host "pnpm start exited early with code $($p.ExitCode)"
+            exit 1
+          }
+
+          Write-Host "pnpm start is running OK. Stopping..."
+
+          # Clean shutdown
+          try {
+            Stop-Process -Id $p.Id -ErrorAction Stop
+          } catch {
+            Stop-Process -Id $p.Id -Force
+          }
+
       - name: Send Slack notification on failure
         if: failure() && inputs.notify_on_failure == true
         uses: slackapi/slack-github-action@91efab103c0de0a537f72a35f6b8cda0ee76bf0a # v2.1.1
