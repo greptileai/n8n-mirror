@@ -5,6 +5,13 @@
 import type { NodeInstance } from '../types/base';
 
 /**
+ * Helper to safely access a property from an object after 'in' check
+ */
+function getObjectProperty<T>(obj: object, key: string): T {
+	return (obj as Record<string, unknown>)[key] as T;
+}
+
+/**
  * Check if value is a SplitInBatchesBuilder or a chain (DoneChain/EachChain) from one
  */
 export function isSplitInBatchesBuilder(value: unknown): boolean {
@@ -17,7 +24,7 @@ export function isSplitInBatchesBuilder(value: unknown): boolean {
 
 	// Check if it's a DoneChain or EachChain with a _parent that's a builder
 	if ('_parent' in value && '_nodes' in value) {
-		const parent = (value as { _parent: unknown })._parent;
+		const parent: unknown = getObjectProperty(value, '_parent');
 		return (
 			parent !== null &&
 			typeof parent === 'object' &&
@@ -51,16 +58,24 @@ export interface SplitInBatchesBuilderShape {
 
 /**
  * Extract the SplitInBatchesBuilder from a value (handles both direct builder and chains)
+ * Precondition: value must pass isSplitInBatchesBuilder check
  */
 export function extractSplitInBatchesBuilder(value: unknown): SplitInBatchesBuilderShape {
-	// Direct builder
-	if ('sibNode' in (value as object)) {
+	if (value === null || typeof value !== 'object') {
+		throw new Error('extractSplitInBatchesBuilder requires a non-null object');
+	}
+
+	// Direct builder - has sibNode property
+	if ('sibNode' in value) {
 		return value as SplitInBatchesBuilderShape;
 	}
 
 	// Chain with _parent - extract the parent builder
-	const chain = value as { _parent: unknown };
-	return chain._parent as SplitInBatchesBuilderShape;
+	if ('_parent' in value) {
+		return getObjectProperty<SplitInBatchesBuilderShape>(value, '_parent');
+	}
+
+	throw new Error('extractSplitInBatchesBuilder: value is not a valid builder or chain');
 }
 
 /**
@@ -85,11 +100,10 @@ export function isIfElseComposite(value: unknown): boolean {
  */
 export function isNodeInstanceShape(value: unknown): boolean {
 	if (value === null || typeof value !== 'object') return false;
-	return (
-		'type' in value &&
-		'version' in value &&
-		'config' in value &&
-		'then' in value &&
-		typeof (value as NodeInstance<string, string, unknown>).then === 'function'
-	);
+	if (!('type' in value && 'version' in value && 'config' in value && 'then' in value)) {
+		return false;
+	}
+	// After 'in' checks, safely access the then property
+	const thenProp: unknown = getObjectProperty(value, 'then');
+	return typeof thenProp === 'function';
 }

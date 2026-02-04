@@ -524,27 +524,24 @@ export function isNodeChain(
 	NodeInstance<string, string, unknown>,
 	NodeInstance<string, string, unknown>
 > {
-	return (
-		value !== null &&
-		typeof value === 'object' &&
-		'_isChain' in value &&
-		(value as { _isChain: unknown })._isChain === true
-	);
+	if (value === null || typeof value !== 'object') return false;
+	if (!('_isChain' in value)) return false;
+	// After 'in' check, access the property safely
+	const isChainValue = (value as Record<string, unknown>)._isChain;
+	return isChainValue === true;
 }
 
 /**
  * Type guard to check if a value is a NodeInstance (has type, version, config, then method)
  */
 export function isNodeInstance(value: unknown): value is NodeInstance<string, string, unknown> {
-	return (
-		value !== null &&
-		typeof value === 'object' &&
-		'type' in value &&
-		'version' in value &&
-		'config' in value &&
-		'then' in value &&
-		typeof (value as NodeInstance<string, string, unknown>).then === 'function'
-	);
+	if (value === null || typeof value !== 'object') return false;
+	if (!('type' in value && 'version' in value && 'config' in value && 'then' in value)) {
+		return false;
+	}
+	// After 'in' checks, safely access the then property
+	const thenProp = (value as Record<string, unknown>).then;
+	return typeof thenProp === 'function';
 }
 
 // =============================================================================

@@ -82,6 +82,9 @@ export type {
 // Type guards
 export { isNodeChain, isNodeInstance } from './types/base';
 
+// Type aliases for convenience
+export type { AnyNode, AnyChain, AnyTrigger, NodeParameters } from './types/aliases';
+
 // Workflow builder
 export { workflow } from './workflow-builder';
 
@@ -144,6 +147,9 @@ export {
 
 // Code helpers
 export { runOnceForAllItems, runOnceForEachItem } from './code-helpers';
+
+// Utility functions
+export { isPlainObject, getProperty, hasProperty } from './utils/safe-access';
 
 // Validation
 export {
