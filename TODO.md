@@ -9,6 +9,11 @@
 - [ ] for webhoook path should not use placeholder
 - [ ] remove agent check in req
 
+
+## clean up
+- [ ] token calcualtion / iterationCount/ dos / donts from evaluations
+- [ ] maybe don't write to .n8n folder?
+
 ## ready to release
 - [ ] Refactor & Review PR
 - [ ] Get it reviewed
