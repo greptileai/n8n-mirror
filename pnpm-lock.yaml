@@ -1220,31 +1220,6 @@ importers:
         specifier: 3.25.67
         version: 3.25.67
 
-  packages/@n8n/mcp-core:
-    dependencies:
-      '@langchain/core':
-        specifier: 'catalog:'
-        version: 1.1.8(@opentelemetry/api@1.9.0)(@opentelemetry/exporter-trace-otlp-proto@0.204.0(@opentelemetry/api@1.9.0))(@opentelemetry/sdk-trace-base@2.5.0(@opentelemetry/api@1.9.0))(openai@6.9.1(ws@8.18.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(zod@3.25.67))
-      '@modelcontextprotocol/sdk':
-        specifier: 1.25.2
-        version: 1.25.2(hono@4.11.3)(zod@3.25.67)
-      n8n-workflow:
-        specifier: workspace:*
-        version: link:../../workflow
-      zod-to-json-schema:
-        specifier: 'catalog:'
-        version: 3.23.3(zod@3.25.67)
-    devDependencies:
-      '@n8n/typescript-config':
-        specifier: workspace:*
-        version: link:../typescript-config
-      '@types/express':
-        specifier: 'catalog:'
-        version: 5.0.1
-      zod:
-        specifier: 3.25.67
-        version: 3.25.67
-
   packages/@n8n/node-cli:
     dependencies:
       '@clack/prompts':
@@ -1446,9 +1421,6 @@ importers:
       '@n8n/json-schema-to-zod':
         specifier: workspace:*
         version: link:../json-schema-to-zod
-      '@n8n/mcp-core':
-        specifier: workspace:*
-        version: link:../mcp-core
       '@n8n/typeorm':
         specifier: 'catalog:'
         version: 0.3.20-15(@sentry/node@10.36.0)(mysql2@3.15.0)(pg@8.17.0)(sqlite3@5.1.7)
@@ -1836,9 +1808,6 @@ importers:
       '@n8n/errors':
         specifier: workspace:*
         version: link:../@n8n/errors
-      '@n8n/mcp-core':
-        specifier: workspace:*
-        version: link:../@n8n/mcp-core
       '@n8n/n8n-nodes-langchain':
         specifier: workspace:*
         version: link:../@n8n/nodes-langchain

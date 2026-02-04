@@ -80,8 +80,10 @@ export class ScalingService {
 
 		this.scheduleQueueMetrics();
 
-		const { McpServer, QueuedExecutionStrategy } = await import('@n8n/mcp-core');
-		const { RedisSessionStore } = await import('@/scaling/mcp/RedisSessionStore');
+		const { McpServer, QueuedExecutionStrategy } = await import(
+			'@n8n/n8n-nodes-langchain/mcp/core'
+		);
+		const { RedisSessionStore } = await import('@/scaling/mcp/redis-session-store');
 		const { Publisher } = await import('@/scaling/pubsub/publisher.service');
 
 		const publisher = Container.get(Publisher);
@@ -93,9 +95,9 @@ export class ScalingService {
 		const mcpServer = McpServer.instance(this.logger);
 		const redisStore = new RedisSessionStore(
 			{
-				set: (key, value, ttl) => publisher.set(key, value, ttl),
-				get: (key) => publisher.get(key),
-				clear: (key) => publisher.clear(key),
+				set: async (key, value, ttl) => await publisher.set(key, value, ttl),
+				get: async (key) => await publisher.get(key),
+				clear: async (key) => await publisher.clear(key),
 			},
 			getMcpSessionKey,
 			MCP_SESSION_TTL,
@@ -477,7 +479,7 @@ export class ScalingService {
 				const mcpService = Container.get(McpService);
 				mcpService.handleWorkerResponse(executionId, runData);
 			} else {
-				const { McpServer } = await import('@n8n/mcp-core');
+				const { McpServer } = await import('@n8n/n8n-nodes-langchain/mcp/core');
 				const mcpServer = McpServer.instance(this.logger);
 				mcpServer.handleWorkerResponse(sessionId, messageId, response);
 			}

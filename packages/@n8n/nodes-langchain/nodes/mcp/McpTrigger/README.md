@@ -1,10 +1,10 @@
-# @n8n/mcp-core
+# MCP Server
 
-Core infrastructure for Model Context Protocol (MCP) server implementation in n8n.
+Model Context Protocol (MCP) server implementation for the n8n McpTrigger node.
 
 ## Overview
 
-This package provides a clean, modular architecture for handling MCP connections. It separates concerns into distinct layers that can be tested and extended independently.
+This module provides a clean, modular architecture for handling MCP connections. It separates concerns into distinct layers that can be tested and extended independently.
 
 ```mermaid
 flowchart TB
@@ -720,7 +720,7 @@ manager.cleanupBySessionId(sessionId);  // Clean up all calls for a session
 ### Basic Setup (Normal Mode)
 
 ```typescript
-import { McpServer } from '@n8n/mcp-core';
+import { McpServer } from './McpServer';
 
 const mcpServer = McpServer.instance(logger);
 
@@ -734,11 +734,8 @@ const result = await mcpServer.handlePostMessage(req, resp, tools, serverName);
 ### Queue Mode Setup
 
 ```typescript
-import {
-  McpServer,
-  QueuedExecutionStrategy,
-  PendingCallsManager,
-} from '@n8n/mcp-core';
+import { McpServer } from './McpServer';
+import { QueuedExecutionStrategy } from './execution';
 import { RedisSessionStore } from './RedisSessionStore';
 
 const mcpServer = McpServer.instance(logger);
@@ -801,26 +798,54 @@ sequenceDiagram
     McpServer-->>Client: Result via SSE
 ```
 
-## Exports
+## Module Structure
+
+```
+McpTrigger/
+├── McpServer.ts              # Main facade coordinating all subsystems
+├── McpTrigger.node.ts        # n8n node implementation
+├── protocol/                 # JSONRPC message parsing & formatting
+│   ├── MessageParser.ts
+│   ├── MessageFormatter.ts
+│   └── types.ts
+├── session/                  # Client connection & state management
+│   ├── SessionManager.ts
+│   ├── SessionStore.ts
+│   └── InMemorySessionStore.ts
+├── transport/                # SSE & Streamable HTTP protocols
+│   ├── Transport.ts
+│   ├── SSETransport.ts
+│   ├── StreamableHttpTransport.ts
+│   └── TransportFactory.ts
+├── execution/                # Direct & queued execution strategies
+│   ├── ExecutionStrategy.ts
+│   ├── DirectExecutionStrategy.ts
+│   ├── QueuedExecutionStrategy.ts
+│   ├── PendingCallsManager.ts
+│   └── ExecutionCoordinator.ts
+└── __tests__/                # Comprehensive unit tests
+```
+
+### Imports
 
 ```typescript
 // Main facade
-export { McpServer } from './McpServer';
-export type { HandlePostResult } from './McpServer';
+import { McpServer, MCP_LIST_TOOLS_REQUEST_MARKER } from './McpServer';
+import type { HandlePostResult } from './McpServer';
 
 // Protocol
-export { MessageParser, MessageFormatter, MCP_LIST_TOOLS_REQUEST_MARKER } from './protocol';
-export type { McpToolCallInfo, McpToolResult, JSONRPCMessage } from './protocol';
+import { MessageParser, MessageFormatter } from './protocol';
+import type { McpToolCallInfo, McpToolResult } from './protocol';
 
 // Session
-export { InMemorySessionStore, SessionManager } from './session';
-export type { SessionStore } from './session';
+import { InMemorySessionStore, SessionManager } from './session';
+import type { SessionStore } from './session';
 
 // Transport
-export { SSETransport, StreamableHttpTransport, TransportFactory } from './transport';
-export type { McpTransport, CompressionResponse, TransportType } from './transport';
+import { SSETransport, StreamableHttpTransport, TransportFactory } from './transport';
+import type { McpTransport, CompressionResponse, TransportType } from './transport';
 
 // Execution
-export { DirectExecutionStrategy, QueuedExecutionStrategy, PendingCallsManager, ExecutionCoordinator } from './execution';
-export type { ExecutionStrategy, ExecutionContext } from './execution';
+import { DirectExecutionStrategy, QueuedExecutionStrategy, PendingCallsManager, ExecutionCoordinator } from './execution';
+import type { ExecutionStrategy, ExecutionContext } from './execution';
 ```

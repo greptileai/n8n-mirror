@@ -578,8 +578,9 @@ test.describe('MCP Trigger - Multi-Main', () => {
 
 				// Send tool call to main-2 (different main than where SSE session was created)
 				// This tests that SSE session state is properly shared across mains via Redis
-				const main2Api = await createApiForMain(1);
-				const result = await main2Api.mcp.callTool(session, mcpPath, 'echo', {
+				// Use callToolCrossMain to POST to main2's URL while receiving on main1's SSE stream
+				const main2McpPath = `${mainUrls[1]}/${mcpPath}`;
+				const result = await main1Api.mcp.callToolCrossMain(session, main2McpPath, 'echo', {
 					message: 'SSE cross-main test',
 				});
 
@@ -610,9 +611,10 @@ test.describe('MCP Trigger - Multi-Main', () => {
 			const main1Api = await createApiForMain(0);
 			const session = await main1Api.mcp.sseSetup(mcpPath);
 
-			try {
-				const main2Api = await createApiForMain(1);
+			// Construct full URL paths for cross-main calls
+			const main2McpPath = `${mainUrls[1]}/${mcpPath}`;
 
+			try {
 				// Call 1: main-1 (where SSE connection was established)
 				const echoResult = await main1Api.mcp.callTool(session, mcpPath, 'echo', {
 					message: 'SSE from main 1',
@@ -620,7 +622,11 @@ test.describe('MCP Trigger - Multi-Main', () => {
 				expect(echoResult.content[0].text).toContain('SSE from main 1');
 
 				// Call 2: main-2 (different main, tests Redis pub/sub for response routing)
-				const addResult = await main2Api.mcp.callTool(session, mcpPath, 'add', { a: 15, b: 25 });
+				// Use callToolCrossMain to POST to main2 but receive response on main1's SSE stream
+				const addResult = await main1Api.mcp.callToolCrossMain(session, main2McpPath, 'add', {
+					a: 15,
+					b: 25,
+				});
 				expect(addResult.content[0].text).toContain('40');
 
 				// Call 3: main-1 again
@@ -631,7 +637,7 @@ test.describe('MCP Trigger - Multi-Main', () => {
 				expect(multiplyResult.content[0].text).toContain('56');
 
 				// Call 4: main-2 again
-				const echoResult2 = await main2Api.mcp.callTool(session, mcpPath, 'echo', {
+				const echoResult2 = await main1Api.mcp.callToolCrossMain(session, main2McpPath, 'echo', {
 					message: 'SSE from main 2',
 				});
 				expect(echoResult2.content[0].text).toContain('SSE from main 2');
@@ -662,8 +668,9 @@ test.describe('MCP Trigger - Multi-Main', () => {
 
 			try {
 				// List tools via main-2 (different main)
-				const main2Api = await createApiForMain(1);
-				const tools = await main2Api.mcp.listTools(session, mcpPath);
+				// Use listToolsCrossMain to POST to main2 but receive response on main1's SSE stream
+				const main2McpPath = `${mainUrls[1]}/${mcpPath}`;
+				const tools = await main1Api.mcp.listToolsCrossMain(session, main2McpPath);
 
 				expect(tools).toHaveLength(3);
 				const toolNames = tools.map((t) => t.name).sort();

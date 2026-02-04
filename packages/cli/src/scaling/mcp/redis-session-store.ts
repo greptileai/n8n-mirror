@@ -1,5 +1,5 @@
 import type { Tool } from '@langchain/core/tools';
-import type { SessionStore } from '@n8n/mcp-core';
+import type { SessionStore } from '@n8n/n8n-nodes-langchain/mcp/core';
 
 export interface RedisPublisher {
 	set(key: string, value: string, ttl: number): Promise<void>;

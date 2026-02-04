@@ -162,6 +162,7 @@ export class McpApiHelper {
 									// Store connection and resolve
 									this.sseConnections.set(match[1], sseConn);
 									resolved = true;
+									clearTimeout(timeout);
 									resolve({
 										sessionId: match[1],
 										transport: 'sse',
@@ -324,6 +325,58 @@ export class McpApiHelper {
 		return await responsePromise;
 	}
 
+	/**
+	 * Sends a JSON-RPC message to a specific path (different main) and waits for
+	 * the response on this helper's SSE stream. Used for cross-main testing.
+	 *
+	 * @param session - The MCP session from sseSetup
+	 * @param targetPath - The path to POST to (can be on a different main)
+	 * @param message - The JSON-RPC message to send (must have an id field)
+	 * @returns The result from the JSON-RPC response
+	 */
+	async sseSendAndWaitCrossMain<T>(
+		session: McpSession,
+		targetPath: string,
+		message: McpJsonRpcRequest,
+	): Promise<T> {
+		const conn = this.sseConnections.get(session.sessionId);
+		if (!conn) {
+			throw new Error(
+				'SSE connection not found for session. For cross-main testing, ' +
+					'ensure sseSetup was called on THIS API helper instance.',
+			);
+		}
+
+		// Set up promise to wait for response
+		const responsePromise = new Promise<T>((resolve, reject) => {
+			conn.pendingMessages.set(message.id, {
+				resolve: resolve as (value: unknown) => void,
+				reject,
+			});
+
+			// Timeout after 30 seconds
+			setTimeout(() => {
+				if (conn.pendingMessages.has(message.id)) {
+					conn.pendingMessages.delete(message.id);
+					reject(new Error('SSE response timeout'));
+				}
+			}, 30000);
+		});
+
+		// Send the message to the target path (different main) with session ID
+		const pathWithSession = `${targetPath}?sessionId=${session.sessionId}`;
+		await this.trigger(pathWithSession, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+			},
+			data: message,
+		});
+
+		// Wait for response via SSE stream (on this helper's connection)
+		return await responsePromise;
+	}
+
 	// ===== Streamable HTTP Transport Methods =====
 
 	/**
@@ -463,6 +516,62 @@ export class McpApiHelper {
 			const response = await this.streamableHttpSendMessage(session, path, message);
 			return await this.parseResponse<McpToolCallResponse>(response);
 		}
+	}
+
+	/**
+	 * Calls a tool via cross-main SSE transport.
+	 * Use this when testing multi-main setups where:
+	 * - This API helper holds the SSE connection (established via sseSetup)
+	 * - The POST request should go to a different main's endpoint
+	 * - The response comes back via this helper's SSE stream
+	 *
+	 * @param session - The MCP session (with SSE transport)
+	 * @param targetPath - The target path to POST to (e.g., 'webhook/mcp-basic')
+	 * @param toolName - The name of the tool to call
+	 * @param args - The arguments to pass to the tool
+	 * @returns The tool call response
+	 */
+	async callToolCrossMain(
+		session: McpSession,
+		targetPath: string,
+		toolName: string,
+		args: Record<string, unknown>,
+	): Promise<McpToolCallResponse> {
+		const message = this.createMessage('tools/call', {
+			name: toolName,
+			arguments: args,
+		});
+
+		return await this.sseSendAndWaitCrossMain<McpToolCallResponse>(
+			session,
+			targetPath,
+			message,
+		);
+	}
+
+	/**
+	 * Lists tools via cross-main SSE transport.
+	 * Use this when testing multi-main setups where:
+	 * - This API helper holds the SSE connection (established via sseSetup)
+	 * - The POST request should go to a different main's endpoint
+	 * - The response comes back via this helper's SSE stream
+	 *
+	 * @param session - The MCP session (with SSE transport)
+	 * @param targetPath - The target path to POST to
+	 * @returns Array of tool definitions
+	 */
+	async listToolsCrossMain(
+		session: McpSession,
+		targetPath: string,
+	): Promise<McpToolDefinition[]> {
+		const message = this.createMessage('tools/list');
+
+		const result = await this.sseSendAndWaitCrossMain<{ tools: McpToolDefinition[] }>(
+			session,
+			targetPath,
+			message,
+		);
+		return result.tools;
 	}
 
 	/**

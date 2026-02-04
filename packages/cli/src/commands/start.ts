@@ -4,7 +4,7 @@ import { LICENSE_FEATURES } from '@n8n/constants';
 import { ExecutionRepository, SettingsRepository } from '@n8n/db';
 import { Command } from '@n8n/decorators';
 import { Container } from '@n8n/di';
-import { McpServer } from '@n8n/mcp-core';
+import { McpServer } from '@n8n/n8n-nodes-langchain/mcp/core';
 import glob from 'fast-glob';
 import { createReadStream, createWriteStream, existsSync } from 'fs';
 import { mkdir } from 'fs/promises';

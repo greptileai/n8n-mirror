@@ -1,5 +1,5 @@
-import { McpServer, MCP_LIST_TOOLS_REQUEST_MARKER } from '@n8n/mcp-core';
-import type { CompressionResponse } from '@n8n/mcp-core';
+import { McpServer, MCP_LIST_TOOLS_REQUEST_MARKER } from './McpServer';
+import type { CompressionResponse } from './transport';
 import { WebhookAuthorizationError } from 'n8n-nodes-base/dist/nodes/Webhook/error';
 import { validateWebhookAuthentication } from 'n8n-nodes-base/dist/nodes/Webhook/utils';
 import type { INodeTypeDescription, IWebhookFunctions, IWebhookResponseData } from 'n8n-workflow';

@@ -251,7 +251,7 @@ export const test = base.extend<
 			contexts.push(context);
 
 			const api = new ApiHelpers(context);
-			await api.setupFromTags(testInfo.tags);
+			await api.setupFromTags(testInfo.tags.filter((tag) => tag.toLowerCase() !== '@db:reset'));
 
 			const hasAuthTag = testInfo.tags.some((tag) => tag.startsWith('@auth:'));
 			const apiCookies = await context.storageState();
