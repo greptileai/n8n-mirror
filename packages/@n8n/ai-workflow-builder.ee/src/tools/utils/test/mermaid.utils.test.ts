@@ -834,6 +834,78 @@ n1["Start"]
 			expect(result).toContain('text');
 		});
 
+		it('should include node ID in comments when includeNodeId is true (default)', () => {
+			const workflow: WorkflowMetadata = {
+				templateId: 9010,
+				name: 'Node ID Test',
+				workflow: {
+					name: 'Node ID Test',
+					nodes: [
+						{
+							parameters: { text: 'hello' },
+							id: 'abc-123-def-456',
+							name: 'Set Data',
+							type: 'n8n-nodes-base.set',
+							position: [0, 0],
+							typeVersion: 1,
+						},
+						{
+							parameters: {},
+							id: 'xyz-789-uvw-012',
+							name: 'NoOp',
+							type: 'n8n-nodes-base.noOp',
+							position: [200, 0],
+							typeVersion: 1,
+						},
+					],
+					connections: {
+						// eslint-disable-next-line @typescript-eslint/naming-convention
+						'Set Data': {
+							main: [[{ node: 'NoOp', type: 'main', index: 0 }]],
+						},
+					},
+				},
+			};
+
+			// Default behavior (includeNodeId: true)
+			const result = mermaidStringify(workflow);
+
+			// Should contain node IDs in brackets in the comments
+			expect(result).toContain('[abc-123-def-456]');
+			expect(result).toContain('[xyz-789-uvw-012]');
+			// Should still contain node type
+			expect(result).toContain('n8n-nodes-base.set');
+			expect(result).toContain('n8n-nodes-base.noOp');
+		});
+
+		it('should exclude node ID from comments when includeNodeId is false', () => {
+			const workflow: WorkflowMetadata = {
+				templateId: 9011,
+				name: 'Node ID Excluded Test',
+				workflow: {
+					name: 'Node ID Excluded Test',
+					nodes: [
+						{
+							parameters: { text: 'hello' },
+							id: 'abc-123-def-456',
+							name: 'Set Data',
+							type: 'n8n-nodes-base.set',
+							position: [0, 0],
+							typeVersion: 1,
+						},
+					],
+					connections: {},
+				},
+			};
+
+			const result = mermaidStringify(workflow, { includeNodeId: false });
+
+			// Should NOT contain node ID
+			expect(result).not.toContain('[abc-123-def-456]');
+			// Should still contain node type
+			expect(result).toContain('n8n-nodes-base.set');
+		});
+
 		it('should handle cyclic workflows without infinite loops', () => {
 			const workflow: WorkflowMetadata = {
 				templateId: 9004,
