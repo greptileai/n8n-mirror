@@ -4,17 +4,18 @@
 
 ### Option A: OpenAI-Compatible APIs (easiest)
 
-Use the built-in `OpenAIChatModel` with a custom `baseURL`:
+Use `createOpenAiModel` for providers that follow the OpenAI API format:
 
 ```typescript
-import { OpenAIChatModel, generateChatModelResponse } from '@n8n/ai-node-sdk';
+import { createOpenAiModel, supplyModel } from '@n8n/ai-node-sdk';
 
-const model = new OpenAIChatModel('model-name', {
+const model = createOpenAiModel({
+  modelId: 'model-name',
   apiKey: 'your-api-key',
   baseURL: 'https://api.provider.com/v1',  // OpenRouter, DeepSeek, etc.
 });
 
-return { response: generateChatModelResponse(this, { model }) };
+return supplyModel(this, model);
 ```
 
 ### Option B: Custom API (full control)
@@ -22,7 +23,7 @@ return { response: generateChatModelResponse(this, { model }) };
 Extend `BaseChatModel` and implement `generate()` + `stream()`:
 
 ```typescript
-import { BaseChatModel, generateChatModelResponse, type Message, type GenerateResult, type StreamChunk } from '@n8n/ai-node-sdk';
+import { BaseChatModel, supplyModel, type Message, type GenerateResult, type StreamChunk } from '@n8n/ai-node-sdk';
 
 class MyChatModel extends BaseChatModel {
   async generate(messages: Message[]): Promise<GenerateResult> {
@@ -38,7 +39,7 @@ class MyChatModel extends BaseChatModel {
 }
 
 const model = new MyChatModel('my-provider', 'model-id', { apiKey: '...' });
-return { response: generateChatModelResponse(this, { model }) };
+return supplyModel(this, model);
 ```
 
 ---
@@ -74,26 +75,26 @@ async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyD
 **After (SDK):**
 
 ```typescript
-import { OpenAIChatModel, generateChatModelResponse } from '@n8n/ai-node-sdk';
+import { createOpenAiModel, supplyModel } from '@n8n/ai-node-sdk';
 
 async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyData> {
-  const credentials = await this.getCredentials<{ apiKey: string }>('openRouterApi');
+  const credentials = await this.getCredentials<{ url: string; apiKey: string }>('openRouterApi');
   const modelName = this.getNodeParameter('model', itemIndex) as string;
-  const options = this.getNodeParameter('options', itemIndex, {}) as { ... };
+  const options = this.getNodeParameter('options', itemIndex, {}) as { temperature?: number };
 
-  // Reuse OpenAIChatModel with custom baseURL for OpenAI-compatible APIs
-  const model = new OpenAIChatModel(modelName, {
+  const model = createOpenAiModel({
+    modelId: modelName,
     apiKey: credentials.apiKey,
     baseURL: credentials.url,
     ...options,
   });
 
-  return { response: generateChatModelResponse(this, { model }) };
+  return supplyModel(this, model);
 }
 ```
 
-> **Note:** `OpenAIChatModel` is a built-in SDK class that implements the OpenAI Responses API.
-> For OpenAI-compatible providers (OpenRouter, DeepSeek, etc.), just set `baseURL` to the provider's endpoint.
+> **Note:** `createOpenAiModel` uses the SDK's built-in OpenAI-compatible implementation.
+> Works with OpenRouter, DeepSeek, Azure OpenAI, and any provider following the OpenAI API format.
 
 ---
 
@@ -104,7 +105,7 @@ async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyD
 ```typescript
 import {
   BaseChatModel,
-  generateChatModelResponse,
+  supplyModel,
   type Message,
   type GenerateResult,
   type StreamChunk,
@@ -129,7 +130,7 @@ class ImaginaryLlmChatModel extends BaseChatModel {
       text: m.content.find(c => c.type === 'text')?.text ?? '',
     }));
 
-    // Call the API (using fetch or this.helpers.httpRequest in real node)
+    // Call the API
     const response = await fetch('https://api.imaginary-llm.example.com/v1/generate', {
       method: 'POST',
       headers: {
@@ -153,7 +154,7 @@ class ImaginaryLlmChatModel extends BaseChatModel {
       toolCalls: data.reply.actions?.map((a: any) => ({
         id: a.id,
         name: a.name,
-        arguments: a.params,  // already parsed object
+        arguments: a.params,
       })),
       usage: data.metrics ? {
         promptTokens: data.metrics.input_tokens,
@@ -193,7 +194,7 @@ export class LmChatImaginaryLlm implements INodeType {
 
     const model = new ImaginaryLlmChatModel(credentials.apiKey, modelName, { temperature });
 
-    return { response: generateChatModelResponse(this, { model }) };
+    return supplyModel(this, model);
   }
 }
 ```
@@ -204,9 +205,10 @@ export class LmChatImaginaryLlm implements INodeType {
 
 | Before (LangChain) | After (SDK) |
 |--------------------|-------------|
-| `import { ChatOpenAI } from '@langchain/openai'` | `import { OpenAIChatModel, generateChatModelResponse } from '@n8n/ai-node-sdk'` |
-| `new ChatOpenAI({ ... })` | `new OpenAIChatModel(modelId, { baseURL, apiKey })` for OpenAI-compatible APIs |
-| Custom provider | `class MyModel extends BaseChatModel { ... }` for non-OpenAI APIs |
-| Direct LangChain instantiation | `generateChatModelResponse(this, { model })` wraps in adapter + logWrapper |
-| LangChain message types | Simple `Message` with roles: `system`, `human`, `ai`, `tool` |
+| `import { ChatOpenAI } from '@langchain/openai'` | `import { createOpenAiModel, supplyModel } from '@n8n/ai-node-sdk'` |
+| `new ChatOpenAI({ ... })` | `createOpenAiModel({ modelId, apiKey, baseURL })` |
+| Custom provider | `class MyModel extends BaseChatModel { ... }` |
+| `return { response: model }` | `return supplyModel(this, model)` |
+| `return { response: logWrapper(memory, this) }` | `return supplyMemoery(this, memory)` |
+| LangChain message types | `Message` with roles: `system`, `human`, `ai`, `tool` |
 | `tool_calls[].args` | `toolCalls[].arguments` |
