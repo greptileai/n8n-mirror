@@ -19,6 +19,7 @@ describe('ChatMessageWithButtons', () => {
 	];
 
 	let fetchMock: ReturnType<typeof vi.fn>;
+	const originalFetch = global.fetch;
 
 	beforeEach(() => {
 		fetchMock = vi.fn().mockResolvedValue({ ok: true });
@@ -26,7 +27,7 @@ describe('ChatMessageWithButtons', () => {
 	});
 
 	afterEach(() => {
-		vi.restoreAllMocks();
+		global.fetch = originalFetch;
 	});
 
 	it('should render text content', () => {
