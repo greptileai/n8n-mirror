@@ -79,6 +79,7 @@ export function useChatArtifacts(
 		isViewerVisible,
 		isViewerCollapsed,
 		viewerSize: computed(() => panelResizer.size.value),
+		isViewerResizing: computed(() => panelResizer.isResizing.value),
 		handleOpenViewer,
 		handleViewerResize: panelResizer.onResize,
 		handleViewerResizeEnd,

@@ -719,6 +719,7 @@ function onFilesDropped(files: File[]) {
 			[$style.isDraggingFile]: fileDrop.isDragging.value,
 			[$style.hasArtifact]: artifacts.isViewerVisible.value,
 			[$style.isMainPanelNarrow]: isMainPanelNarrow,
+			[$style.isResizing]: artifacts.isViewerResizing.value,
 		}"
 		@dragenter="fileDrop.handleDragEnter"
 		@dragleave="fileDrop.handleDragLeave"
@@ -896,6 +897,11 @@ function onFilesDropped(files: File[]) {
 
 	.isMobileDevice & {
 		display: none;
+	}
+
+	.isResizing & {
+		/* Prevent mouse event captured by iframe */
+		pointer-events: none;
 	}
 }
 
