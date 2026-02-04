@@ -116,6 +116,20 @@ jest.mock('../get-expression-data-mapping.tool', () => ({
 	},
 }));
 
+jest.mock('../get-workflow-overview.tool', () => ({
+	GET_WORKFLOW_OVERVIEW_TOOL: {
+		toolName: 'get_workflow_overview',
+		displayTitle: 'Getting workflow overview',
+	},
+}));
+
+jest.mock('../get-node-context.tool', () => ({
+	GET_NODE_CONTEXT_TOOL: {
+		toolName: 'get_node_context',
+		displayTitle: 'Getting node context',
+	},
+}));
+
 describe('builder-tools', () => {
 	let parsedNodeTypes: INodeTypeDescription[];
 
