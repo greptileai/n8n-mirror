@@ -2,6 +2,7 @@ import { HumanMessage, AIMessage } from '@langchain/core/messages';
 import type { NodeExecutionSchema, Schema } from 'n8n-workflow';
 
 import { createNode, createWorkflow } from '../../../test/test-utils';
+import { MAX_AI_RESPONSE_CHARS } from '../../constants';
 import type { CoordinationLogEntry } from '../../types/coordination';
 import type { ChatPayload } from '../../workflow-builder-agent';
 import {
@@ -407,7 +408,7 @@ describe('buildConversationContext', () => {
 		});
 
 		it('should truncate long AI responses', () => {
-			const longResponse = 'A'.repeat(1000);
+			const longResponse = 'A'.repeat(MAX_AI_RESPONSE_CHARS * 2);
 			const messages = [
 				new HumanMessage('Original request'),
 				new AIMessage(longResponse),
@@ -415,8 +416,8 @@ describe('buildConversationContext', () => {
 			];
 			const result = buildConversationContext(messages, [], undefined);
 			expect(result).toContain('Last AI response: "...');
-			// Should be truncated to ~500 chars + "..."
-			expect(result).not.toContain('A'.repeat(600));
+			// Should be truncated to MAX_AI_RESPONSE_CHARS + "..."
+			expect(result).not.toContain('A'.repeat(MAX_AI_RESPONSE_CHARS + 100));
 		});
 
 		it('should not include AI response when there is only one user message', () => {
