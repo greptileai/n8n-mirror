@@ -7,6 +7,7 @@ import {
 	evaluateCredentials,
 	evaluateGraphValidation,
 	evaluateNodes,
+	evaluateParameters,
 	evaluateTools,
 	evaluateAgentPrompt,
 	evaluateFromAi,
@@ -34,6 +35,7 @@ export async function programmaticEvaluation(
 	const credentialsEvaluationResult = evaluateCredentials(generatedWorkflow);
 const graphValidationResult = evaluateGraphValidation(generatedCode);
 	const nodeUsageEvaluationResult = evaluateNodeUsage(generatedWorkflow);
+	const parametersEvaluationResult = evaluateParameters(generatedWorkflow, nodeTypes);
 
 	// Workflow similarity evaluation
 	let similarityEvaluationResult = null;
@@ -77,6 +79,7 @@ const graphValidationResult = evaluateGraphValidation(generatedCode);
 		fromAi: fromAiEvaluationResult,
 		credentials: credentialsEvaluationResult,
 		nodeUsage: nodeUsageEvaluationResult,
+		parameters: parametersEvaluationResult,
 		similarity: similarityEvaluationResult,
 		graphValidation: graphValidationResult,
 	});
@@ -91,6 +94,7 @@ const graphValidationResult = evaluateGraphValidation(generatedCode);
 		fromAi: fromAiEvaluationResult,
 		credentials: credentialsEvaluationResult,
 		nodeUsage: nodeUsageEvaluationResult,
+		parameters: parametersEvaluationResult,
 		similarity: similarityEvaluationResult,
 		graphValidation: graphValidationResult,
 	};

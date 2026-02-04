@@ -5,19 +5,38 @@
  * Can be run directly or used as a reference for custom setups.
  */
 
-import type { Callbacks } from '@langchain/core/callbacks/manager';
 import type { INodeTypeDescription } from 'n8n-workflow';
 import pLimit from 'p-limit';
 
 import { CodeWorkflowBuilder } from '@/code-builder';
 import { EvaluationLogger } from '@/utils/evaluation-logger';
+import type { CoordinationLogEntry } from '@/types/coordination';
 import type { SimpleWorkflow } from '@/types/workflow';
 import type { StreamChunk, WorkflowUpdateChunk } from '@/types/streaming';
 import type { TokenUsage, GenerationError } from '../harness/harness-types.js';
 import type { BuilderFeatureFlags } from '@/workflow-builder-agent';
 
-import { consumeGenerator, getChatPayload } from '../harness/evaluation-helpers';
+import {
+	argsToStageModels,
+	getDefaultDatasetName,
+	getDefaultExperimentName,
+	parseEvaluationArgs,
+} from './argument-parser';
+import { buildCIMetadata } from './ci-metadata';
+import {
+	loadTestCasesFromCsv,
+	loadDefaultTestCases,
+	getDefaultTestCaseIds,
+} from './csv-prompt-loader';
+import { sendWebhookNotification } from './webhook';
+import {
+	consumeGenerator,
+	extractSubgraphMetrics,
+	getChatPayload,
+} from '../harness/evaluation-helpers';
 import { createLogger } from '../harness/logger';
+import type { GenerationCollectors } from '../harness/runner';
+import { TokenUsageTrackingHandler } from '../harness/token-tracking-handler';
 import {
 	runEvaluation,
 	createConsoleLifecycle,
@@ -32,19 +51,6 @@ import {
 	type GenerationResult,
 } from '../index';
 import { WorkflowGenerationError } from '../errors';
-import {
-	argsToStageModels,
-	getDefaultDatasetName,
-	getDefaultExperimentName,
-	parseEvaluationArgs,
-} from './argument-parser';
-import { buildCIMetadata } from './ci-metadata';
-import {
-	loadTestCasesFromCsv,
-	loadDefaultTestCases,
-	getDefaultTestCaseIds,
-} from './csv-prompt-loader';
-import { sendWebhookNotification } from './webhook';
 import { generateRunId, isWorkflowStateValues } from '../langsmith/types';
 import { AGENT_TYPES, EVAL_TYPES, EVAL_USERS } from '../support/constants';
 import { setupTestEnvironment, createAgent, type ResolvedStageLLMs } from '../support/environment';
@@ -54,6 +60,17 @@ import { setupTestEnvironment, createAgent, type ResolvedStageLLMs } from '../su
  */
 function isWorkflowUpdateChunk(chunk: StreamChunk): chunk is WorkflowUpdateChunk {
 	return chunk.type === 'workflow-updated';
+}
+
+/**
+ * Type guard to check if state values contain a coordination log.
+ */
+function hasCoordinationLog(
+	values: unknown,
+): values is { coordinationLog: CoordinationLogEntry[] } {
+	if (!values || typeof values !== 'object') return false;
+	const obj = values as Record<string, unknown>;
+	return Array.isArray(obj.coordinationLog);
 }
 
 /**
@@ -70,14 +87,14 @@ function createWorkflowGenerator(
 	parsedNodeTypes: INodeTypeDescription[],
 	llms: ResolvedStageLLMs,
 	featureFlags?: BuilderFeatureFlags,
-): (prompt: string, callbacks?: Callbacks) => Promise<SimpleWorkflow> {
+): (prompt: string, collectors?: GenerationCollectors) => Promise<SimpleWorkflow> {
 	// Ensure codeBuilder is explicitly set to false for multi-agent evaluation
 	const multiAgentFeatureFlags: BuilderFeatureFlags = {
 		...featureFlags,
 		codeBuilder: false,
 	};
 
-	return async (prompt: string, callbacks?: Callbacks): Promise<SimpleWorkflow> => {
+	return async (prompt: string, collectors?: GenerationCollectors): Promise<SimpleWorkflow> => {
 		const runId = generateRunId();
 
 		const agent = createAgent({
@@ -85,6 +102,10 @@ function createWorkflowGenerator(
 			llms,
 			featureFlags: multiAgentFeatureFlags,
 		});
+
+		// Create token tracking handler to capture usage from all LLM calls
+		// (supervisor, discovery, builder, responder agents)
+		const tokenTracker = collectors?.tokenUsage ? new TokenUsageTrackingHandler() : undefined;
 
 		await consumeGenerator(
 			agent.chat(
@@ -96,7 +117,7 @@ function createWorkflowGenerator(
 				}),
 				EVAL_USERS.LANGSMITH,
 				undefined, // abortSignal
-				callbacks,
+				tokenTracker ? [tokenTracker] : undefined, // externalCallbacks
 			),
 		);
 
@@ -106,7 +127,35 @@ function createWorkflowGenerator(
 			throw new Error('Invalid workflow state: workflow or messages missing');
 		}
 
-		return state.values.workflowJSON;
+		const workflow = state.values.workflowJSON;
+
+		// Report accumulated token usage from all agents
+		if (collectors?.tokenUsage && tokenTracker) {
+			const usage = tokenTracker.getUsage();
+			if (usage.inputTokens > 0 || usage.outputTokens > 0) {
+				collectors.tokenUsage(usage);
+			}
+		}
+
+		// Extract and report subgraph metrics from coordination log
+		if (collectors?.subgraphMetrics) {
+			const coordinationLog = hasCoordinationLog(state.values)
+				? state.values.coordinationLog
+				: undefined;
+			const nodeCount = workflow.nodes?.length;
+			const metrics = extractSubgraphMetrics(coordinationLog, nodeCount);
+
+			if (
+				metrics.discoveryDurationMs !== undefined ||
+				metrics.builderDurationMs !== undefined ||
+				metrics.responderDurationMs !== undefined ||
+				metrics.nodeCount !== undefined
+			) {
+				collectors.subgraphMetrics(metrics);
+			}
+		}
+
+		return workflow;
 	};
 }
 
@@ -124,7 +173,7 @@ function createCodeWorkflowBuilderGenerator(
 	parsedNodeTypes: INodeTypeDescription[],
 	llms: ResolvedStageLLMs,
 	timeoutMs?: number,
-): (prompt: string, callbacks?: Callbacks) => Promise<GenerationResult> {
+): (prompt: string, collectors?: GenerationCollectors) => Promise<GenerationResult> {
 	return async (prompt: string): Promise<GenerationResult> => {
 		const runId = generateRunId();
 		const evalLogger = new EvaluationLogger();
@@ -312,6 +361,8 @@ export async function runV2Evaluation(): Promise<void> {
 		lifecycle,
 		logger,
 		outputDir: args.outputDir,
+		outputCsv: args.outputCsv,
+		suite: args.suite,
 		timeoutMs: args.timeoutMs,
 		context: { llmCallLimiter },
 	};

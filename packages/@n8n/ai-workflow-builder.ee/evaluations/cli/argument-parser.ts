@@ -43,6 +43,9 @@ export interface EvaluationArgs {
 	/** Secret for HMAC-SHA256 signature of webhook payload */
 	webhookSecret?: string;
 
+	/** CSV file path for evaluation results */
+	outputCsv?: string;
+
 	// Model configuration
 	/** Default model for all stages */
 	model: ModelId;
@@ -54,11 +57,9 @@ export interface EvaluationArgs {
 	responderModel?: ModelId;
 	/** Model for discovery stage */
 	discoveryModel?: ModelId;
-	/** Model for builder stage */
+	/** Model for builder stage (structure and configuration) */
 	builderModel?: ModelId;
-	/** Model for configurator stage */
-	configuratorModel?: ModelId;
-	/** Model for parameter updater (within configurator) */
+	/** Model for parameter updater (within builder) */
 	parameterUpdaterModel?: ModelId;
 }
 
@@ -88,6 +89,7 @@ const cliSchema = z
 		timeoutMs: z.coerce.number().int().positive().default(DEFAULTS.TIMEOUT_MS),
 		experimentName: z.string().min(1).optional(),
 		outputDir: z.string().min(1).optional(),
+		outputCsv: z.string().min(1).optional(),
 		datasetName: z.string().min(1).optional(),
 		maxExamples: z.coerce.number().int().positive().optional(),
 		filter: z.array(z.string().min(1)).default([]),
@@ -115,7 +117,6 @@ const cliSchema = z
 		responderModel: modelIdSchema.optional(),
 		discoveryModel: modelIdSchema.optional(),
 		builderModel: modelIdSchema.optional(),
-		configuratorModel: modelIdSchema.optional(),
 		parameterUpdaterModel: modelIdSchema.optional(),
 	})
 	.strict();
@@ -233,6 +234,12 @@ const FLAG_DEFS: Record<string, FlagDef> = {
 		group: 'output',
 		desc: 'Directory for artifacts',
 	},
+	'--output-csv': {
+		key: 'outputCsv',
+		kind: 'string',
+		group: 'output',
+		desc: 'CSV file for evaluation results - if pre-existing file found it will be overwritten',
+	},
 	'--verbose': { key: 'verbose', kind: 'boolean', group: 'output', desc: 'Verbose logging' },
 	'--webhook-url': {
 		key: 'webhookUrl',
@@ -290,13 +297,7 @@ const FLAG_DEFS: Record<string, FlagDef> = {
 		key: 'builderModel',
 		kind: 'string',
 		group: 'model',
-		desc: 'Model for builder stage',
-	},
-	'--configurator-model': {
-		key: 'configuratorModel',
-		kind: 'string',
-		group: 'model',
-		desc: 'Model for configurator stage',
+		desc: 'Model for builder stage (structure and configuration)',
 	},
 	'--parameter-updater-model': {
 		key: 'parameterUpdaterModel',
@@ -544,6 +545,7 @@ export function parseEvaluationArgs(argv: string[] = process.argv.slice(2)): Eva
 		timeoutMs: parsed.timeoutMs,
 		experimentName: parsed.experimentName,
 		outputDir: parsed.outputDir,
+		outputCsv: parsed.outputCsv,
 		datasetName: parsed.datasetName,
 		maxExamples: parsed.maxExamples,
 		filters,
@@ -563,7 +565,6 @@ export function parseEvaluationArgs(argv: string[] = process.argv.slice(2)): Eva
 		responderModel: parsed.responderModel,
 		discoveryModel: parsed.discoveryModel,
 		builderModel: parsed.builderModel,
-		configuratorModel: parsed.configuratorModel,
 		parameterUpdaterModel: parsed.parameterUpdaterModel,
 	};
 }
@@ -578,7 +579,6 @@ export function argsToStageModels(args: EvaluationArgs): StageModels {
 		responder: args.responderModel,
 		discovery: args.discoveryModel,
 		builder: args.builderModel,
-		configurator: args.configuratorModel,
 		parameterUpdater: args.parameterUpdaterModel,
 		judge: args.judgeModel,
 	};

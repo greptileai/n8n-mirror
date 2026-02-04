@@ -156,8 +156,21 @@ function formatFeedbackForExport(result: ExampleResult): object {
 		index: result.index,
 		status: result.status,
 		durationMs: result.durationMs,
+		generationDurationMs: result.generationDurationMs,
+		evaluationDurationMs: result.evaluationDurationMs,
+		generationInputTokens: result.generationInputTokens,
+		generationOutputTokens: result.generationOutputTokens,
 		score: result.score,
 		...(result.tokenUsage ? { tokenUsage: result.tokenUsage } : {}),
+		// Include subgraph metrics if available
+		...(result.subgraphMetrics && {
+			subgraphMetrics: {
+				nodeCount: result.subgraphMetrics.nodeCount,
+				discoveryDurationMs: result.subgraphMetrics.discoveryDurationMs,
+				builderDurationMs: result.subgraphMetrics.builderDurationMs,
+				responderDurationMs: result.subgraphMetrics.responderDurationMs,
+			},
+		}),
 		evaluators: Object.entries(byEvaluator).map(([name, items]) => ({
 			name,
 			feedback: items.map((f) => ({
@@ -233,6 +246,15 @@ function formatSummaryForExport(summary: RunSummary, results: ExampleResult[]): 
 			score: r.score,
 			durationMs: r.durationMs,
 			...(r.tokenUsage ? { tokenUsage: r.tokenUsage } : {}),
+			generationDurationMs: r.generationDurationMs,
+			generationInputTokens: r.generationInputTokens,
+			generationOutputTokens: r.generationOutputTokens,
+			...(r.subgraphMetrics && {
+				nodeCount: r.subgraphMetrics.nodeCount,
+				discoveryDurationMs: r.subgraphMetrics.discoveryDurationMs,
+				builderDurationMs: r.subgraphMetrics.builderDurationMs,
+				responderDurationMs: r.subgraphMetrics.responderDurationMs,
+			}),
 			...(r.error ? { error: r.error } : {}),
 			...(r.dos ? { dos: r.dos } : {}),
 			...(r.donts ? { donts: r.donts } : {}),
