@@ -3,7 +3,13 @@ import { Logger } from '@n8n/backend-common';
 import { ExecutionsConfig } from '@n8n/config';
 import { ExecutionRepository, WorkflowRepository } from '@n8n/db';
 import { Service } from '@n8n/di';
-import { WorkflowHasIssuesError, InstanceSettings, WorkflowExecute } from 'n8n-core';
+import {
+	WorkflowHasIssuesError,
+	InstanceSettings,
+	WorkflowExecute,
+	SupplyDataContext,
+} from 'n8n-core';
+import type { Tool } from '@langchain/core/tools';
 import type {
 	ExecutionStatus,
 	IExecuteData,
@@ -12,6 +18,7 @@ import type {
 	IRun,
 	IWorkflowExecutionDataProcess,
 	StructuredChunk,
+	CloseFunction,
 } from 'n8n-workflow';
 import {
 	BINARY_ENCODING,
@@ -310,13 +317,7 @@ export class JobProcessor {
 
 			let toolResult: unknown;
 			try {
-				toolResult = await this.executeToolNode(
-					workflow,
-					sourceNodeName,
-					toolArgs,
-					additionalData,
-					executionId,
-				);
+				toolResult = await this.invokeTool(workflow, sourceNodeName, toolArgs, additionalData);
 			} catch (error) {
 				this.logger.error('Tool node execution failed for MCP Trigger', {
 					executionId,
@@ -440,11 +441,11 @@ export class JobProcessor {
 	}
 
 	/**
-	 * Execute a tool node for MCP Trigger in queue mode.
-	 * This method creates a minimal workflow execution to run just the tool node
-	 * and extract its output.
+	 * Invoke a tool directly for MCP Trigger in queue mode.
+	 * This method creates a SupplyDataContext, calls supplyData to get the Tool,
+	 * and invokes it directly instead of running a full workflow execution.
 	 */
-	private async executeToolNode(
+	private async invokeTool(
 		workflow: Workflow,
 		sourceNodeName: string,
 		toolArgs: Record<string, unknown>,
@@ -453,11 +454,16 @@ export class JobProcessor {
 		>
 			? T
 			: never,
-		_executionId: string,
 	): Promise<unknown> {
 		const toolNode = workflow.getNode(sourceNodeName);
 		if (!toolNode) {
 			throw new UnexpectedError(`Tool node "${sourceNodeName}" not found in workflow`);
+		}
+
+		// Get the node type
+		const nodeType = this.nodeTypes.getByNameAndVersion(toolNode.type, toolNode.typeVersion);
+		if (!nodeType.supplyData) {
+			throw new UnexpectedError(`Tool node "${sourceNodeName}" does not have supplyData method`);
 		}
 
 		// Validate toolArgs is a proper object (not null/array) before using as input data
@@ -473,46 +479,54 @@ export class JobProcessor {
 			],
 		];
 
-		// Create execution stack with just the tool node
-		const nodeExecutionStack: IExecuteData[] = [
-			{
-				node: toolNode,
-				data: {
-					main: inputData,
-				},
-				source: null,
+		// Create minimal run execution data
+		const runExecutionData = createRunExecutionData({});
+
+		// Create execute data for the tool node
+		const executeData: IExecuteData = {
+			node: toolNode,
+			data: {
+				main: inputData,
 			},
-		];
+			source: null,
+		};
 
-		// Create minimal run execution data for the tool node
-		const toolRunData = createRunExecutionData({
-			executionData: {
-				nodeExecutionStack,
-			},
-		});
+		const closeFunctions: CloseFunction[] = [];
 
-		// Execute the tool node
-		const workflowExecute = new WorkflowExecute(additionalData, 'webhook', toolRunData);
-		const toolRun = await workflowExecute.processRunExecutionData(workflow);
+		// Create SupplyDataContext for the tool node
+		const context = new SupplyDataContext(
+			workflow,
+			toolNode,
+			additionalData,
+			'webhook',
+			runExecutionData,
+			0,
+			inputData[0],
+			{ main: inputData },
+			NodeConnectionTypes.AiTool,
+			executeData,
+			closeFunctions,
+		);
 
-		// Extract the tool node's output from the run data
-		const nodeRunData = toolRun.data.resultData.runData[sourceNodeName];
-		if (!nodeRunData || nodeRunData.length === 0) {
-			return { error: 'Tool execution produced no output' };
+		try {
+			const supplyDataResult = await nodeType.supplyData.call(context, 0);
+			const tool = supplyDataResult.response as Tool;
+
+			if (!tool || typeof tool.invoke !== 'function') {
+				throw new UnexpectedError(`Tool node "${sourceNodeName}" did not return a valid Tool`);
+			}
+
+			const result = await tool.invoke(validatedToolArgs);
+
+			return result;
+		} finally {
+			for (const closeFunction of closeFunctions) {
+				try {
+					await closeFunction();
+				} catch (error) {
+					this.logger.warn(`Error closing tool resource: ${error}`);
+				}
+			}
 		}
-
-		// Get the output data from the last run
-		const lastRun = nodeRunData[nodeRunData.length - 1];
-		const outputData = lastRun.data?.[NodeConnectionTypes.Main]?.[0];
-
-		if (!outputData || outputData.length === 0) {
-			return { error: 'Tool execution produced empty output' };
-		}
-
-		// Return the JSON data from the first output item
-		// For tools, typically there's a single output item with the result
-		const result = outputData[0]?.json;
-
-		return result;
 	}
 }
