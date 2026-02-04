@@ -1616,10 +1616,6 @@ export function useCanvasOperations() {
 			width: nodeSize[0],
 			height: nodeSize[1],
 		};
-		const insertCenter = {
-			x: insertX + nodeSize[0] / 2,
-			y: insertY + nodeSize[1] / 2,
-		};
 
 		// Step 1: Find initial candidates - nodes that overlap with or are to the right of insertion
 		// A node overlaps if its right edge extends into the insertion area
@@ -1717,11 +1713,7 @@ export function useCanvasOperations() {
 			}
 
 			// For non-anchored stickies, determine behavior based on position and associations
-			const insertCenterInsideSticky =
-				insertCenter.x >= sticky.position[0] &&
-				insertCenter.x <= sticky.position[0] + stickyRect.width &&
-				insertCenter.y >= sticky.position[1] &&
-				insertCenter.y <= sticky.position[1] + stickyRect.height;
+			const insertOverlapsSticky = doRectsOverlap(insertRect, stickyRect);
 
 			const associatedNodes = getAssociatedNodes(
 				sticky,
@@ -1736,15 +1728,12 @@ export function useCanvasOperations() {
 			}
 
 			const associatedWithMovedNode = associatedNodes.length > 0;
-			const insertCenterNearStickyCenter = areCentersClose(
-				insertCenter,
-				stickyCenter,
-				nodeCenterThreshold,
-			);
-			const insertRectOverlapsSticky = doRectsOverlap(insertRect, stickyRect);
 
-			// Classify behavior based on sticky's relationship to insertion point and nodes
-			if (associatedWithMovedNode && overlapsVertically) {
+			if (!overlapsVertically) {
+				continue;
+			}
+
+			if (associatedWithMovedNode) {
 				// Sticky has nodes that will move - check if new node will be close enough to the sticky after movement
 				const stickyLeftAfterMove = stickyLeftEdge + PUSH_NODES_OFFSET;
 				const newNodeRightEdge = insertX + nodeSize[0];
@@ -1753,20 +1742,17 @@ export function useCanvasOperations() {
 				// If distance is less than a third of PUSH_NODES_OFFSET, stretch the sticky to include the new node
 				const isNewNodeCloseToSticky = distanceToStickyAfterMove < PUSH_NODES_OFFSET / 3;
 
-				if (insertCenterInsideSticky && insertCenterNearStickyCenter && isNewNodeCloseToSticky) {
-					// Insertion is between contained nodes and close enough - move AND stretch
+				if (isNewNodeCloseToSticky) {
+					// New node is close enough to sticky after move - move AND stretch
 					stickiesToMoveAndStretch.push(sticky);
 				} else {
-					// Insertion is outside sticky bounds after move - just move
+					// New node is too far from sticky after move - just move
 					stickiesToMove.push(sticky);
 				}
-			} else if (
-				(insertRectOverlapsSticky || (insertCenterInsideSticky && insertCenterNearStickyCenter)) &&
-				!associatedWithMovedNode
-			) {
+			} else if (insertOverlapsSticky) {
 				// Sticky overlaps insertion but has no moving nodes - just stretch
 				stickiesToStretch.push(sticky);
-			} else if (stickyLeftEdge >= insertX && overlapsVertically) {
+			} else if (stickyLeftEdge >= insertX) {
 				// Sticky is entirely to the right - move it
 				stickiesToMove.push(sticky);
 			}
@@ -1789,7 +1775,7 @@ export function useCanvasOperations() {
 		associatedNodes: INodeUi[],
 		{ trackHistory = false }: { trackHistory?: boolean },
 	) {
-		const padding = 10;
+		const padding = 20;
 		const stickyRect = getNodeRect(sticky);
 		const currentLeft = sticky.position[0];
 		const currentRight = currentLeft + stickyRect.width;
