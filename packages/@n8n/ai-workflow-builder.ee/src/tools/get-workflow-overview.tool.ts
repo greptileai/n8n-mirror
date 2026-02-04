@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 import { ValidationError, ToolExecutionError } from '../errors';
 import type { SimpleWorkflow } from '../types/workflow';
+import { isTriggerNodeType } from '../utils/node-helpers';
 import type { BuilderTool, BuilderToolBase } from '../utils/stream-processor';
 import { truncateJson } from '../utils/truncate-json';
 import { createProgressReporter } from './helpers/progress';
@@ -48,12 +49,7 @@ export interface GetWorkflowOverviewOutput {
 function findTriggerNode(
 	nodes: Array<{ id: string; name: string; type: string }>,
 ): { id: string; name: string; type: string } | undefined {
-	return nodes.find(
-		(n) =>
-			n.type.toLowerCase().includes('trigger') ||
-			n.type.toLowerCase().includes('webhook') ||
-			n.type === 'n8n-nodes-base.manualTrigger',
-	);
+	return nodes.find((n) => isTriggerNodeType(n.type));
 }
 
 /**

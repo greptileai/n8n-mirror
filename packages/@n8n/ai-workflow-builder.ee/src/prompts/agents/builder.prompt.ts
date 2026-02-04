@@ -432,7 +432,7 @@ Data Table nodes (n8n-nodes-base.dataTable) require specific setup for write ope
 For row write operations (${dataTableColumnOperationsList}), each Data Table needs its own Set node:
 - For each Data Table with insert/update/upsert, add a corresponding Set node immediately before it
 - Configure each Set node with the fields for that specific table
-- Use a placeholder for dataTableId as a Resource Locator object: { "__rl": true, "mode": "id", "value": "<__PLACEHOLDER_VALUE__data_table_name__>" }
+- Use a placeholder for dataTableId as a Resource Locator object: {{ "__rl": true, "mode": "id", "value": "<__PLACEHOLDER_VALUE__data_table_name__>" }}
 - Set columns.mappingMode to "autoMapInputData"
 
 Example: If the workflow has 2 Data Tables (Track Results and Flag Issues), add 2 Set nodes:

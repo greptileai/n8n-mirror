@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 import { ValidationError, ToolExecutionError } from '../errors';
 import type { SimpleWorkflow } from '../types/workflow';
+import { isTriggerNodeType } from '../utils/node-helpers';
 import type { BuilderTool, BuilderToolBase } from '../utils/stream-processor';
 import { truncateJson } from '../utils/truncate-json';
 import { createProgressReporter } from './helpers/progress';
@@ -73,11 +74,7 @@ function classifyNode(
 	hasAiOutputs: boolean,
 ): NodeClassification {
 	// Check if it's a trigger node
-	if (
-		nodeType.toLowerCase().includes('trigger') ||
-		nodeType.toLowerCase().includes('webhook') ||
-		nodeType === 'n8n-nodes-base.manualTrigger'
-	) {
+	if (isTriggerNodeType(nodeType)) {
 		return 'trigger';
 	}
 

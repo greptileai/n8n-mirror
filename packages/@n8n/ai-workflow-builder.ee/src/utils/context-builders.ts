@@ -7,6 +7,7 @@ import type { CoordinationLogEntry } from '../types/coordination';
 import type { DiscoveryContext } from '../types/discovery-types';
 import type { SimpleWorkflow } from '../types/workflow';
 import type { ChatPayload } from '../workflow-builder-agent';
+import { isTriggerNodeType } from './node-helpers';
 import { trimWorkflowJSON } from './trim-workflow-context';
 import { truncateJson } from './truncate-json';
 
@@ -46,12 +47,7 @@ export function buildWorkflowJsonBlock(workflow: SimpleWorkflow): string {
 function findTriggerNodes(
 	nodes: Array<{ name: string; type: string }>,
 ): Array<{ name: string; type: string }> {
-	return nodes.filter(
-		(n) =>
-			n.type.toLowerCase().includes('trigger') ||
-			n.type.toLowerCase().includes('webhook') ||
-			n.type === 'n8n-nodes-base.manualTrigger',
-	);
+	return nodes.filter((n) => isTriggerNodeType(n.type));
 }
 
 /**
