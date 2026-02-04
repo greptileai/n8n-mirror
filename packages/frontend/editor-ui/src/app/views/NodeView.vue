@@ -348,9 +348,10 @@ async function initializeRoute() {
 		}
 	}
 
-	// Handle blank redirect
+	// Handle blank redirect - return early but don't clear the flag here.
+	// The flag is cleared by openWorkflowTemplate/openWorkflowTemplateFromJSON
+	// after the template import completes.
 	if (uiStore.isBlankRedirect) {
-		uiStore.isBlankRedirect = false;
 		return;
 	}
 
