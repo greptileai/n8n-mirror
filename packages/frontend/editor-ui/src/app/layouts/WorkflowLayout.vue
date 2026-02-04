@@ -18,8 +18,15 @@ const assistantStore = useAssistantStore();
 const workflowState = useWorkflowState();
 provide(WorkflowStateKey, workflowState);
 
-const { isLoading, workflowId, initializeData, initializeWorkflow, cleanup } =
-	useWorkflowInitialization(workflowState);
+const {
+	isLoading,
+	workflowId,
+	isDebugRoute,
+	initializeData,
+	initializeWorkflow,
+	handleDebugModeRoute,
+	cleanup,
+} = useWorkflowInitialization(workflowState);
 
 provide(WorkflowIdKey, workflowId);
 
@@ -33,6 +40,18 @@ watch(
 	async (newId, oldId) => {
 		if (newId !== oldId && newId) {
 			await initializeWorkflow(true);
+		}
+	},
+	{ flush: 'post' },
+);
+
+// Watch for entering debug mode on the same workflow (e.g., from executions tab)
+// The workflowId watch won't trigger because the ID doesn't change
+watch(
+	isDebugRoute,
+	async (isDebug, wasDebug) => {
+		if (isDebug && !wasDebug) {
+			await handleDebugModeRoute();
 		}
 	},
 	{ flush: 'post' },
