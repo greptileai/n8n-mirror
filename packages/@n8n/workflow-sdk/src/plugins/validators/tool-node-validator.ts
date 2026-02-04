@@ -23,7 +23,7 @@ export const toolNodeValidator: ValidatorPlugin = {
 	validateNode(
 		node: NodeInstance<string, string, unknown>,
 		_graphNode: GraphNode,
-		_ctx: PluginContext,
+		ctx: PluginContext,
 	): ValidationIssue[] {
 		const issues: ValidationIssue[] = [];
 
@@ -32,7 +32,18 @@ export const toolNodeValidator: ValidatorPlugin = {
 			return issues;
 		}
 
-		// Skip tools that don't need parameters
+		// Check via nodeTypesProvider first (dynamic detection)
+		const provider = ctx.validationOptions?.nodeTypesProvider;
+		if (provider) {
+			const nodeType = provider.getByNameAndVersion(node.type, Number(node.version));
+			const properties = nodeType?.description?.properties;
+			// If provider returns info and properties is empty array, skip validation
+			if (properties !== undefined && properties.length === 0) {
+				return issues;
+			}
+		}
+
+		// Fallback to static list when provider not available or doesn't have info
 		if (TOOLS_WITHOUT_PARAMETERS.has(node.type)) {
 			return issues;
 		}

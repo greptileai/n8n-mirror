@@ -26,12 +26,13 @@ function createGraphNode(node: NodeInstance<string, string, unknown>): GraphNode
 }
 
 // Helper to create a mock plugin context
-function createMockPluginContext(): PluginContext {
+function createMockPluginContext(options?: PluginContext['validationOptions']): PluginContext {
 	return {
 		nodes: new Map(),
 		workflowId: 'test-workflow',
 		workflowName: 'Test Workflow',
 		settings: {},
+		validationOptions: options,
 	};
 }
 
@@ -185,6 +186,82 @@ describe('toolNodeValidator', () => {
 			const issues = toolNodeValidator.validateNode(node, createGraphNode(node), ctx);
 
 			expect(issues[0]?.nodeName).toBe('My HTTP Tool');
+		});
+
+		describe('nodeTypesProvider integration', () => {
+			it('returns no warning when nodeTypesProvider indicates node has no properties', () => {
+				// A tool node that is NOT in TOOLS_WITHOUT_PARAMETERS
+				const node = createMockNode('@n8n/n8n-nodes-langchain.toolCustom', {
+					parameters: {},
+				});
+				// Provider says this node has no properties (empty array)
+				const ctx = createMockPluginContext({
+					nodeTypesProvider: {
+						getByNameAndVersion: () => ({
+							description: {
+								properties: [],
+							},
+						}),
+					},
+				});
+
+				const issues = toolNodeValidator.validateNode(node, createGraphNode(node), ctx);
+
+				expect(issues).toHaveLength(0);
+			});
+
+			it('returns warning when nodeTypesProvider indicates node has properties', () => {
+				const node = createMockNode('@n8n/n8n-nodes-langchain.toolCustom', {
+					parameters: {},
+				});
+				// Provider says this node has properties that require configuration
+				const ctx = createMockPluginContext({
+					nodeTypesProvider: {
+						getByNameAndVersion: () => ({
+							description: {
+								properties: [{ name: 'url', type: 'string', required: true }],
+							},
+						}),
+					},
+				});
+
+				const issues = toolNodeValidator.validateNode(node, createGraphNode(node), ctx);
+
+				expect(issues).toContainEqual(
+					expect.objectContaining({
+						code: 'TOOL_NO_PARAMETERS',
+						severity: 'warning',
+					}),
+				);
+			});
+
+			it('falls back to static list when nodeTypesProvider returns undefined', () => {
+				// A node in TOOLS_WITHOUT_PARAMETERS should still be allowed
+				const node = createMockNode('@n8n/n8n-nodes-langchain.toolCalculator', {
+					parameters: {},
+				});
+				const ctx = createMockPluginContext({
+					nodeTypesProvider: {
+						getByNameAndVersion: () => undefined,
+					},
+				});
+
+				const issues = toolNodeValidator.validateNode(node, createGraphNode(node), ctx);
+
+				expect(issues).toHaveLength(0);
+			});
+
+			it('falls back to static list when no nodeTypesProvider is provided', () => {
+				// A node in TOOLS_WITHOUT_PARAMETERS should still be allowed
+				const node = createMockNode('@n8n/n8n-nodes-langchain.toolVectorStore', {
+					parameters: {},
+				});
+				const ctx = createMockPluginContext(); // No provider
+
+				const issues = toolNodeValidator.validateNode(node, createGraphNode(node), ctx);
+
+				expect(issues).toHaveLength(0);
+			});
 		});
 	});
 });
