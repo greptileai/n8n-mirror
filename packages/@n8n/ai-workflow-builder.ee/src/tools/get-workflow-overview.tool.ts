@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { ValidationError, ToolExecutionError } from '../errors';
 import type { SimpleWorkflow } from '../types/workflow';
 import type { BuilderTool, BuilderToolBase } from '../utils/stream-processor';
+import { truncateJson } from '../utils/truncate-json';
 import { createProgressReporter } from './helpers/progress';
 import { createSuccessResponse, createErrorResponse } from './helpers/response';
 import { getEffectiveWorkflow } from './helpers/state';
@@ -101,7 +102,7 @@ function buildSummaryFormat(
 		const nodeHeader = `- ${node.name} [id: ${node.id}] (${node.type})`;
 		if (includeParameters && node.parameters && Object.keys(node.parameters).length > 0) {
 			parts.push(nodeHeader);
-			parts.push(`  Parameters: ${JSON.stringify(node.parameters)}`);
+			parts.push(`  Parameters: ${truncateJson(node.parameters, { indent: 0 })}`);
 		} else {
 			parts.push(nodeHeader);
 		}
