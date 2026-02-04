@@ -298,7 +298,7 @@ const enum PUBLISH_ACTIONS {
 	UNPUBLISH = 'unpublish',
 }
 
-const publishDropdownActions = computed<Array<ActionDropdownItem<PUBLISH_ACTIONS>>>(() => {
+const dropdownMenuActions = computed<Array<ActionDropdownItem<PUBLISH_ACTIONS>>>(() => {
 	const actions: Array<ActionDropdownItem<PUBLISH_ACTIONS>> = [
 		{
 			id: PUBLISH_ACTIONS.PUBLISH,
@@ -514,16 +514,16 @@ defineExpose({
 					</N8nButton>
 				</N8nTooltip>
 				<N8nActionDropdown
-					:items="publishDropdownActions"
+					:items="dropdownMenuActions"
+					placement="bottom-end"
 					data-test-id="workflow-dropdown"
 					@select="onDropdownMenuSelect"
 				>
 					<template #activator>
 						<N8nIconButton
 							:class="$style.groupButtonRight"
-							:disabled="shouldDisablePublishButton"
+							:disabled="isNewWorkflow"
 							type="secondary"
-							size="medium"
 							icon="chevron-down"
 							data-test-id="workflow-dropdown-button"
 						/>
