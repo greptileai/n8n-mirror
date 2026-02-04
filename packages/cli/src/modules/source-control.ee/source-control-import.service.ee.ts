@@ -1240,13 +1240,17 @@ export class SourceControlImportService {
 		return await this.importVariables(importedVariables, valueOverrides);
 	}
 
-	async importDataTablesFromWorkFolder(candidates: SourceControlledFile[], _userId: string) {
+	async importDataTablesFromWorkFolder(candidates: SourceControlledFile[], userId: string) {
 		if (candidates.length === 0) {
 			return;
 		}
 
 		// Get database type from the repository's connection
 		const dbType = this.dataTableRepository.manager.connection.options.type;
+
+		// Get the pulling user's personal project as a fallback for personal projects
+		const pullingUserPersonalProject =
+			await this.projectRepository.getPersonalProjectForUserOrFail(userId);
 
 		const result: { imported: string[] } = { imported: [] };
 
@@ -1269,7 +1273,7 @@ export class SourceControlImportService {
 
 				if (dataTable.ownedBy) {
 					if (dataTable.ownedBy.type === 'personal') {
-						// For personal projects, use the personalEmail field directly
+						// For personal projects, try to find the user locally
 						const personalEmail = dataTable.ownedBy.personalEmail;
 						if (personalEmail) {
 							const user = await this.userRepository.findOne({ where: { email: personalEmail } });
@@ -1277,6 +1281,12 @@ export class SourceControlImportService {
 								targetProject = await this.projectRepository.getPersonalProjectForUserOrFail(
 									user.id,
 								);
+							} else {
+								// User doesn't exist locally - fall back to pulling user's personal project
+								this.logger.debug(
+									`User ${personalEmail} not found locally for data table ${dataTable.name}. Using pulling user's personal project as fallback.`,
+								);
+								targetProject = pullingUserPersonalProject;
 							}
 						}
 					} else if (dataTable.ownedBy.type === 'team') {
@@ -1295,11 +1305,12 @@ export class SourceControlImportService {
 					}
 				}
 
+				// If no owner specified or owner not found, use pulling user's personal project
 				if (!targetProject) {
-					this.logger.warn(
-						`No valid project found for data table ${dataTable.name}. Owner: ${JSON.stringify(dataTable.ownedBy)}. Skipping.`,
+					this.logger.debug(
+						`No owner specified for data table ${dataTable.name}. Using pulling user's personal project.`,
 					);
-					continue;
+					targetProject = pullingUserPersonalProject;
 				}
 
 				const targetProjectId = targetProject.id;
