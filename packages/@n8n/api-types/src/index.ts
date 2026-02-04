@@ -182,6 +182,12 @@ export type {
 	SecretsProviderConnectionTestState,
 	SecretProviderConnection,
 	SecretProviderTypeResponse,
-	AutocompletionSecretsResponse,
+	SecretCompletionsResponse,
 	TestSecretProviderConnectionResponse,
+	ReloadSecretProviderConnectionResponse,
+} from './schemas/secrets-provider.schema';
+
+export {
+	testSecretProviderConnectionResponseSchema,
+	reloadSecretProviderConnectionResponseSchema,
 } from './schemas/secrets-provider.schema';

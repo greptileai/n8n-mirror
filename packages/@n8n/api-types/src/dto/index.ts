@@ -71,6 +71,8 @@ export { UpdateWorkflowDto } from './workflows/update-workflow.dto';
 export { ImportWorkflowFromUrlDto } from './workflows/import-workflow-from-url.dto';
 export { TransferWorkflowBodyDto } from './workflows/transfer.dto';
 export { ActivateWorkflowDto } from './workflows/activate-workflow.dto';
+export { DeactivateWorkflowDto } from './workflows/deactivate-workflow.dto';
+export { ArchiveWorkflowDto } from './workflows/archive-workflow.dto';
 
 export { CreateOrUpdateTagRequestDto } from './tag/create-or-update-tag-request.dto';
 export { RetrieveTagQueryDto } from './tag/retrieve-tag-query.dto';
@@ -136,6 +138,11 @@ export {
 	DeleteOAuthClientResponseDto,
 } from './oauth/oauth-client.dto';
 export { ProvisioningConfigDto, ProvisioningConfigPatchDto } from './provisioning/config.dto';
+
+export {
+	SecuritySettingsDto,
+	UpdateSecuritySettingsDto,
+} from './security-settings/security-settings.dto';
 
 export { WorkflowHistoryVersionsByIdsDto } from './workflow-history/workflow-history-versions-by-ids.dto';
 export { UpdateWorkflowHistoryVersionDto } from './workflow-history/update-workflow-history-version.dto';

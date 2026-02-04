@@ -285,12 +285,9 @@ export class WorkflowService {
 			aiBuilderAssisted = false,
 			autosaved = false,
 		} = options;
-		const workflow = await this.workflowFinderService.findWorkflowForUser(
-			workflowId,
-			user,
-			['workflow:update'],
-			{ includeActiveVersion: true },
-		);
+		const workflow = await this.workflowFinderService.findWorkflowForUser(workflowId, user, [
+			'workflow:update',
+		]);
 
 		if (!workflow) {
 			this.logger.warn('User attempted to update a workflow without permissions', {
@@ -595,12 +592,9 @@ export class WorkflowService {
 		},
 		publicApi: boolean = false,
 	): Promise<WorkflowEntity> {
-		const workflow = await this.workflowFinderService.findWorkflowForUser(
-			workflowId,
-			user,
-			['workflow:publish'],
-			{ includeActiveVersion: true },
-		);
+		const workflow = await this.workflowFinderService.findWorkflowForUser(workflowId, user, [
+			'workflow:publish',
+		]);
 
 		if (!workflow) {
 			this.logger.warn('User attempted to activate a workflow without permissions', {
@@ -714,20 +708,17 @@ export class WorkflowService {
 	 * Deactivates a workflow by removing it from the active workflow manager and setting activeVersionId to null.
 	 * @param user - The user deactivating the workflow
 	 * @param workflowId - The ID of the workflow to deactivate
-	 * @param publicApi - Whether this is called from the public API (affects event emission)
+	 * @param options - Optional settings including expectedChecksum for conflict detection and publicApi flag
 	 * @returns The deactivated workflow
 	 */
 	async deactivateWorkflow(
 		user: User,
 		workflowId: string,
-		publicApi: boolean = false,
+		options?: { expectedChecksum?: string; publicApi?: boolean },
 	): Promise<WorkflowEntity> {
-		const workflow = await this.workflowFinderService.findWorkflowForUser(
-			workflowId,
-			user,
-			['workflow:publish'],
-			{ includeActiveVersion: true },
-		);
+		const workflow = await this.workflowFinderService.findWorkflowForUser(workflowId, user, [
+			'workflow:publish',
+		]);
 
 		if (!workflow) {
 			this.logger.warn('User attempted to deactivate a workflow without permissions', {
@@ -741,6 +732,10 @@ export class WorkflowService {
 
 		if (workflow.activeVersionId === null) {
 			return workflow;
+		}
+
+		if (options?.expectedChecksum) {
+			await this._detectConflicts(workflow, options.expectedChecksum);
 		}
 
 		// Remove from active workflow manager
@@ -769,7 +764,7 @@ export class WorkflowService {
 			user,
 			workflowId,
 			workflow,
-			publicApi,
+			publicApi: options?.publicApi ?? false,
 		});
 
 		return workflow;
@@ -823,7 +818,7 @@ export class WorkflowService {
 	async archive(
 		user: User,
 		workflowId: string,
-		skipArchived: boolean = false,
+		options?: { skipArchived?: boolean; expectedChecksum?: string },
 	): Promise<WorkflowEntity | undefined> {
 		const workflow = await this.workflowFinderService.findWorkflowForUser(workflowId, user, [
 			'workflow:delete',
@@ -834,11 +829,15 @@ export class WorkflowService {
 		}
 
 		if (workflow.isArchived) {
-			if (skipArchived) {
+			if (options?.skipArchived) {
 				return workflow;
 			}
 
 			throw new BadRequestError('Workflow is already archived.');
+		}
+
+		if (options?.expectedChecksum) {
+			await this._detectConflicts(workflow, options.expectedChecksum);
 		}
 
 		if (workflow.activeVersionId !== null) {
