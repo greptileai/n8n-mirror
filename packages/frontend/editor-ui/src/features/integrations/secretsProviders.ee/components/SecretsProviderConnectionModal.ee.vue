@@ -11,10 +11,8 @@ import Modal from '@/app/components/Modal.vue';
 import SaveButton from '@/app/components/SaveButton.vue';
 import SecretsProviderImage from './SecretsProviderImage.ee.vue';
 import ParameterInputExpanded from '@/features/ndv/parameters/components/ParameterInputExpanded.vue';
-import {
-	ConnectionProjectSummary,
-	useConnectionModal,
-} from '@/features/integrations/secretsProviders.ee/composables/useConnectionModal.ee';
+import type { ConnectionProjectSummary } from '@/features/integrations/secretsProviders.ee/composables/useConnectionModal.ee';
+import { useConnectionModal } from '@/features/integrations/secretsProviders.ee/composables/useConnectionModal.ee';
 import {
 	N8nCallout,
 	N8nIcon,

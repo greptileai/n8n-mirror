@@ -168,7 +168,7 @@ describe('useConnectionModal', () => {
 				settings: { region: 'us-west-2' },
 				projectIds: [],
 			});
-			expect(mockConnection.testConnection).toHaveBeenCalledWith('existing-id');
+			expect(mockConnection.testConnection).toHaveBeenCalledWith('existing-key');
 		});
 	});
 

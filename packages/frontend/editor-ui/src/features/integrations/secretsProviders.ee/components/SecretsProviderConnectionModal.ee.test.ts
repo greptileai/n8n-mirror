@@ -11,7 +11,7 @@ import { nextTick } from 'vue';
 import type { SecretProviderConnection } from '@n8n/api-types';
 import { createProjectListItem } from '@/features/collaboration/projects/__tests__/utils';
 import type { ConnectionProjectSummary } from '../composables/useConnectionModal.ee';
-import { orderBy } from 'lodash';
+import orderBy from 'lodash/orderBy';
 
 // Factory function for creating mock connection data
 const createMockConnectionData = (overrides: Partial<SecretProviderConnection> = {}) => ({
