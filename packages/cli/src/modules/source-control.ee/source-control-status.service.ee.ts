@@ -17,6 +17,7 @@ import {
 	getTrackingInformationFromPullResult,
 	getVariablesPath,
 	isWorkflowModified,
+	areSameCredentials,
 } from './source-control-helper.ee';
 import { SourceControlImportService } from './source-control-import.service.ee';
 import { SourceControlPreferencesService } from './source-control-preferences.service.ee';
@@ -335,31 +336,22 @@ export class SourceControlStatusService {
 			await this.sourceControlImportService.getRemoteCredentialsFromFiles(context);
 		const credLocalIds = await this.sourceControlImportService.getLocalCredentialsFromDb(context);
 
-		const credMissingInLocal = credRemoteIds.filter(
-			(remote) => credLocalIds.findIndex((local) => local.id === remote.id) === -1,
-		);
+		const credRemoteById = new Map(credRemoteIds.map((cred) => [cred.id, cred]));
+		const credRemoteIdsSet = new Set(credRemoteIds.map((cred) => cred.id));
+		const credLocalIdsSet = new Set(credLocalIds.map((cred) => cred.id));
 
-		const credMissingInRemote = credLocalIds.filter(
-			(local) => credRemoteIds.findIndex((remote) => remote.id === local.id) === -1,
-		);
+		const credMissingInLocal = credRemoteIds.filter((remote) => !credLocalIdsSet.has(remote.id));
+
+		const credMissingInRemote = credLocalIds.filter((local) => !credRemoteIdsSet.has(local.id));
 
 		const credModifiedInEither: StatusExportableCredential[] = [];
-		credLocalIds.forEach((local) => {
+		credLocalIds.forEach((credLocal) => {
 			// Compare name, type, owner and isGlobal since those are the synced properties for credentials
-			const mismatchingCreds = credRemoteIds.find((remote) => {
-				return (
-					remote.id === local.id &&
-					(remote.name !== local.name ||
-						remote.type !== local.type ||
-						hasOwnerChanged(remote.ownedBy, local.ownedBy) ||
-						(remote.isGlobal ?? false) !== (local.isGlobal ?? false))
-				);
-			});
-
-			if (mismatchingCreds) {
+			const credRemote = credRemoteById.get(credLocal.id);
+			if (credRemote && !areSameCredentials(credLocal, credRemote)) {
 				credModifiedInEither.push({
-					...local,
-					name: options?.preferLocalVersion ? local.name : mismatchingCreds.name,
+					...credLocal,
+					name: options?.preferLocalVersion ? credLocal.name : credRemote.name,
 				});
 			}
 		});
