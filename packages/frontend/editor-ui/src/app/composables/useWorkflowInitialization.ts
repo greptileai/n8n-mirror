@@ -17,6 +17,9 @@ import { useSettingsStore } from '@/app/stores/settings.store';
 import { useProjectsStore } from '@/features/collaboration/projects/projects.store';
 import { useHistoryStore } from '@/app/stores/history.store';
 import { useBuilderStore } from '@/features/ai/assistant/builder.store';
+import { useAITemplatesStarterCollectionStore } from '@/experiments/aiTemplatesStarterCollection/stores/aiTemplatesStarterCollection.store';
+import { useReadyToRunWorkflowsStore } from '@/experiments/readyToRunWorkflows/stores/readyToRunWorkflows.store';
+import { useTelemetry } from '@/app/composables/useTelemetry';
 import { EnterpriseEditionFeature, VIEWS } from '@/app/constants';
 import type { WorkflowState } from '@/app/composables/useWorkflowState';
 import type { IWorkflowDb } from '@/Interface';
@@ -40,6 +43,9 @@ export function useWorkflowInitialization(workflowState: WorkflowState) {
 	const projectsStore = useProjectsStore();
 	const historyStore = useHistoryStore();
 	const builderStore = useBuilderStore();
+	const aiTemplatesStarterCollectionStore = useAITemplatesStarterCollectionStore();
+	const readyToRunWorkflowsStore = useReadyToRunWorkflowsStore();
+	const telemetry = useTelemetry();
 
 	const { resetWorkspace, initializeWorkspace, fitView } = useCanvasOperations();
 	const { fetchAndSetParentFolder } = useParentFolder();
@@ -56,7 +62,6 @@ export function useWorkflowInitialization(workflowState: WorkflowState) {
 	const isDemoRoute = computed(() => route.name === VIEWS.DEMO);
 	const isTemplateRoute = computed(() => route.name === VIEWS.TEMPLATE_IMPORT);
 	const isOnboardingRoute = computed(() => route.name === VIEWS.WORKFLOW_ONBOARDING);
-	const isWorkflowRoute = computed(() => !!route?.meta?.nodeView || isDemoRoute.value);
 
 	async function loadCredentials() {
 		let options: { workflowId: string } | { projectId: string };
@@ -172,6 +177,26 @@ export function useWorkflowInitialization(workflowState: WorkflowState) {
 				workflowsStore.setParentFolder(workflowData.parentFolder);
 			}
 
+			// Track telemetry for onboarding and experiment workflows
+			if (workflowData.meta?.onboardingId) {
+				telemetry.track(
+					`User opened workflow from onboarding template with ID ${workflowData.meta.onboardingId}`,
+					{ workflow_id: id },
+				);
+			}
+
+			if (workflowData.meta?.templateId?.startsWith('035_template_onboarding')) {
+				aiTemplatesStarterCollectionStore.trackUserOpenedWorkflow(
+					workflowData.meta.templateId.split('-').pop() ?? '',
+				);
+			}
+
+			if (workflowData.meta?.templateId?.startsWith('37_onboarding_experiments_batch_aug11')) {
+				readyToRunWorkflowsStore.trackOpenWorkflow(
+					workflowData.meta.templateId.split('-').pop() ?? '',
+				);
+			}
+
 			await projectsStore.setProjectNavActiveIdByWorkflowHomeProject(
 				workflowData.homeProject,
 				workflowData.sharedWithProjects,
@@ -269,7 +294,6 @@ export function useWorkflowInitialization(workflowState: WorkflowState) {
 		isDemoRoute,
 		isTemplateRoute,
 		isOnboardingRoute,
-		isWorkflowRoute,
 		loadCredentials,
 		initializeData,
 		openWorkflow,

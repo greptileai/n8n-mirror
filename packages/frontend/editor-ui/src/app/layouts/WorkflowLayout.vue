@@ -58,7 +58,11 @@ onBeforeUnmount(() => cleanup());
 			<AppSidebar />
 		</template>
 		<LoadingView v-if="isLoading" />
-		<RouterView v-else />
+		<RouterView v-else v-slot="{ Component }">
+			<KeepAlive include="NodeView" :max="1">
+				<Component :is="Component" />
+			</KeepAlive>
+		</RouterView>
 		<template v-if="layoutProps.logs" #footer>
 			<LogsPanel />
 		</template>
