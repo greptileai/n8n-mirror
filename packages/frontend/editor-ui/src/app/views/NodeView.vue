@@ -17,7 +17,7 @@ import {
 } from 'vue';
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router';
 import WorkflowCanvas from '@/features/workflows/canvas/components/WorkflowCanvas.vue';
-import FocusSidebar from '@/app/components/FocusSidebar.vue';
+import FocusPanel from '@/app/components/FocusPanel.vue';
 import { useNodeTypesStore } from '@/app/stores/nodeTypes.store';
 import { useUIStore } from '@/app/stores/ui.store';
 import CanvasRunWorkflowButton from '@/features/workflows/canvas/components/elements/buttons/CanvasRunWorkflowButton.vue';
@@ -1272,7 +1272,7 @@ async function onRunWorkflowToNode(id: string) {
 		});
 	} else {
 		trackRunWorkflowToNode(node);
-		agentRequestStore.clearAgentRequests(workflowsStore.workflowId, node.id);
+		agentRequestStore.clearAgentRequests(workflowId.value, node.id);
 
 		void runWorkflow({
 			destinationNode: { nodeName: node.name, mode: 'inclusive' },
@@ -1322,7 +1322,7 @@ async function onCopyProductionUrl(id: string) {
 function trackRunWorkflowToNode(node: INodeUi) {
 	const telemetryPayload = {
 		node_type: node.type,
-		workflow_id: workflowsStore.workflowId,
+		workflow_id: workflowId.value,
 		source: 'canvas',
 		push_ref: ndvStore.pushRef,
 	};
@@ -2284,7 +2284,7 @@ onBeforeUnmount(() => {
 				/>
 			</Suspense>
 		</WorkflowCanvas>
-		<FocusSidebar
+		<FocusPanel
 			v-if="
 				!isLoading && (experimentalNdvStore.isNdvInFocusPanelEnabled ? !isCanvasReadOnly : true)
 			"
