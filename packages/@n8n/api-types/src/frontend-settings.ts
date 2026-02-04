@@ -51,6 +51,7 @@ export interface IEnterpriseSettings {
 	advancedPermissions: boolean;
 	apiKeyScopes: boolean;
 	workflowDiffs: boolean;
+	namedVersions: boolean;
 	provisioning: boolean;
 	projects: {
 		team: {

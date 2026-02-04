@@ -10,6 +10,7 @@ import {
 	WORKFLOW_HISTORY_NAME_VERSION_MODAL_KEY,
 	WORKFLOW_HISTORY_VERSION_UNPUBLISH,
 	AutoSaveState,
+	EnterpriseEditionFeature,
 } from '@/app/constants';
 import {
 	type ActionDropdownItem,
@@ -21,6 +22,7 @@ import {
 import { useI18n } from '@n8n/i18n';
 import { useUIStore } from '@/app/stores/ui.store';
 import { useWorkflowsStore } from '@/app/stores/workflows.store';
+import { useSettingsStore } from '@/app/stores/settings.store';
 import { getActivatableTriggerNodes } from '@/app/utils/nodeTypesUtils';
 import { useWorkflowSaving } from '@/app/composables/useWorkflowSaving';
 import { useRouter } from 'vue-router';
@@ -58,6 +60,7 @@ const uiStore = useUIStore();
 const workflowsStore = useWorkflowsStore();
 const collaborationStore = useCollaborationStore();
 const workflowHistoryStore = useWorkflowHistoryStore();
+const settingsStore = useSettingsStore();
 const i18n = useI18n();
 const router = useRouter();
 const toast = useToast();
@@ -65,6 +68,10 @@ const toast = useToast();
 const autosaveStore = useWorkflowAutosaveStore();
 const { saveCurrentWorkflow, cancelAutoSave } = useWorkflowSaving({ router });
 const workflowActivate = useWorkflowActivate();
+
+const isNamedVersionsEnabled = computed(
+	() => settingsStore.isEnterpriseFeatureEnabled[EnterpriseEditionFeature.NamedVersions],
+);
 
 const autoSaveForPublish = ref(false);
 
@@ -113,16 +120,6 @@ const workflowPublishState = computed((): WorkflowPublishState => {
 const collaborationReadOnly = computed(() => collaborationStore.shouldBeReadOnly);
 const hasUpdatePermission = computed(() => props.workflowPermissions.update);
 const hasPublishPermission = computed(() => props.workflowPermissions.publish);
-
-const shouldHidePublishButton = computed(() => {
-	if (props.isNewWorkflow) return false;
-	return props.isArchived || (!hasUpdatePermission.value && !hasPublishPermission.value);
-});
-
-const shouldDisablePublishButton = computed(() => {
-	if (props.isNewWorkflow) return true;
-	return collaborationReadOnly.value || !hasPublishPermission.value;
-});
 
 /**
  * Cancel autosave if scheduled or wait for it to finish if in progress
@@ -278,6 +275,29 @@ const publishButtonConfig = computed(() => {
 	return configs[workflowPublishState.value];
 });
 
+const shouldHidePublishButton = computed(() => {
+	if (props.isNewWorkflow) return false;
+	return props.isArchived || (!hasUpdatePermission.value && !hasPublishPermission.value);
+});
+
+const shouldDisablePublishButton = computed(() => {
+	return (
+		props.isNewWorkflow ||
+		collaborationReadOnly.value ||
+		!publishButtonConfig.value.enabled ||
+		!hasPublishPermission.value
+	);
+});
+
+const shouldDisableDropdownButton = computed(() => {
+	return (
+		props.isNewWorkflow ||
+		collaborationReadOnly.value ||
+		(shouldDisablePublishButton.value &&
+			(!isNamedVersionsEnabled.value || !hasUpdatePermission.value))
+	);
+});
+
 const activeVersion = computed(() => workflowsStore.workflow.activeVersion);
 
 const activeVersionName = computed(() => {
@@ -304,15 +324,18 @@ const dropdownMenuActions = computed<Array<ActionDropdownItem<PUBLISH_ACTIONS>>>
 			id: PUBLISH_ACTIONS.PUBLISH,
 			label: i18n.baseText('workflows.publish'),
 			shortcut: { keys: ['P'] },
-			disabled: !publishButtonConfig.value.enabled || shouldDisablePublishButton.value,
+			disabled: shouldDisablePublishButton.value,
 		},
-		{
+	];
+
+	if (isNamedVersionsEnabled.value) {
+		actions.push({
 			id: PUBLISH_ACTIONS.NAME_VERSION,
 			label: i18n.baseText('workflows.nameVersion'),
 			shortcut: { metaKey: true, keys: ['S'] },
 			disabled: !hasUpdatePermission.value || !workflowsStore.workflow.versionId,
-		},
-	];
+		});
+	}
 
 	if (activeVersion.value && hasPublishPermission.value && !collaborationReadOnly.value) {
 		actions.push({
@@ -429,13 +452,16 @@ const onDropdownMenuSelect = async (action: PUBLISH_ACTIONS) => {
 
 useKeybindings({
 	p: {
-		disabled: () => !publishButtonConfig.value.enabled || shouldDisablePublishButton.value,
+		disabled: () => shouldDisablePublishButton.value,
 		run: async () => {
 			await onPublishButtonClick();
 		},
 	},
 	'ctrl+s': {
-		disabled: () => !hasUpdatePermission.value || !workflowsStore.workflow.versionId,
+		disabled: () =>
+			!isNamedVersionsEnabled.value ||
+			!hasUpdatePermission.value ||
+			!workflowsStore.workflow.versionId,
 		run: async () => {
 			await onNameVersion();
 		},
@@ -524,7 +550,7 @@ defineExpose({
 					<template #activator>
 						<N8nIconButton
 							:class="$style.groupButtonRight"
-							:disabled="isNewWorkflow"
+							:disabled="shouldDisableDropdownButton"
 							type="secondary"
 							icon="chevron-down"
 							data-test-id="workflow-dropdown-button"

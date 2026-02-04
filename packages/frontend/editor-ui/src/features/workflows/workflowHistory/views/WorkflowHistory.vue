@@ -7,6 +7,7 @@ import {
 	WORKFLOW_HISTORY_VERSION_UNPUBLISH,
 	WORKFLOW_HISTORY_PUBLISH_MODAL_KEY,
 	WORKFLOW_HISTORY_NAME_VERSION_MODAL_KEY,
+	EnterpriseEditionFeature,
 } from '@/app/constants';
 import { useI18n } from '@n8n/i18n';
 import { useToast } from '@/app/composables/useToast';
@@ -22,6 +23,7 @@ import WorkflowHistoryContent from '../components/WorkflowHistoryContent.vue';
 import { useWorkflowHistoryStore } from '../workflowHistory.store';
 import { useUIStore } from '@/app/stores/ui.store';
 import { useWorkflowsListStore } from '@/app/stores/workflowsList.store';
+import { useSettingsStore } from '@/app/stores/settings.store';
 import { telemetry } from '@/app/plugins/telemetry';
 import { useRootStore } from '@n8n/stores/useRootStore';
 import { useWorkflowActivate } from '@/app/composables/useWorkflowActivate';
@@ -64,7 +66,13 @@ const workflowHistoryStore = useWorkflowHistoryStore();
 const uiStore = useUIStore();
 const workflowsListStore = useWorkflowsListStore();
 const usersStore = useUsersStore();
+const settingsStore = useSettingsStore();
 const workflowActivate = useWorkflowActivate();
+
+const isNamedVersionsEnabled = computed(
+	() => settingsStore.isEnterpriseFeatureEnabled[EnterpriseEditionFeature.NamedVersions],
+);
+
 const canRender = ref(true);
 const isListLoading = ref(true);
 const requestNumberOfItems = ref(20);
@@ -72,6 +80,15 @@ const lastReceivedItemsLength = ref(0);
 const activeWorkflow = ref<IWorkflowDb | null>(null);
 const workflowHistory = ref<WorkflowHistory[]>([]);
 const selectedWorkflowVersion = ref<WorkflowVersion | null>(null);
+
+// Available action types based on license and context
+const availableActionTypes = computed<WorkflowHistoryActionTypes>(() => {
+	return workflowHistoryActionTypes.filter((action) => {
+		if (action === 'publish' && activeWorkflow.value?.isArchived) return false;
+		if (action === 'name' && !isNamedVersionsEnabled.value) return false;
+		return true;
+	});
+});
 
 const workflowId = computed(() => normalizeSingleRouteParam('workflowId'));
 const versionId = computed(() => normalizeSingleRouteParam('versionId'));
@@ -91,16 +108,14 @@ const workflowActiveVersionId = computed(() => {
 });
 
 const actions = computed<Array<UserAction<IUser>>>(() =>
-	workflowHistoryActionTypes
-		.filter((value) => !(value === 'publish' && activeWorkflow.value?.isArchived))
-		.map((value) => ({
-			label: i18n.baseText(`workflowHistory.item.actions.${value}`),
-			disabled:
-				(value === 'clone' && !workflowPermissions.value.create) ||
-				(value === 'restore' && !workflowPermissions.value.update) ||
-				((value === 'publish' || value === 'unpublish') && !workflowPermissions.value.update),
-			value,
-		})),
+	availableActionTypes.value.map((value) => ({
+		label: i18n.baseText(`workflowHistory.item.actions.${value}`),
+		disabled:
+			(value === 'clone' && !workflowPermissions.value.create) ||
+			((value === 'restore' || value === 'name') && !workflowPermissions.value.update) ||
+			((value === 'publish' || value === 'unpublish') && !workflowPermissions.value.publish),
+		value,
+	})),
 );
 
 const isFirstItemShown = computed(() => workflowHistory.value[0]?.versionId === versionId.value);
