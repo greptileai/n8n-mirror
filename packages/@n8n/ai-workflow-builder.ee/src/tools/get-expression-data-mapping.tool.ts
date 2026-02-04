@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { ValidationError, ToolExecutionError } from '../errors';
 import type { GetExpressionDataMappingOutput } from '../types/tools';
 import type { BuilderTool, BuilderToolBase } from '../utils/stream-processor';
+import { truncateJson } from '../utils/truncate-json';
 import type { ExpressionValue } from '../workflow-builder-agent';
 import { createProgressReporter } from './helpers/progress';
 import { createSuccessResponse, createErrorResponse } from './helpers/response';
@@ -41,7 +42,7 @@ function formatExpressionValues(
 	}
 
 	const parts = ['<expression_data_mapping>'];
-	parts.push(JSON.stringify(filtered, null, 2));
+	parts.push(truncateJson(filtered));
 	parts.push('</expression_data_mapping>');
 
 	return parts.join('\n');
