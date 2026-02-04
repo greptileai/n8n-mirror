@@ -1,6 +1,6 @@
 import fs from 'fs';
 import { generateWorkflowCode } from '../codegen';
-import { parseWorkflowCodeToBuilder } from '../parse-workflow-code';
+import { parseWorkflowCodeToBuilder } from '../codegen/parse-workflow-code';
 import { generateOutputPath } from './utils';
 
 /**

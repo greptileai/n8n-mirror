@@ -9,6 +9,21 @@ import type { SemanticGraph, SemanticNode, AiConnectionType } from './types';
 import type { Schema } from 'n8n-workflow';
 import type { NodeExecutionStatus } from './execution-status';
 import { schemaToOutputSample } from './execution-schema-jsdoc';
+import { escapeString, escapeRegexChars } from './string-utils';
+import {
+	AI_CONNECTION_TO_CONFIG_KEY,
+	AI_CONNECTION_TO_BUILDER,
+	AI_ALWAYS_ARRAY_TYPES,
+	AI_OPTIONAL_ARRAY_TYPES,
+} from './constants';
+import { getVarName, getUniqueVarName } from './variable-names';
+import {
+	isTriggerType,
+	isStickyNote,
+	isMergeType,
+	generateDefaultNodeName,
+} from './node-type-utils';
+import { formatValue } from './subnode-generator';
 import type {
 	CompositeTree,
 	CompositeNode,
@@ -62,266 +77,6 @@ interface GenerationContext {
 function getIndent(ctx: GenerationContext): string {
 	return '  '.repeat(ctx.indent);
 }
-
-/**
- * Escape a string for use in generated code
- * Uses unicode escape sequences to preserve special characters through roundtrip
- */
-function escapeString(str: string): string {
-	return str
-		.replace(/\\/g, '\\\\')
-		.replace(/'/g, "\\'")
-		.replace(/\u2018/g, '\\u2018') // LEFT SINGLE QUOTATION MARK - preserve as unicode
-		.replace(/\u2019/g, '\\u2019') // RIGHT SINGLE QUOTATION MARK - preserve as unicode
-		.replace(/\u201C/g, '\\u201C') // LEFT DOUBLE QUOTATION MARK - preserve as unicode
-		.replace(/\u201D/g, '\\u201D') // RIGHT DOUBLE QUOTATION MARK - preserve as unicode
-		.replace(/\n/g, '\\n')
-		.replace(/\r/g, '\\r');
-}
-
-/**
- * Generate the default node name from a node type
- * e.g., 'n8n-nodes-base.httpRequest' -> 'HTTP Request'
- */
-function generateDefaultNodeName(type: string): string {
-	const parts = type.split('.');
-	const nodeName = parts[parts.length - 1];
-
-	return nodeName
-		.replace(/([a-z])([A-Z])/g, '$1 $2')
-		.replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
-		.replace(/^./, (str) => str.toUpperCase())
-		.replace(/Http/g, 'HTTP')
-		.replace(/Api/g, 'API')
-		.replace(/Url/g, 'URL')
-		.replace(/Id/g, 'ID')
-		.replace(/Json/g, 'JSON')
-		.replace(/Xml/g, 'XML')
-		.replace(/Sql/g, 'SQL')
-		.replace(/Ai/g, 'AI')
-		.replace(/Aws/g, 'AWS')
-		.replace(/Gcp/g, 'GCP')
-		.replace(/Ssh/g, 'SSH')
-		.replace(/Ftp/g, 'FTP')
-		.replace(/Csv/g, 'CSV');
-}
-
-/**
- * Reserved keywords that cannot be used as variable names
- */
-const RESERVED_KEYWORDS = new Set([
-	// JavaScript reserved words
-	'break',
-	'case',
-	'catch',
-	'class',
-	'const',
-	'continue',
-	'debugger',
-	'default',
-	'delete',
-	'do',
-	'else',
-	'export',
-	'extends',
-	'finally',
-	'for',
-	'function',
-	'if',
-	'import',
-	'in',
-	'instanceof',
-	'let',
-	'new',
-	'return',
-	'static',
-	'super',
-	'switch',
-	'this',
-	'throw',
-	'try',
-	'typeof',
-	'var',
-	'void',
-	'while',
-	'with',
-	'yield',
-	// JavaScript literals
-	'null',
-	'true',
-	'false',
-	'undefined',
-	// SDK functions
-	'workflow',
-	'trigger',
-	'node',
-	'merge',
-	'splitInBatches',
-	'sticky',
-	'languageModel',
-	'tool',
-	'memory',
-	'outputParser',
-	'textSplitter',
-	'embeddings',
-	'vectorStore',
-	'retriever',
-	'document',
-	// Dangerous globals (blocked by AST interpreter)
-	'eval',
-	'Function',
-	'require',
-	'process',
-	'global',
-	'globalThis',
-	'window',
-	'setTimeout',
-	'setInterval',
-	'setImmediate',
-	'clearTimeout',
-	'clearInterval',
-	'clearImmediate',
-	'module',
-	'exports',
-	'Buffer',
-	'Reflect',
-	'Proxy',
-]);
-
-/**
- * Check if a key needs to be quoted to be a valid JS identifier
- */
-function needsQuoting(key: string): boolean {
-	// Valid JS identifier: starts with letter, _, or $, followed by letters, digits, _, or $
-	return !/^[a-zA-Z_$][a-zA-Z0-9_$]*$/.test(key);
-}
-
-/**
- * Format an object key for code output
- */
-function formatKey(key: string): string {
-	return needsQuoting(key) ? `'${escapeString(key)}'` : key;
-}
-
-/**
- * Format a value for code output
- */
-function formatValue(value: unknown, ctx?: GenerationContext): string {
-	if (value === null) return 'null';
-	if (value === undefined) return 'undefined';
-	if (typeof value === 'string') {
-		// Check if this is an n8n expression (starts with '=')
-		if (value.startsWith('=')) {
-			// Remove '=' prefix, expr() will add it back
-			const inner = value.slice(1);
-			const formatted = `expr('${escapeString(inner)}')`;
-			// Add expression annotation if available
-			if (ctx?.expressionAnnotations?.has(value)) {
-				return `${formatted}  // @example ${ctx.expressionAnnotations.get(value)}`;
-			}
-			return formatted;
-		}
-		// Regular string
-		const formatted = `'${escapeString(value)}'`;
-		// Add expression annotation if available
-		if (ctx?.expressionAnnotations?.has(value)) {
-			return `${formatted}  // @example ${ctx.expressionAnnotations.get(value)}`;
-		}
-		return formatted;
-	}
-	if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-	if (Array.isArray(value)) {
-		return `[${value.map((v) => formatValue(v, ctx)).join(', ')}]`;
-	}
-	if (typeof value === 'object') {
-		const entries = Object.entries(value as Record<string, unknown>);
-		if (entries.length === 0) return '{}';
-		const formatted = entries.map(([k, v]) => `${formatKey(k)}: ${formatValue(v, ctx)}`);
-		const result = formatted.join(', ');
-		// If result contains // comments (expression annotations) OR multi-line content, use multi-line format
-		const hasComments = result.includes('//');
-		const hasMultiline = formatted.some((entry) => entry.includes('\n'));
-		if (hasComments || hasMultiline) {
-			// Join with commas, ensuring each entry (except last) ends with a comma
-			const withCommas = formatted.map((entry, i) => {
-				if (i === formatted.length - 1) return entry; // Last entry, no comma
-
-				// For multi-line entries, check only the LAST line for comment/comma placement
-				// (nested content may have its own commas which shouldn't affect our decision)
-				const lastLineStart = entry.lastIndexOf('\n');
-				const lastLine = lastLineStart >= 0 ? entry.substring(lastLineStart) : entry;
-
-				// If the entry's last line has a comment, insert comma before it
-				if (lastLine.includes('  //') && !lastLine.includes(',  //')) {
-					return (
-						entry.substring(0, entry.length - lastLine.length + lastLineStart + 1) +
-						lastLine.replace('  //', ',  //')
-					);
-				}
-
-				// If last line already has comma before comment, no change needed
-				if (lastLine.includes(',  //')) {
-					return entry;
-				}
-
-				// Otherwise, add comma at the end
-				return entry + ',';
-			});
-			return `{\n    ${withCommas.join('\n    ')}\n  }`;
-		}
-		return `{ ${result} }`;
-	}
-	return String(value);
-}
-
-/**
- * Check if node is a trigger type
- */
-function isTriggerType(type: string): boolean {
-	return type.toLowerCase().includes('trigger') || type === 'n8n-nodes-base.webhook';
-}
-
-/**
- * Map AI connection types to their config key names
- */
-const AI_CONNECTION_TO_CONFIG_KEY: Record<AiConnectionType, string> = {
-	ai_languageModel: 'model',
-	ai_memory: 'memory',
-	ai_tool: 'tools', // plural - can have multiple
-	ai_outputParser: 'outputParser',
-	ai_embedding: 'embedding',
-	ai_vectorStore: 'vectorStore',
-	ai_retriever: 'retriever',
-	ai_document: 'documentLoader',
-	ai_textSplitter: 'textSplitter',
-	ai_reranker: 'reranker',
-};
-
-/**
- * Map AI connection types to their builder function names
- */
-const AI_CONNECTION_TO_BUILDER: Record<AiConnectionType, string> = {
-	ai_languageModel: 'languageModel',
-	ai_memory: 'memory',
-	ai_tool: 'tool',
-	ai_outputParser: 'outputParser',
-	ai_embedding: 'embedding',
-	ai_vectorStore: 'vectorStore',
-	ai_retriever: 'retriever',
-	ai_document: 'documentLoader',
-	ai_textSplitter: 'textSplitter',
-	ai_reranker: 'reranker',
-};
-
-/**
- * AI connection types that are ALWAYS arrays (even with single item)
- */
-const AI_ALWAYS_ARRAY_TYPES = new Set<AiConnectionType>(['ai_tool']);
-
-/**
- * AI connection types that can be single or array (array only when multiple)
- */
-const AI_OPTIONAL_ARRAY_TYPES = new Set<AiConnectionType>(['ai_languageModel']);
 
 /**
  * Generate a subnode builder call (languageModel, tool, memory, etc.)
@@ -689,13 +444,6 @@ function getVarRefOrInlineNode(node: SemanticNode, ctx: GenerationContext): stri
 }
 
 /**
- * Check if node is a sticky note
- */
-function isStickyNote(type: string): boolean {
-	return type === 'n8n-nodes-base.stickyNote';
-}
-
-/**
  * Generate sticky note call
  */
 function generateStickyCall(node: SemanticNode): string {
@@ -725,13 +473,6 @@ function generateStickyCall(node: SemanticNode): string {
 
 	const optionsStr = options.length > 0 ? `, { ${options.join(', ')} }` : '';
 	return `sticky('${content}'${optionsStr})`;
-}
-
-/**
- * Check if node is a merge type
- */
-function isMergeType(type: string): boolean {
-	return type === 'n8n-nodes-base.merge';
 }
 
 /**
@@ -851,7 +592,7 @@ function generateChain(chain: ChainNode, ctx: GenerationContext): string {
 		if (i === 0) {
 			parts.push(nodeCode);
 		} else {
-			parts.push(`.then(${nodeCode})`);
+			parts.push(`.to(${nodeCode})`);
 		}
 	}
 
@@ -981,14 +722,14 @@ function branchEndsWithVarRef(branch: CompositeNode | CompositeNode[] | null): b
 
 /**
  * Strip the trailing varRef from a branch code string.
- * For example: "process.then(sibVar)" -> "process"
+ * For example: "process.to(sibVar)" -> "process"
  * Or just "sibVar" -> null (entire branch is just the varRef)
  */
 function stripTrailingVarRefFromCode(code: string, varName: string): string | null {
-	// Pattern: ".then(varName)" at end - strip it
-	const thenPattern = new RegExp(`\\.then\\(${escapeRegexChars(varName)}\\)$`);
-	if (thenPattern.test(code)) {
-		return code.replace(thenPattern, '');
+	// Pattern: ".to(varName)" at end - strip it
+	const toPattern = new RegExp(`\\.to\\(${escapeRegexChars(varName)}\\)$`);
+	if (toPattern.test(code)) {
+		return code.replace(toPattern, '');
 	}
 
 	// Pattern: entire code is just the varName (self-loop with no processing)
@@ -1000,15 +741,8 @@ function stripTrailingVarRefFromCode(code: string, varName: string): string | nu
 }
 
 /**
- * Escape special regex characters in a string
- */
-function escapeRegexChars(str: string): string {
-	return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/**
  * Generate code for split in batches using fluent API syntax:
- * splitInBatches(sibVar).onEachBatch(eachCode.then(nextBatch(sibVar))).onDone(doneCode)
+ * splitInBatches(sibVar).onEachBatch(eachCode.to(nextBatch(sibVar))).onDone(doneCode)
  */
 function generateSplitInBatches(sib: SplitInBatchesCompositeNode, ctx: GenerationContext): string {
 	const innerCtx = { ...ctx, indent: ctx.indent + 1 };
@@ -1036,7 +770,7 @@ function generateSplitInBatches(sib: SplitInBatchesCompositeNode, ctx: Generatio
 						branchCode = `nextBatch(${sibVarName})`;
 					} else {
 						// Has processing nodes before the loop back
-						branchCode = `${strippedCode}.then(nextBatch(${sibVarName}))`;
+						branchCode = `${strippedCode}.to(nextBatch(${sibVarName}))`;
 					}
 				}
 
@@ -1056,7 +790,7 @@ function generateSplitInBatches(sib: SplitInBatchesCompositeNode, ctx: Generatio
 					eachCode = `nextBatch(${sibVarName})`;
 				} else {
 					// Has processing nodes before the loop back
-					eachCode = `${strippedCode}.then(nextBatch(${sibVarName}))`;
+					eachCode = `${strippedCode}.to(nextBatch(${sibVarName}))`;
 				}
 			}
 		}
@@ -1088,7 +822,7 @@ function generateFanOut(fanOut: FanOutCompositeNode, ctx: GenerationContext): st
 		.join(',\n' + getIndent(innerCtx));
 
 	// Return with plain array syntax for clarity
-	return `${sourceCode}\n${getIndent(ctx)}.then([\n${getIndent(innerCtx)}${targetsCode}])`;
+	return `${sourceCode}\n${getIndent(ctx)}.to([\n${getIndent(innerCtx)}${targetsCode}])`;
 }
 
 /**
@@ -1114,7 +848,7 @@ function generateExplicitConnections(
  */
 function generateMultiOutput(multiOutput: MultiOutputNode, ctx: GenerationContext): string {
 	// The multi-output node becomes a variable reference
-	// The actual .output(n).then() calls are generated at the root level via flattenToWorkflowCalls
+	// The actual .output(n).to() calls are generated at the root level via flattenToWorkflowCalls
 	const varName = getVarName(multiOutput.sourceNode.name, ctx);
 	return varName;
 }
@@ -1145,74 +879,6 @@ function generateComposite(node: CompositeNode, ctx: GenerationContext): string 
 		case 'multiOutput':
 			return generateMultiOutput(node, ctx);
 	}
-}
-
-/**
- * Generate variable name from node name
- */
-function toVarName(nodeName: string): string {
-	let varName = nodeName
-		.replace(/[^a-zA-Z0-9]/g, '_')
-		.replace(/_+/g, '_')
-		.replace(/_$/g, '') // Only remove trailing underscore, not leading
-		.replace(/^([A-Z])/, (c) => c.toLowerCase());
-
-	// If starts with digit, prefix with underscore
-	if (/^\d/.test(varName)) {
-		varName = '_' + varName;
-	}
-
-	// Remove leading underscore only if followed by letter (not digit)
-	// This preserves _2nd... but removes _Foo...
-	if (/^_[a-zA-Z]/.test(varName)) {
-		varName = varName.slice(1);
-	}
-
-	// Avoid reserved keywords
-	if (RESERVED_KEYWORDS.has(varName)) {
-		varName = varName + '_node';
-	}
-
-	return varName;
-}
-
-/**
- * Get the variable name for a node, looking up in the context's mapping.
- * If the node name has been assigned a variable name, returns that.
- * Otherwise returns the base variable name (which may collide).
- */
-function getVarName(nodeName: string, ctx: GenerationContext): string {
-	if (ctx.nodeNameToVarName.has(nodeName)) {
-		return ctx.nodeNameToVarName.get(nodeName)!;
-	}
-	return toVarName(nodeName);
-}
-
-/**
- * Generate a unique variable name for a node, avoiding collisions.
- * Tracks used names and appends a counter if needed.
- */
-function getUniqueVarName(nodeName: string, ctx: GenerationContext): string {
-	// If we already assigned a name for this node, return it
-	if (ctx.nodeNameToVarName.has(nodeName)) {
-		return ctx.nodeNameToVarName.get(nodeName)!;
-	}
-
-	const baseVarName = toVarName(nodeName);
-	let varName = baseVarName;
-	let counter = 1;
-
-	// Keep incrementing counter until we find an unused name
-	while (ctx.usedVarNames.has(varName)) {
-		varName = `${baseVarName}${counter}`;
-		counter++;
-	}
-
-	// Record the mapping and mark as used
-	ctx.usedVarNames.add(varName);
-	ctx.nodeNameToVarName.set(nodeName, varName);
-
-	return varName;
 }
 
 /**
@@ -1359,7 +1025,7 @@ function generateMultiOutputConnections(
 
 	for (const [outputIndex, targetComposite] of sortedOutputs) {
 		const targetCode = generateComposite(targetComposite, ctx);
-		calls.push(['add', `${sourceVarName}.output(${outputIndex}).then(${targetCode})`]);
+		calls.push(['add', `${sourceVarName}.output(${outputIndex}).to(${targetCode})`]);
 	}
 
 	return calls;
@@ -1367,7 +1033,7 @@ function generateMultiOutputConnections(
 
 /**
  * Flatten a composite tree into workflow-level calls.
- * Returns array of [method, code] tuples where method is 'add', 'then', or 'connect'.
+ * Returns array of [method, code] tuples where method is 'add', 'to', or 'connect'.
  */
 function flattenToWorkflowCalls(
 	root: CompositeNode,
@@ -1376,20 +1042,20 @@ function flattenToWorkflowCalls(
 	const calls: Array<[string, string]> = [];
 
 	if (root.kind === 'multiOutput') {
-		// Multi-output node: generate .add(sourceNode) then .add(sourceNode.output(n).then(target)) for each output
+		// Multi-output node: generate .add(sourceNode) then .add(sourceNode.output(n).to(target)) for each output
 		const multiOutput = root as MultiOutputNode;
 		const sourceVarName = getVarName(multiOutput.sourceNode.name, ctx);
 
 		// First, add the source node itself
 		calls.push(['add', sourceVarName]);
 
-		// Then, for each output with targets, generate sourceNode.output(n).then(target)
+		// Then, for each output with targets, generate sourceNode.output(n).to(target)
 		// Sort by output index for consistent ordering
 		const sortedOutputs = [...multiOutput.outputTargets.entries()].sort((a, b) => a[0] - b[0]);
 
 		for (const [outputIndex, targetComposite] of sortedOutputs) {
 			const targetCode = generateComposite(targetComposite, ctx);
-			calls.push(['add', `${sourceVarName}.output(${outputIndex}).then(${targetCode})`]);
+			calls.push(['add', `${sourceVarName}.output(${outputIndex}).to(${targetCode})`]);
 		}
 	} else if (root.kind === 'explicitConnections') {
 		// Explicit connections pattern: generate .add() for each node, then .connect() for each connection
@@ -1411,7 +1077,7 @@ function flattenToWorkflowCalls(
 			]);
 		}
 	} else if (root.kind === 'chain') {
-		// Chain: first node is .add(), rest are .then()
+		// Chain: first node is .add(), rest are .to()
 		// Special handling when chain contains a multiOutput node
 		const nestedMultiOutputsInChain: MultiOutputNode[] = [];
 
@@ -1420,24 +1086,24 @@ function flattenToWorkflowCalls(
 
 			if (node.kind === 'multiOutput') {
 				// When encountering a multiOutput node in a chain:
-				// 1. Generate .then(sourceNode) to connect the previous node to the multi-output source
+				// 1. Generate .to(sourceNode) to connect the previous node to the multi-output source
 				// 2. Then generate separate .add() calls for each output
 				const multiOutput = node as MultiOutputNode;
 				const sourceVarName = getVarName(multiOutput.sourceNode.name, ctx);
 
 				// Connect to the multi-output source node
-				const method = i === 0 ? 'add' : 'then';
+				const method = i === 0 ? 'add' : 'to';
 				calls.push([method, sourceVarName]);
 
-				// Generate .add(sourceNode.output(n).then(target)) for each output
+				// Generate .add(sourceNode.output(n).to(target)) for each output
 				const sortedOutputs = [...multiOutput.outputTargets.entries()].sort((a, b) => a[0] - b[0]);
 
 				for (const [outputIndex, targetComposite] of sortedOutputs) {
 					const targetCode = generateComposite(targetComposite, ctx);
-					calls.push(['add', `${sourceVarName}.output(${outputIndex}).then(${targetCode})`]);
+					calls.push(['add', `${sourceVarName}.output(${outputIndex}).to(${targetCode})`]);
 				}
 			} else {
-				const method = i === 0 ? 'add' : 'then';
+				const method = i === 0 ? 'add' : 'to';
 				const code = generateComposite(node, ctx);
 				calls.push([method, code]);
 
@@ -1553,10 +1219,8 @@ export function generateCode(
 				? `${sourceVarName}.output(${conn.sourceOutputIndex})`
 				: sourceVarName;
 
-		// Generate: .add(source.then(target.input(n)))
-		workflowCalls.push(
-			`  .add(${sourceRef}.then(${targetVarName}.input(${conn.targetInputIndex})))`,
-		);
+		// Generate: .add(source.to(target.input(n)))
+		workflowCalls.push(`  .add(${sourceRef}.to(${targetVarName}.input(${conn.targetInputIndex})))`);
 	}
 
 	// Generate deferred merge downstream chains
@@ -1565,7 +1229,7 @@ export function generateCode(
 		const mergeVarName = getVarName(downstream.mergeNode.name, ctx);
 		if (downstream.downstreamChain) {
 			const chainCode = generateComposite(downstream.downstreamChain, ctx);
-			workflowCalls.push(`  .add(${mergeVarName}.then(${chainCode}))`);
+			workflowCalls.push(`  .add(${mergeVarName}.to(${chainCode}))`);
 		}
 	}
 

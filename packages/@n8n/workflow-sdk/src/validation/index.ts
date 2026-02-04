@@ -8,6 +8,7 @@ import { mapConnectionsByDestination } from 'n8n-workflow';
 import type { WorkflowBuilder, WorkflowJSON } from '../types/base';
 import { validateNodeConfig } from './schema-validator';
 import { resolveMainInputCount } from './input-resolver';
+import { isStickyNoteType, isHttpRequestType } from '../constants/node-types';
 
 /**
  * Validation error codes
@@ -309,7 +310,7 @@ function findDisconnectedNodes(json: WorkflowJSON): string[] {
 		if (isTriggerNode(node.type)) continue;
 
 		// Skip sticky notes - they don't participate in data flow
-		if (node.type === 'n8n-nodes-base.stickyNote') continue;
+		if (isStickyNoteType(node.type)) continue;
 
 		// Skip subnodes - they connect TO their parent via AI connections
 		if (hasAiConnectionToParent(node.name, json)) continue;
@@ -334,7 +335,7 @@ function findDisconnectedNodes(json: WorkflowJSON): string[] {
  *
  * @example
  * ```typescript
- * const wf = workflow('id', 'Test').add(trigger(...)).then(node(...));
+ * const wf = workflow('id', 'Test').add(trigger(...)).to(node(...));
  * const result = validateWorkflow(wf);
  *
  * if (!result.valid) {
@@ -387,7 +388,7 @@ export function validateWorkflow(
 		// Check for potentially missing required parameters
 		for (const node of json.nodes) {
 			// HTTP Request should have a URL
-			if (node.type === 'n8n-nodes-base.httpRequest') {
+			if (isHttpRequestType(node.type)) {
 				if (!node.parameters?.url && !node.parameters?.requestUrl) {
 					warnings.push(
 						new ValidationWarning(

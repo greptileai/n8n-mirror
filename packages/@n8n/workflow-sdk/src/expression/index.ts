@@ -61,6 +61,26 @@ function createExpressionProxy(path: string[] = []): unknown {
 }
 
 /**
+ * Mapping from expression context property names to n8n expression roots.
+ * Maps SDK property names (e.g., 'json') to their n8n equivalents (e.g., '$json').
+ */
+const EXPRESSION_ROOT_MAPPINGS: Record<string, string> = {
+	json: '$json',
+	binary: '$binary',
+	env: '$env',
+	vars: '$vars',
+	secrets: '$secrets',
+	itemIndex: '$itemIndex',
+	runIndex: '$runIndex',
+	now: '$now',
+	today: '$today',
+	execution: '$execution',
+	workflow: '$workflow',
+	input: '$input',
+	$: '$',
+} as const;
+
+/**
  * Build the expression path string
  */
 function buildPath(path: string[]): string {
@@ -75,37 +95,9 @@ function buildPath(path: string[]): string {
 	for (let i = 0; i < path.length; i++) {
 		const part = path[i];
 
-		// Handle the root $
+		// Handle the root expression context
 		if (i === 0) {
-			if (part === 'json') {
-				result = '$json';
-			} else if (part === 'binary') {
-				result = '$binary';
-			} else if (part === 'env') {
-				result = '$env';
-			} else if (part === 'vars') {
-				result = '$vars';
-			} else if (part === 'secrets') {
-				result = '$secrets';
-			} else if (part === 'itemIndex') {
-				result = '$itemIndex';
-			} else if (part === 'runIndex') {
-				result = '$runIndex';
-			} else if (part === 'now') {
-				result = '$now';
-			} else if (part === 'today') {
-				result = '$today';
-			} else if (part === 'execution') {
-				result = '$execution';
-			} else if (part === 'workflow') {
-				result = '$workflow';
-			} else if (part === 'input') {
-				result = '$input';
-			} else if (part === '$') {
-				result = '$';
-			} else {
-				result = part;
-			}
+			result = EXPRESSION_ROOT_MAPPINGS[part] ?? part;
 			continue;
 		}
 

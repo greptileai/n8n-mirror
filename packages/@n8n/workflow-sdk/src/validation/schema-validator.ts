@@ -472,81 +472,131 @@ function extractUnionErrorSummary(unionErrors: Array<{ issues: ZodIssue[] }>): s
 }
 
 /**
+ * Issue formatter function type
+ */
+type IssueFormatter = (issue: ZodIssue, path: string) => string;
+
+/**
+ * Format invalid_type issues
+ */
+function formatInvalidType(issue: ZodIssue, path: string): string {
+	const received = (issue as { received?: string }).received;
+	const expected = (issue as { expected?: string }).expected;
+	if (received === 'undefined') {
+		return `Required field "${path}" is missing. Expected ${expected}.`;
+	}
+	return `Field "${path}" has wrong type. Expected ${expected}, but got ${received}.`;
+}
+
+/**
+ * Format invalid_union issues
+ */
+function formatInvalidUnion(issue: ZodIssue, path: string): string {
+	if ('unionErrors' in issue && Array.isArray(issue.unionErrors)) {
+		// Check if all union errors are about undefined/missing value
+		const allMissing = issue.unionErrors.every((ue) =>
+			ue.issues.some(
+				(i) => i.code === 'invalid_type' && (i as { received?: string }).received === 'undefined',
+			),
+		);
+		if (allMissing) {
+			return `Required field "${path}" is missing.`;
+		}
+
+		// Extract the most useful error summary from the union
+		const errorSummary = extractUnionErrorSummary(issue.unionErrors);
+		if (errorSummary) {
+			return errorSummary;
+		}
+	}
+	return `Field "${path}" has invalid value. None of the expected types matched.`;
+}
+
+/**
+ * Format invalid_literal issues
+ */
+function formatInvalidLiteral(issue: ZodIssue, path: string): string {
+	const expected = (issue as { expected?: unknown }).expected;
+	const received = (issue as { received?: unknown }).received;
+	return `Field "${path}" must be exactly "${expected}", but got "${received}".`;
+}
+
+/**
+ * Format invalid_enum_value issues
+ */
+function formatInvalidEnum(issue: ZodIssue, path: string): string {
+	if ('options' in issue && Array.isArray(issue.options)) {
+		return `Field "${path}" must be one of: ${issue.options.map((o) => `"${String(o)}"`).join(', ')}.`;
+	}
+	return `Field "${path}" has invalid enum value.`;
+}
+
+/**
+ * Format too_small issues
+ */
+function formatTooSmall(issue: ZodIssue, path: string): string {
+	const issueType = (issue as { type?: string }).type;
+	const minimum = (issue as { minimum?: number }).minimum;
+	if (issueType === 'string') {
+		return `Field "${path}" is too short. Minimum length is ${minimum}.`;
+	}
+	if (issueType === 'array') {
+		return `Field "${path}" must have at least ${minimum} item(s).`;
+	}
+	return `Field "${path}" is too small.`;
+}
+
+/**
+ * Format too_big issues
+ */
+function formatTooBig(issue: ZodIssue, path: string): string {
+	const issueType = (issue as { type?: string }).type;
+	const maximum = (issue as { maximum?: number }).maximum;
+	if (issueType === 'string') {
+		return `Field "${path}" is too long. Maximum length is ${maximum}.`;
+	}
+	if (issueType === 'array') {
+		return `Field "${path}" must have at most ${maximum} item(s).`;
+	}
+	return `Field "${path}" is too large.`;
+}
+
+/**
+ * Format unrecognized_keys issues
+ */
+function formatUnrecognizedKeys(issue: ZodIssue, path: string): string {
+	if ('keys' in issue && Array.isArray(issue.keys)) {
+		return `Unknown field(s) at "${path}": ${issue.keys.map((k) => `"${String(k)}"`).join(', ')}.`;
+	}
+	return `Unknown fields at "${path}".`;
+}
+
+/**
+ * Map of Zod issue codes to their formatter functions
+ */
+const ISSUE_FORMATTERS: Partial<Record<string, IssueFormatter>> = {
+	invalid_type: formatInvalidType,
+	invalid_union: formatInvalidUnion,
+	invalid_literal: formatInvalidLiteral,
+	invalid_enum_value: formatInvalidEnum,
+	too_small: formatTooSmall,
+	too_big: formatTooBig,
+	unrecognized_keys: formatUnrecognizedKeys,
+};
+
+/**
  * Format a single Zod issue into a clear, actionable error message
  */
 function formatZodIssue(issue: ZodIssue): string {
 	const path = issue.path.length > 0 ? issue.path.join('.') : 'config';
+	const formatter = ISSUE_FORMATTERS[issue.code];
 
-	switch (issue.code) {
-		case 'invalid_type':
-			if (issue.received === 'undefined') {
-				return `Required field "${path}" is missing. Expected ${issue.expected}.`;
-			}
-			return `Field "${path}" has wrong type. Expected ${issue.expected}, but got ${issue.received}.`;
-
-		case 'invalid_union':
-			// For union errors, try to extract meaningful info from nested errors
-			if ('unionErrors' in issue && Array.isArray(issue.unionErrors)) {
-				// Check if all union errors are about undefined/missing value
-				const allMissing = issue.unionErrors.every((ue) =>
-					ue.issues.some(
-						(i) =>
-							i.code === 'invalid_type' && (i as { received?: string }).received === 'undefined',
-					),
-				);
-				if (allMissing) {
-					return `Required field "${path}" is missing.`;
-				}
-
-				// Extract the most useful error summary from the union
-				const errorSummary = extractUnionErrorSummary(issue.unionErrors);
-				if (errorSummary) {
-					return errorSummary;
-				}
-			}
-			return `Field "${path}" has invalid value. None of the expected types matched.`;
-
-		case 'invalid_literal':
-			return `Field "${path}" must be exactly "${issue.expected}", but got "${(issue as { received?: unknown }).received}".`;
-
-		case 'invalid_enum_value':
-			if ('options' in issue && Array.isArray(issue.options)) {
-				return `Field "${path}" must be one of: ${issue.options.map((o) => `"${o}"`).join(', ')}.`;
-			}
-			return `Field "${path}" has invalid enum value.`;
-
-		case 'too_small':
-			if ('type' in issue) {
-				if (issue.type === 'string') {
-					return `Field "${path}" is too short. Minimum length is ${(issue as { minimum?: number }).minimum}.`;
-				}
-				if (issue.type === 'array') {
-					return `Field "${path}" must have at least ${(issue as { minimum?: number }).minimum} item(s).`;
-				}
-			}
-			return `Field "${path}" is too small.`;
-
-		case 'too_big':
-			if ('type' in issue) {
-				if (issue.type === 'string') {
-					return `Field "${path}" is too long. Maximum length is ${(issue as { maximum?: number }).maximum}.`;
-				}
-				if (issue.type === 'array') {
-					return `Field "${path}" must have at most ${(issue as { maximum?: number }).maximum} item(s).`;
-				}
-			}
-			return `Field "${path}" is too large.`;
-
-		case 'unrecognized_keys':
-			if ('keys' in issue && Array.isArray(issue.keys)) {
-				return `Unknown field(s) at "${path}": ${issue.keys.map((k) => `"${k}"`).join(', ')}.`;
-			}
-			return `Unknown fields at "${path}".`;
-
-		default:
-			// Fallback to Zod's default message with path context
-			return `Field "${path}": ${issue.message}`;
+	if (formatter) {
+		return formatter(issue, path);
 	}
+
+	// Fallback to Zod's default message with path context
+	return `Field "${path}": ${issue.message}`;
 }
 
 /**

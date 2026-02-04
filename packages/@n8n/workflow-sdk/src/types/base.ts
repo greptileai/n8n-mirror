@@ -92,15 +92,6 @@ export interface PlaceholderValue {
 export type OnError = 'stopWorkflow' | 'continueRegularOutput' | 'continueErrorOutput';
 
 // =============================================================================
-// Merge Mode
-// =============================================================================
-
-/**
- * Merge mode options
- */
-export type MergeMode = 'append' | 'combine' | 'multiplex' | 'chooseBranch';
-
-// =============================================================================
 // Workflow Settings (with extensibility)
 // =============================================================================
 
@@ -234,7 +225,7 @@ export interface DeclaredConnection {
 /**
  * Terminal input target marker for connecting to a specific input index.
  * Created by calling .input(n) on a NodeInstance.
- * Cannot be chained further (no .then() method).
+ * Cannot be chained further (no .to() method).
  */
 export interface InputTarget {
 	readonly _isInputTarget: true;
@@ -245,7 +236,7 @@ export interface InputTarget {
 /**
  * Output selector for connecting from a specific output index.
  * Created by calling .output(n) on a NodeInstance.
- * Can chain .then() to connect to targets from this specific output.
+ * Can chain .to() to connect to targets from this specific output.
  */
 export interface OutputSelector<TType extends string, TVersion extends string, TOutput = unknown> {
 	readonly _isOutputSelector: true;
@@ -254,13 +245,6 @@ export interface OutputSelector<TType extends string, TVersion extends string, T
 
 	/**
 	 * Connect from this output to a target node.
-	 */
-	then<T extends NodeInstance<string, string, unknown>>(
-		target: T | T[] | InputTarget,
-	): NodeChain<NodeInstance<TType, TVersion, TOutput>, T>;
-
-	/**
-	 * Alias for then() - connect from this output to a target node.
 	 */
 	to<T extends NodeInstance<string, string, unknown>>(
 		target: T | T[] | InputTarget,
@@ -421,14 +405,6 @@ export interface NodeInstance<TType extends string, TVersion extends string, TOu
 
 	update(config: Partial<NodeConfig>): NodeInstance<TType, TVersion, TOutput>;
 
-	then<T extends NodeInstance<string, string, unknown>>(
-		target: T | T[] | InputTarget,
-		outputIndex?: number,
-	): NodeChain<NodeInstance<TType, TVersion, TOutput>, T>;
-
-	/**
-	 * Alias for then() - connect this node to one or more target nodes.
-	 */
 	to<T extends NodeInstance<string, string, unknown>>(
 		target: T | T[] | InputTarget,
 		outputIndex?: number,
@@ -440,7 +416,7 @@ export interface NodeInstance<TType extends string, TVersion extends string, TOu
 	 *
 	 * @example
 	 * // Connect to input 1 of a merge node
-	 * nodeA.then(mergeNode.input(1))
+	 * nodeA.to(mergeNode.input(1))
 	 */
 	input(index: number): InputTarget;
 
@@ -450,7 +426,7 @@ export interface NodeInstance<TType extends string, TVersion extends string, TOu
 	 *
 	 * @example
 	 * // Connect from output 1 of a classifier
-	 * classifier.output(1).then(categoryB)
+	 * classifier.output(1).to(categoryB)
 	 */
 	output(index: number): OutputSelector<TType, TVersion, TOutput>;
 
@@ -506,16 +482,6 @@ export interface NodeChain<
 	readonly tail: TTail;
 	readonly allNodes: NodeInstance<string, string, unknown>[];
 
-	then<T extends NodeInstance<string, string, unknown>>(
-		target: T | T[] | InputTarget,
-		outputIndex?: number,
-	): NodeChain<THead, T>;
-
-	then<T>(target: SplitInBatchesBuilder<T>, outputIndex?: number): NodeChain<THead, TTail>;
-
-	/**
-	 * Alias for then() - connect to target nodes.
-	 */
 	to<T extends NodeInstance<string, string, unknown>>(
 		target: T | T[] | InputTarget,
 		outputIndex?: number,
@@ -533,12 +499,24 @@ export function isNodeChain(
 	NodeInstance<string, string, unknown>,
 	NodeInstance<string, string, unknown>
 > {
-	return (
-		value !== null &&
-		typeof value === 'object' &&
-		'_isChain' in value &&
-		(value as { _isChain: unknown })._isChain === true
-	);
+	if (value === null || typeof value !== 'object') return false;
+	if (!('_isChain' in value)) return false;
+	// After 'in' check, access the property safely
+	const isChainValue = (value as Record<string, unknown>)._isChain;
+	return isChainValue === true;
+}
+
+/**
+ * Type guard to check if a value is a NodeInstance (has type, version, config, to method)
+ */
+export function isNodeInstance(value: unknown): value is NodeInstance<string, string, unknown> {
+	if (value === null || typeof value !== 'object') return false;
+	if (!('type' in value && 'version' in value && 'config' in value && 'to' in value)) {
+		return false;
+	}
+	// After 'in' checks, safely access the to property
+	const toProp = (value as Record<string, unknown>).to;
+	return typeof toProp === 'function';
 }
 
 // =============================================================================
@@ -620,33 +598,6 @@ export interface RerankerInstance<
 // =============================================================================
 // Composite types
 // =============================================================================
-
-/**
- * Merge configuration
- */
-export interface MergeConfig {
-	mode?: MergeMode;
-	parameters?: IDataObject;
-	version?: number | string;
-	name?: string;
-	id?: string;
-}
-
-/**
- * Merge composite representing parallel branches merging into one node
- */
-export interface MergeComposite<TBranches extends unknown[] = unknown[]> {
-	readonly mergeNode: NodeInstance<'n8n-nodes-base.merge', string, unknown>;
-	readonly branches: TBranches;
-	readonly mode: MergeMode;
-	/**
-	 * Chain a target node after the merge
-	 */
-	then<T extends NodeInstance<string, string, unknown>>(
-		target: T | T[],
-		outputIndex?: number,
-	): NodeChain<NodeInstance<'n8n-nodes-base.merge', string, unknown>, T>;
-}
 
 /**
  * Configuration for IF else
@@ -738,7 +689,7 @@ export type SwitchCaseTarget =
  * const ifNode = node({ type: 'n8n-nodes-base.if', version: 2.2, config: {...} });
  * workflow('id', 'Test')
  *   .add(trigger)
- *   .then(ifNode.onTrue(trueHandler).onFalse(falseHandler))
+ *   .to(ifNode.onTrue(trueHandler).onFalse(falseHandler))
  * ```
  */
 export interface IfElseBuilder<TOutput = unknown> {
@@ -770,7 +721,7 @@ export interface IfElseBuilder<TOutput = unknown> {
 	/**
 	 * Chain a target node after the IF branches.
 	 */
-	then<T extends NodeInstance<string, string, unknown>>(
+	to<T extends NodeInstance<string, string, unknown>>(
 		target: T | T[],
 		outputIndex?: number,
 	): NodeChain<NodeInstance<'n8n-nodes-base.if', string, TOutput>, T>;
@@ -785,7 +736,7 @@ export interface IfElseBuilder<TOutput = unknown> {
  * const switchNode = node({ type: 'n8n-nodes-base.switch', version: 3.4, config: {...} });
  * workflow('id', 'Test')
  *   .add(trigger)
- *   .then(switchNode.onCase(0, caseA).onCase(1, caseB).onCase(2, caseC))
+ *   .to(switchNode.onCase(0, caseA).onCase(1, caseB).onCase(2, caseC))
  * ```
  */
 export interface SwitchCaseBuilder<TOutput = unknown> {
@@ -808,7 +759,7 @@ export interface SwitchCaseBuilder<TOutput = unknown> {
 	/**
 	 * Chain a target node after the Switch branches.
 	 */
-	then<T extends NodeInstance<string, string, unknown>>(
+	to<T extends NodeInstance<string, string, unknown>>(
 		target: T | T[],
 		outputIndex?: number,
 	): NodeChain<NodeInstance<'n8n-nodes-base.switch', string, TOutput>, T>;
@@ -847,7 +798,7 @@ export interface SplitInBatchesBuilder<TOutput = unknown> {
 	 *
 	 * @example
 	 * splitInBatches(sibNode)
-	 *   .onEachBatch(processNode.then(sibNode))
+	 *   .onEachBatch(processNode.to(sibNode))
 	 *   .onDone(finalizeNode)
 	 */
 	onEachBatch(
@@ -869,7 +820,7 @@ export interface SplitInBatchesBuilder<TOutput = unknown> {
 	 * @example
 	 * splitInBatches(sibNode)
 	 *   .onDone(finalizeNode)
-	 *   .onEachBatch(processNode.then(sibNode))
+	 *   .onEachBatch(processNode.to(sibNode))
 	 */
 	onDone(
 		target:
@@ -906,16 +857,19 @@ export interface WorkflowBuilder {
 		N extends
 			| NodeInstance<string, string, unknown>
 			| TriggerInstance<string, string, unknown>
-			| NodeChain,
+			| NodeChain
+			| IfElseBuilder<unknown>
+			| SwitchCaseBuilder<unknown>,
 	>(node: N): WorkflowBuilder;
 
-	then<N extends NodeInstance<string, string, unknown>>(node: N): WorkflowBuilder;
-	then<M extends MergeComposite>(merge: M): WorkflowBuilder;
-	then(ifElse: IfElseComposite): WorkflowBuilder;
-	then(switchCase: SwitchCaseComposite): WorkflowBuilder;
-	then<T>(splitInBatches: SplitInBatchesBuilder<T>): WorkflowBuilder;
-	then<T>(ifElseBuilder: IfElseBuilder<T>): WorkflowBuilder;
-	then<T>(switchCaseBuilder: SwitchCaseBuilder<T>): WorkflowBuilder;
+	to<N extends NodeInstance<string, string, unknown>>(node: N): WorkflowBuilder;
+	to(ifElse: IfElseComposite): WorkflowBuilder;
+	to(switchCase: SwitchCaseComposite): WorkflowBuilder;
+	to<T>(splitInBatches: SplitInBatchesBuilder<T>): WorkflowBuilder;
+	to<T>(ifElseBuilder: IfElseBuilder<T>): WorkflowBuilder;
+	to<T>(switchCaseBuilder: SwitchCaseBuilder<T>): WorkflowBuilder;
+	/** Connect to multiple outputs (branching). Each array element connects to incrementing output index. Use null to skip an output. */
+	to(nodes: Array<NodeInstance<string, string, unknown> | NodeChain | null>): WorkflowBuilder;
 
 	settings(settings: WorkflowSettings): WorkflowBuilder;
 
@@ -962,6 +916,14 @@ export interface WorkflowBuilder {
 
 	toJSON(): WorkflowJSON;
 
+	/**
+	 * Serialize the workflow to a specific format using registered serializers.
+	 * @param format - The format identifier (e.g., 'json')
+	 * @returns The serialized workflow in the requested format
+	 * @throws Error if no serializer is registered for the format
+	 */
+	toFormat<T>(format: string): T;
+
 	toString(): string;
 
 	/**
@@ -986,10 +948,20 @@ export interface WorkflowBuilder {
 }
 
 /**
+ * Options for creating a workflow builder
+ */
+export interface WorkflowBuilderOptions {
+	/** Workflow settings */
+	settings?: WorkflowSettings;
+	/** Plugin registry to use (optional, defaults to global registry) */
+	registry?: import('../workflow-builder/plugins/registry').PluginRegistry;
+}
+
+/**
  * Static workflow builder methods
  */
 export interface WorkflowBuilderStatic {
-	(id: string, name: string, settings?: WorkflowSettings): WorkflowBuilder;
+	(id: string, name: string, options?: WorkflowSettings | WorkflowBuilderOptions): WorkflowBuilder;
 	fromJSON(json: WorkflowJSON): WorkflowBuilder;
 }
 
@@ -1045,11 +1017,6 @@ export type StickyFn = (
 export type PlaceholderFn = (hint: string) => PlaceholderValue;
 
 export type NewCredentialFn = (name: string) => NewCredentialValue;
-
-export type MergeFn = <TBranches extends NodeInstance<string, string, unknown>[]>(
-	branches: TBranches,
-	config?: MergeConfig,
-) => MergeComposite<TBranches>;
 
 export type IfElseFn = (
 	branches: [
