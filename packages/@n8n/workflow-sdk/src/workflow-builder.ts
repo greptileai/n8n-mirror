@@ -6,7 +6,6 @@ import type {
 	NodeInstance,
 	ConnectionTarget,
 	GraphNode,
-	SubnodeConfig,
 	IDataObject,
 	NodeChain,
 	GeneratePinDataOptions,
@@ -30,6 +29,7 @@ import { generateDeterministicNodeId } from './workflow-builder/string-utils';
 import { shouldGeneratePinData } from './workflow-builder/pin-data-utils';
 import { parseWorkflowJSON } from './workflow-builder/workflow-import';
 import { resolveTargetNodeName as resolveTargetNodeNameUtil } from './workflow-builder/connection-utils';
+import { addNodeWithSubnodes as addNodeWithSubnodesUtil } from './workflow-builder/subnode-utils';
 
 /**
  * Internal workflow builder implementation
@@ -820,268 +820,14 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 	}
 
 	/**
-	 * Generate a unique node name if the name already exists
-	 */
-	private generateUniqueName(nodes: Map<string, GraphNode>, baseName: string): string {
-		if (!nodes.has(baseName)) {
-			return baseName;
-		}
-
-		// Find the next available number suffix
-		let counter = 1;
-		let newName = `${baseName} ${counter}`;
-		while (nodes.has(newName)) {
-			counter++;
-			newName = `${baseName} ${counter}`;
-		}
-		return newName;
-	}
-
-	/**
 	 * Add a node and its subnodes to the nodes map, creating AI connections.
-	 * Returns the actual map key used (may differ from nodeInstance.name if renamed),
-	 * or undefined if the node was skipped (invalid or duplicate reference).
+	 * Delegates to the addNodeWithSubnodes utility function.
 	 */
 	private addNodeWithSubnodes(
 		nodes: Map<string, GraphNode>,
 		nodeInstance: NodeInstance<string, string, unknown>,
 	): string | undefined {
-		// Guard against invalid node instances (e.g., empty objects from chain.allNodes)
-		if (!nodeInstance || typeof nodeInstance !== 'object') {
-			return undefined;
-		}
-		if (!nodeInstance.type || !nodeInstance.name) {
-			// Not a valid node instance - skip silently
-			return undefined;
-		}
-
-		// Check if this exact instance is already in the map under any key.
-		// This is necessary because a node may have been renamed (e.g., "Format Response" -> "Format Response 1")
-		// but the same instance reference appears multiple times in chain targets.
-		for (const [key, graphNode] of nodes) {
-			if (graphNode.instance === nodeInstance) {
-				return key; // Already added, return the existing key
-			}
-		}
-
-		// Check if a node with the same name already exists
-		const existingNode = nodes.get(nodeInstance.name);
-		if (existingNode) {
-			// If it's the same node instance (by reference), skip - it's a duplicate reference
-			if (existingNode.instance === nodeInstance) {
-				return undefined;
-			}
-			// Different node instance with same name - generate unique name and add it
-			// This handles the case where user creates multiple nodes with the same name
-			const uniqueName = this.generateUniqueName(nodes, nodeInstance.name);
-			const connectionsMap = new Map<string, Map<number, ConnectionTarget[]>>();
-			connectionsMap.set('main', new Map());
-			nodes.set(uniqueName, {
-				instance: nodeInstance,
-				connections: connectionsMap,
-			});
-			return uniqueName;
-		}
-
-		// Add the main node
-		const connectionsMap = new Map<string, Map<number, ConnectionTarget[]>>();
-		connectionsMap.set('main', new Map());
-		nodes.set(nodeInstance.name, {
-			instance: nodeInstance,
-			connections: connectionsMap,
-		});
-
-		// Process subnodes if present
-		const subnodes = nodeInstance.config?.subnodes as SubnodeConfig | undefined;
-		if (!subnodes) return nodeInstance.name;
-
-		// Helper to add a subnode with its AI connection (recursively handles nested subnodes)
-		const addSubnode = (subnode: NodeInstance<string, string, unknown>, connectionType: string) => {
-			const existingSubnode = nodes.get(subnode.name);
-
-			if (existingSubnode) {
-				// Subnode already exists - merge the new AI connection
-				let existingAiConns = existingSubnode.connections.get(connectionType);
-				if (!existingAiConns) {
-					existingAiConns = new Map();
-					existingSubnode.connections.set(connectionType, existingAiConns);
-				}
-				const existingOutputConns = existingAiConns.get(0) ?? [];
-				existingAiConns.set(0, [
-					...existingOutputConns,
-					{ node: nodeInstance.name, type: connectionType, index: 0 },
-				]);
-				return; // Don't process nested subnodes again - already done
-			}
-
-			// New subnode - add it with its connection
-			const subnodeConns = new Map<string, Map<number, ConnectionTarget[]>>();
-			subnodeConns.set('main', new Map());
-			// Create AI connection from subnode to parent node
-			const aiConnMap = new Map<number, ConnectionTarget[]>();
-			aiConnMap.set(0, [{ node: nodeInstance.name, type: connectionType, index: 0 }]);
-			subnodeConns.set(connectionType, aiConnMap);
-			nodes.set(subnode.name, {
-				instance: subnode,
-				connections: subnodeConns,
-			});
-
-			// Recursively process any nested subnodes this subnode might have (only for new subnodes)
-			const nestedSubnodes = subnode.config?.subnodes as SubnodeConfig | undefined;
-			if (nestedSubnodes) {
-				this.processSubnodesRecursively(nodes, subnode, nestedSubnodes);
-			}
-		};
-
-		// Helper to add single or array of subnodes
-		const addSubnodeOrArray = (
-			subnodeOrArray:
-				| NodeInstance<string, string, unknown>
-				| NodeInstance<string, string, unknown>[]
-				| undefined,
-			connectionType: string,
-		) => {
-			if (!subnodeOrArray) return;
-			if (Array.isArray(subnodeOrArray)) {
-				for (const subnode of subnodeOrArray) {
-					addSubnode(subnode, connectionType);
-				}
-			} else {
-				addSubnode(subnodeOrArray, connectionType);
-			}
-		};
-
-		// Add model subnode(s) - can be array for modelSelector
-		addSubnodeOrArray(subnodes.model, 'ai_languageModel');
-
-		// Add memory subnode
-		if (subnodes.memory) {
-			addSubnode(subnodes.memory, 'ai_memory');
-		}
-
-		// Add tool subnodes
-		if (subnodes.tools) {
-			for (const tool of subnodes.tools) {
-				addSubnode(tool, 'ai_tool');
-			}
-		}
-
-		// Add output parser subnode
-		if (subnodes.outputParser) {
-			addSubnode(subnodes.outputParser, 'ai_outputParser');
-		}
-
-		// Add embedding subnode(s) - accept both 'embedding' and 'embeddings' keys
-		addSubnodeOrArray(subnodes.embedding ?? subnodes.embeddings, 'ai_embedding');
-
-		// Add vector store subnode
-		if (subnodes.vectorStore) {
-			addSubnode(subnodes.vectorStore, 'ai_vectorStore');
-		}
-
-		// Add retriever subnode
-		if (subnodes.retriever) {
-			addSubnode(subnodes.retriever, 'ai_retriever');
-		}
-
-		// Add document loader subnode(s)
-		addSubnodeOrArray(subnodes.documentLoader, 'ai_document');
-
-		// Add text splitter subnode
-		if (subnodes.textSplitter) {
-			addSubnode(subnodes.textSplitter, 'ai_textSplitter');
-		}
-
-		// Add reranker subnode
-		if (subnodes.reranker) {
-			addSubnode(subnodes.reranker, 'ai_reranker');
-		}
-
-		return nodeInstance.name;
-	}
-
-	/**
-	 * Recursively process nested subnodes for a parent node
-	 */
-	private processSubnodesRecursively(
-		nodes: Map<string, GraphNode>,
-		parentNode: NodeInstance<string, string, unknown>,
-		subnodes: SubnodeConfig,
-	): void {
-		// Helper to add a nested subnode with its AI connection
-		const addNestedSubnode = (
-			subnode: NodeInstance<string, string, unknown>,
-			connectionType: string,
-		) => {
-			const existingSubnode = nodes.get(subnode.name);
-
-			if (existingSubnode) {
-				// Subnode already exists - merge the new AI connection
-				let existingAiConns = existingSubnode.connections.get(connectionType);
-				if (!existingAiConns) {
-					existingAiConns = new Map();
-					existingSubnode.connections.set(connectionType, existingAiConns);
-				}
-				const existingOutputConns = existingAiConns.get(0) ?? [];
-				existingAiConns.set(0, [
-					...existingOutputConns,
-					{ node: parentNode.name, type: connectionType, index: 0 },
-				]);
-				return; // Don't process nested subnodes again - already done
-			}
-
-			// New subnode - add it with its connection
-			const subnodeConns = new Map<string, Map<number, ConnectionTarget[]>>();
-			subnodeConns.set('main', new Map());
-			// Create AI connection from subnode to parent
-			const aiConnMap = new Map<number, ConnectionTarget[]>();
-			aiConnMap.set(0, [{ node: parentNode.name, type: connectionType, index: 0 }]);
-			subnodeConns.set(connectionType, aiConnMap);
-			nodes.set(subnode.name, {
-				instance: subnode,
-				connections: subnodeConns,
-			});
-
-			// Recursively process any nested subnodes (only for new subnodes)
-			const nestedSubnodes = subnode.config?.subnodes as SubnodeConfig | undefined;
-			if (nestedSubnodes) {
-				this.processSubnodesRecursively(nodes, subnode, nestedSubnodes);
-			}
-		};
-
-		// Helper to add single or array of nested subnodes
-		const addNestedSubnodeOrArray = (
-			subnodeOrArray:
-				| NodeInstance<string, string, unknown>
-				| NodeInstance<string, string, unknown>[]
-				| undefined,
-			connectionType: string,
-		) => {
-			if (!subnodeOrArray) return;
-			if (Array.isArray(subnodeOrArray)) {
-				for (const subnode of subnodeOrArray) {
-					addNestedSubnode(subnode, connectionType);
-				}
-			} else {
-				addNestedSubnode(subnodeOrArray, connectionType);
-			}
-		};
-
-		// Process all subnode types
-		addNestedSubnodeOrArray(subnodes.model, 'ai_languageModel');
-		if (subnodes.memory) addNestedSubnode(subnodes.memory, 'ai_memory');
-		if (subnodes.tools) {
-			for (const tool of subnodes.tools) {
-				addNestedSubnode(tool, 'ai_tool');
-			}
-		}
-		if (subnodes.outputParser) addNestedSubnode(subnodes.outputParser, 'ai_outputParser');
-		addNestedSubnodeOrArray(subnodes.embedding ?? subnodes.embeddings, 'ai_embedding');
-		if (subnodes.vectorStore) addNestedSubnode(subnodes.vectorStore, 'ai_vectorStore');
-		if (subnodes.retriever) addNestedSubnode(subnodes.retriever, 'ai_retriever');
-		addNestedSubnodeOrArray(subnodes.documentLoader, 'ai_document');
-		if (subnodes.textSplitter) addNestedSubnode(subnodes.textSplitter, 'ai_textSplitter');
-		if (subnodes.reranker) addNestedSubnode(subnodes.reranker, 'ai_reranker');
+		return addNodeWithSubnodesUtil(nodes, nodeInstance);
 	}
 
 	/**
