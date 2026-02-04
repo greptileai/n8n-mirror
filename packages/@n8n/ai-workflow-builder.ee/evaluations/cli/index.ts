@@ -312,7 +312,7 @@ export async function runV2Evaluation(): Promise<void> {
 	}
 
 	// Create workflow generator based on agent type
-	// CODE_BUILDER uses CodeWorkflowBuilder (planning + coding agents)
+	// CODE_BUILDER uses CodeWorkflowBuilder
 	const generateWorkflow =
 		args.agent === AGENT_TYPES.CODE_BUILDER
 			? createCodeWorkflowBuilderGenerator(env.parsedNodeTypes, env.llms, args.timeoutMs)
