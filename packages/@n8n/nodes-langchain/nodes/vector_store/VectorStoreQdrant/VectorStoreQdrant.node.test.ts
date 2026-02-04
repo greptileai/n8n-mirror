@@ -16,7 +16,7 @@ jest.mock('@langchain/qdrant', () => {
 });
 
 jest.mock('@utils/sharedFields', () => ({ metadataFilterField: {} }), { virtual: true });
-jest.mock('@n8n/ai-node-sdk', () => ({
+jest.mock('@n8n/ai-utilities', () => ({
 	getMetadataFiltersValues: jest.fn(),
 	logAiEvent: jest.fn(),
 	N8nBinaryLoader: class {},

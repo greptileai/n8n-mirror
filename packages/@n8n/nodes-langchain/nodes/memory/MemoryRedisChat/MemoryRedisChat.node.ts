@@ -13,7 +13,7 @@ import type { RedisClientOptions } from 'redis';
 import { createClient } from 'redis';
 
 import { getSessionId } from '@utils/helpers';
-import { logWrapper } from '@n8n/ai-node-sdk';
+import { logWrapper } from '@n8n/ai-utilities';
 import { getConnectionHintNoticeField } from '@utils/sharedFields';
 
 import {

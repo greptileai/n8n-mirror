@@ -7,7 +7,7 @@ import {
 	type SupplyData,
 } from 'n8n-workflow';
 
-import { logWrapper, N8nBinaryLoader } from '@n8n/ai-node-sdk';
+import { logWrapper, N8nBinaryLoader } from '@n8n/ai-utilities';
 
 import { getConnectionHintNoticeField, metadataFilterField } from '@utils/sharedFields';
 

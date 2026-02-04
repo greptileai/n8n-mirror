@@ -3,7 +3,7 @@ import type { BaseDocumentCompressor } from '@langchain/core/retrievers/document
 import type { VectorStore } from '@langchain/core/vectorstores';
 import { NodeConnectionTypes, type ISupplyDataFunctions, type SupplyData } from 'n8n-workflow';
 
-import { logWrapper, getMetadataFiltersValues } from '@n8n/ai-node-sdk';
+import { logWrapper, getMetadataFiltersValues } from '@n8n/ai-utilities';
 
 import type { VectorStoreNodeConstructorArgs } from '../types';
 

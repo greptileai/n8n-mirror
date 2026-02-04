@@ -10,7 +10,7 @@ import { createStuffDocumentsChain } from '@langchain/classic/chains/combine_doc
 import { createRetrievalChain } from '@langchain/classic/chains/retrieval';
 import { type IExecuteFunctions, NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
 
-import { isChatInstance } from '@n8n/ai-node-sdk';
+import { isChatInstance } from '@n8n/ai-utilities';
 import { getPromptInputByType } from '@utils/helpers';
 import { getTracingConfig } from '@utils/tracing';
 

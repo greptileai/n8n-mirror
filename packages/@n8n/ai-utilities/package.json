@@ -1,7 +1,7 @@
 {
-  "name": "@n8n/ai-node-sdk",
+  "name": "@n8n/ai-utilities",
   "version": "0.1.0",
-  "description": "SDK for building AI nodes in n8n",
+  "description": "Utilities for building AI nodes in n8n",
   "main": "dist/index.js",
   "module": "src/index.ts",
   "types": "dist/index.d.ts",
@@ -33,7 +33,6 @@
     "@langchain/core": "catalog:",
     "langchain": "catalog:",
     "@langchain/community": "catalog:",
-    "@langchain/openai": "catalog:",
     "@langchain/textsplitters": "1.0.1",
     "@langchain/classic": "1.0.5",
     "tmp-promise": "3.0.3"

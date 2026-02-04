@@ -9,7 +9,7 @@ import {
 
 import type { LemonadeApiCredentialsType } from '../../../credentials/LemonadeApi.credentials';
 
-import { logWrapper } from '@n8n/ai-node-sdk';
+import { logWrapper } from '@n8n/ai-utilities';
 import { getConnectionHintNoticeField } from '@utils/sharedFields';
 
 import { lemonadeDescription, lemonadeModel } from '../../llms/LMLemonade/description';

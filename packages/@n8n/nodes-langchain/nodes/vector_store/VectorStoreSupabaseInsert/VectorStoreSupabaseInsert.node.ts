@@ -10,7 +10,7 @@ import {
 	NodeConnectionTypes,
 } from 'n8n-workflow';
 
-import type { N8nJsonLoader } from '@n8n/ai-node-sdk';
+import type { N8nJsonLoader } from '@n8n/ai-utilities';
 
 import { supabaseTableNameSearch } from '../shared/createVectorStoreNode/methods/listSearch';
 import { supabaseTableNameRLC } from '../shared/descriptions';

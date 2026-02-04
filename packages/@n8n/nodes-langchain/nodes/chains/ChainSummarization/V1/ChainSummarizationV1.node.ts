@@ -12,7 +12,7 @@ import {
 	type INodeTypeDescription,
 } from 'n8n-workflow';
 
-import { N8nBinaryLoader, N8nJsonLoader } from '@n8n/ai-node-sdk';
+import { N8nBinaryLoader, N8nJsonLoader } from '@n8n/ai-utilities';
 
 import { getTemplateNoticeField } from '@utils/sharedFields';
 

@@ -1,5 +1,5 @@
 import { SerpAPI } from '@langchain/community/tools/serpapi';
-import { logWrapper } from '@n8n/ai-node-sdk';
+import { logWrapper } from '@n8n/ai-utilities';
 import { getConnectionHintNoticeField } from '@utils/sharedFields';
 import {
 	type IExecuteFunctions,

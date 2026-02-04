@@ -9,7 +9,7 @@ import {
 	type INodeInputConfiguration,
 } from 'n8n-workflow';
 
-import { logWrapper, N8nBinaryLoader, N8nJsonLoader } from '@n8n/ai-node-sdk';
+import { logWrapper, N8nBinaryLoader, N8nJsonLoader } from '@n8n/ai-utilities';
 
 import { metadataFilterField } from '@utils/sharedFields';
 

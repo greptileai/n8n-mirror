@@ -9,7 +9,7 @@ import {
 	type SupplyData,
 } from 'n8n-workflow';
 
-import { logWrapper, getMetadataFiltersValues } from '@n8n/ai-node-sdk';
+import { logWrapper, getMetadataFiltersValues } from '@n8n/ai-utilities';
 import { metadataFilterField } from '@utils/sharedFields';
 
 // This node is deprecated. Use VectorStoreZep instead.

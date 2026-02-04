@@ -10,7 +10,7 @@ import {
 	NodeConnectionTypes,
 } from 'n8n-workflow';
 
-import { logWrapper, getMetadataFiltersValues } from '@n8n/ai-node-sdk';
+import { logWrapper, getMetadataFiltersValues } from '@n8n/ai-utilities';
 import { metadataFilterField } from '@utils/sharedFields';
 
 import { supabaseTableNameSearch } from '../shared/createVectorStoreNode/methods/listSearch';

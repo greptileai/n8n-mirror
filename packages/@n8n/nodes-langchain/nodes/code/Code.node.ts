@@ -16,7 +16,7 @@ import type {
 
 // TODO: Add support for execute function. Got already started but got commented out
 
-import { logWrapper } from '@n8n/ai-node-sdk';
+import { logWrapper } from '@n8n/ai-utilities';
 
 const { NODE_FUNCTION_ALLOW_BUILTIN: builtIn, NODE_FUNCTION_ALLOW_EXTERNAL: external } =
 	process.env;

@@ -5,7 +5,7 @@ import { RecursiveCharacterTextSplitter, type TextSplitter } from '@langchain/te
 import { loadSummarizationChain } from '@langchain/classic/chains';
 import { type IExecuteFunctions, type INodeExecutionData, NodeConnectionTypes } from 'n8n-workflow';
 
-import { N8nBinaryLoader, N8nJsonLoader } from '@n8n/ai-node-sdk';
+import { N8nBinaryLoader, N8nJsonLoader } from '@n8n/ai-utilities';
 import { getTracingConfig } from '@utils/tracing';
 
 import { getChainPromptsArgs } from '../helpers';

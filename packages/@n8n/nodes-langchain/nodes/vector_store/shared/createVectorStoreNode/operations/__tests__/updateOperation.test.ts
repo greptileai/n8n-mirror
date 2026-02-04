@@ -7,7 +7,7 @@ import { mock } from 'jest-mock-extended';
 import type { IExecuteFunctions, INodeExecutionData } from 'n8n-workflow';
 import { NodeOperationError } from 'n8n-workflow';
 
-import { logAiEvent } from '@n8n/ai-node-sdk';
+import { logAiEvent } from '@n8n/ai-utilities';
 
 import type { VectorStoreNodeConstructorArgs } from '../../types';
 import { isUpdateSupported } from '../../utils';
@@ -18,7 +18,7 @@ jest.mock('../../utils', () => ({
 	isUpdateSupported: jest.fn(),
 }));
 
-jest.mock('@n8n/ai-node-sdk', () => ({
+jest.mock('@n8n/ai-utilities', () => ({
 	logAiEvent: jest.fn(),
 	N8nJsonLoader: jest.fn().mockImplementation(() => ({})),
 }));

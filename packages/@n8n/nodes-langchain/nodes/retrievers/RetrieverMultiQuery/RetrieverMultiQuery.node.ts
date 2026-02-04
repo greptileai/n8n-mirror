@@ -9,7 +9,7 @@ import {
 	type SupplyData,
 } from 'n8n-workflow';
 
-import { logWrapper } from '@n8n/ai-node-sdk';
+import { logWrapper } from '@n8n/ai-utilities';
 
 export class RetrieverMultiQuery implements INodeType {
 	description: INodeTypeDescription = {
