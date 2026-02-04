@@ -493,10 +493,17 @@ export interface ExecutionDataOptions {
 	error?: { message: string; description?: string };
 }
 
+export interface ExpressionValueTestData {
+	expression: string;
+	resolvedValue: unknown;
+	nodeType?: string;
+}
+
 export interface WorkflowStateOptions {
 	workflow: SimpleWorkflow;
 	executionData?: ExecutionDataOptions;
 	executionSchema?: NodeExecutionSchema[];
+	expressionValues?: Record<string, ExpressionValueTestData[]>;
 }
 
 // Setup workflow state with execution context (extended version)
@@ -510,6 +517,7 @@ export const setupWorkflowStateWithContext = (
 		workflowContext: {
 			executionData: options.executionData ?? null,
 			executionSchema: options.executionSchema ?? null,
+			expressionValues: options.expressionValues ?? null,
 		},
 		workflowValidation: null,
 		messages: [],
