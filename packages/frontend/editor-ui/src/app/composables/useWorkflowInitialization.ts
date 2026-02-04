@@ -312,6 +312,9 @@ export function useWorkflowInitialization(workflowState: WorkflowState) {
 			!force && initializedWorkflowId.value && initializedWorkflowId.value === workflowId.value;
 
 		if (isAlreadyInitialized) {
+			// Still need to handle debug mode when navigating to debug route
+			// even if the workflow is already initialized (e.g., from executions tab)
+			await handleDebugModeRoute();
 			isLoading.value = false;
 			return;
 		}
