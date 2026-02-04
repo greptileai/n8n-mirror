@@ -14,6 +14,4 @@ export type SwitchSlots = {
 	label(props: { label?: string }): unknown;
 };
 
-export type SwitchEmits = {
-	change: [event: Event];
-};
+export type SwitchEmits = Record<string, never>;

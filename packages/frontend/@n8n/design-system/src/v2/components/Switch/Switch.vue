@@ -3,7 +3,7 @@ import { reactiveOmit, reactivePick } from '@vueuse/core';
 import { Label, Primitive, SwitchRoot, SwitchThumb, useForwardProps } from 'reka-ui';
 import { computed, useAttrs, useId } from 'vue';
 
-import type { SwitchEmits, SwitchProps, SwitchSlots } from './Switch.types';
+import type { SwitchProps, SwitchSlots } from './Switch.types';
 
 defineOptions({ inheritAttrs: false });
 
@@ -11,7 +11,6 @@ const props = withDefaults(defineProps<SwitchProps>(), {
 	size: 'small',
 });
 const slots = defineSlots<SwitchSlots>();
-const emit = defineEmits<SwitchEmits>();
 const uuid = computed(() => props.id ?? useId());
 
 const rootProps = useForwardProps(reactivePick(props, 'required', 'value', 'defaultValue'));
@@ -21,12 +20,6 @@ const modelValue = defineModel<boolean>({ default: undefined });
 const attrs = useAttrs();
 const primitiveClass = computed(() => attrs.class);
 const rootAttrs = computed(() => reactiveOmit(attrs, ['class']));
-
-function onUpdate(value: boolean) {
-	// @ts-expect-error - 'target' does not exist in type 'EventInit'
-	emit('change', new Event('change', { target: { value } }));
-	modelValue.value = value;
-}
 </script>
 
 <template>
@@ -38,11 +31,10 @@ function onUpdate(value: boolean) {
 		<SwitchRoot
 			:id="uuid"
 			v-bind="{ ...rootProps, ...rootAttrs }"
-			:model-value="modelValue"
+			v-model="modelValue"
 			:name="name"
 			:disabled="disabled"
 			:class="$style.switchRoot"
-			@update:model-value="onUpdate"
 		>
 			<SwitchThumb :class="$style.switchThumb" />
 		</SwitchRoot>
