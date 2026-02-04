@@ -13,12 +13,14 @@ import {
 	agentValidator,
 	chainLlmValidator,
 	dateMethodValidator,
+	disconnectedNodeValidator,
 	expressionPathValidator,
 	expressionPrefixValidator,
 	fromAiValidator,
 	httpRequestValidator,
 	mergeNodeValidator,
 	setNodeValidator,
+	subnodeConnectionValidator,
 	toolNodeValidator,
 } from './validators';
 
@@ -27,18 +29,6 @@ import { ifElseHandler, switchCaseHandler, splitInBatchesHandler } from './compo
 
 // Import real serializers
 import { jsonSerializer } from './serializers';
-
-// =============================================================================
-// Core Validators (stubs for validators not yet extracted)
-// =============================================================================
-
-const disconnectedNodeValidator: ValidatorPlugin = {
-	id: 'core:disconnected-node',
-	name: 'Disconnected Node Validator',
-	priority: 10,
-	validateNode: () => [],
-	// Note: Full implementation will check for disconnected nodes
-};
 
 // Note: Core composite handlers are now imported from ./composite-handlers
 
@@ -68,8 +58,9 @@ const coreValidators: ValidatorPlugin[] = [
 	dateMethodValidator,
 	expressionPathValidator, // Workflow-level validator
 
-	// Structural validators (lowest priority, still a stub)
-	disconnectedNodeValidator,
+	// Structural validators (lowest priority)
+	disconnectedNodeValidator, // Workflow-level validator (stub - inline handles options)
+	subnodeConnectionValidator, // Workflow-level validator
 ];
 
 /**
