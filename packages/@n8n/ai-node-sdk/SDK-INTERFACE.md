@@ -1,92 +1,44 @@
 # AI Node SDK Interface Specification
 
-This document defines the ideal public API for the `@n8n/ai-node-sdk` package, enabling community developers to build AI nodes (chat models and memory) without requiring knowledge of LangChain internals.
+## Core Pattern
 
-## Design Goals
+### Option A: OpenAI-Compatible APIs (easiest)
 
-1. **Hide LangChain from community developers** - The SDK abstracts all LangChain-specific code
-2. **Stable interfaces** - Public API won't break when internal implementations change
-3. **Progressive disclosure** - Simple cases are simple, complex cases are possible
-
----
-
-## Factory Functions
-
-### createChatModel
-
-Two modes available:
+Use the built-in `OpenAIChatModel` with a custom `baseURL`:
 
 ```typescript
-import { createChatModel } from '@n8n/ai-node-sdk';
+import { OpenAIChatModel, generateChatModelResponse } from '@n8n/ai-node-sdk';
 
-// Mode 1: OpenAI-compatible APIs (covers ~90% of providers)
-const model = createChatModel({
-  type: 'openaiCompatible',
-  baseUrl: 'https://api.openrouter.ai/api/v1',
-  apiKey: credentials.apiKey,
-  model: 'openai/gpt-4',
-  temperature: 0.7,
-  maxTokens: 4096,
+const model = new OpenAIChatModel('model-name', {
+  apiKey: 'your-api-key',
+  baseURL: 'https://api.provider.com/v1',  // OpenRouter, DeepSeek, etc.
 });
 
-return { response: model };
-
-// Mode 2: Custom APIs (for non-OpenAI-compatible providers)
-const model = createChatModel({
-  type: 'custom',
-  generate: async (messages) => {
-    const response = await this.helpers.httpRequest({ ... });
-    return { text: response.reply, toolCalls: response.actions };
-  },
-});
-
-return { response: model };
+return { response: generateChatModelResponse(this, { model }) };
 ```
 
-### createMemory
+### Option B: Custom API (full control)
+
+Extend `BaseChatModel` and implement `generate()` + `stream()`:
 
 ```typescript
-import { createMemory, logWrapper } from '@n8n/ai-node-sdk';
+import { BaseChatModel, generateChatModelResponse, type Message, type GenerateResult, type StreamChunk } from '@n8n/ai-node-sdk';
 
-// Buffer window memory - keeps last K messages
-const memory = createMemory({
-  type: 'bufferWindow',
-  k: 10,
-  sessionId: 'user-123',
-  chatHistory: customStorage, // optional: custom ChatHistory implementation
-});
+class MyChatModel extends BaseChatModel {
+  async generate(messages: Message[]): Promise<GenerateResult> {
+    // Call your API, convert messages to provider format...
+    return { text: '...', toolCalls: [...] };
+  }
 
-// Buffer memory - keeps all messages
-const memory = createMemory({
-  type: 'buffer',
-  sessionId: 'user-123',
-});
+  async *stream(messages: Message[]): AsyncIterable<StreamChunk> {
+    // Stream from your API...
+    yield { type: 'text-delta', textDelta: '...' };
+    yield { type: 'finish', finishReason: 'stop' };
+  }
+}
 
-// Token buffer memory - trims by token count
-const memory = createMemory({
-  type: 'tokenBuffer',
-  maxTokens: 4000,
-  sessionId: 'user-123',
-});
-
-// We use logWrapper explicitly
-return { response: logWrapper(memory, this) };
-```
-
-### logWrapper
-
-Enables n8n execution logging for memory nodes:
-
-```typescript
-import { logWrapper } from '@n8n/ai-node-sdk';
-
-// Memory nodes - use logWrapper
-const memory = createMemory({ ... });
-return { response: logWrapper(memory, this) };
-
-// Chat models - no logWrapper needed (to be confirmed)
-const model = createChatModel({ ... });
-return { response: model };
+const model = new MyChatModel('my-provider', 'model-id', { apiKey: '...' });
+return { response: generateChatModelResponse(this, { model }) };
 ```
 
 ---
@@ -98,9 +50,8 @@ return { response: model };
 **Before (LangChain):**
 
 ```typescript
-import { ChatOpenAI, type ClientOptions } from '@langchain/openai';
+import { ChatOpenAI } from '@langchain/openai';
 import { N8nLlmTracing } from '../N8nLlmTracing';
-// ... other imports
 
 async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyData> {
   const credentials = await this.getCredentials<OpenAICompatibleCredential>('openRouterApi');
@@ -112,7 +63,7 @@ async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyD
     model: modelName,
     ...options,
     configuration: { baseURL: credentials.url, ... },
-    callbacks: [new N8nLlmTracing(this)],  // Logging via LangChain callback
+    callbacks: [new N8nLlmTracing(this)],
     onFailedAttempt: makeN8nLlmFailedAttemptHandler(this, openAiFailedAttemptHandler),
   });
 
@@ -123,118 +74,103 @@ async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyD
 **After (SDK):**
 
 ```typescript
-import { createChatModel } from '@n8n/ai-node-sdk';
+import { OpenAIChatModel, generateChatModelResponse } from '@n8n/ai-node-sdk';
 
 async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyData> {
-  const credentials = await this.getCredentials<{ url: string; apiKey: string }>('openRouterApi');
+  const credentials = await this.getCredentials<{ apiKey: string }>('openRouterApi');
   const modelName = this.getNodeParameter('model', itemIndex) as string;
   const options = this.getNodeParameter('options', itemIndex, {}) as { ... };
 
-  const model = createChatModel({
-    type: 'openaiCompatible',
-    baseUrl: credentials.url,
+  // Reuse OpenAIChatModel with custom baseURL for OpenAI-compatible APIs
+  const model = new OpenAIChatModel(modelName, {
     apiKey: credentials.apiKey,
-    model: modelName,
+    baseURL: credentials.url,
     ...options,
   });
 
-  return { response: model };
+  return { response: generateChatModelResponse(this, { model }) };
 }
 ```
 
-### Example 2: MemoryPostgresChat
-
-**Before (LangChain):**
-
-```typescript
-import { PostgresChatMessageHistory } from '@langchain/community/stores/message/postgres';
-import { BufferWindowMemory } from '@langchain/classic/memory';
-import { logWrapper } from '@utils/logWrapper';
-
-async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyData> {
-  const credentials = await this.getCredentials<PostgresNodeCredentials>('postgres');
-  const tableName = this.getNodeParameter('tableName', itemIndex) as string;
-  const sessionId = getSessionId(this, itemIndex);
-  const k = this.getNodeParameter('contextWindowLength', itemIndex);
-
-  const pgConf = await configurePostgres.call(this, credentials);
-  const pool = pgConf.db.$pool;
-
-  const pgChatHistory = new PostgresChatMessageHistory({ pool, sessionId, tableName });
-
-  const memory = new BufferWindowMemory({
-    memoryKey: 'chat_history',
-    chatHistory: pgChatHistory,
-    returnMessages: true,
-    inputKey: 'input',
-    outputKey: 'output',
-    k,
-  });
-
-  return { response: logWrapper(memory, this) };
-}
-```
-
-**After (SDK):**
-
-```typescript
-import { createMemory, logWrapper, type ChatHistory, type Message } from '@n8n/ai-node-sdk';
-
-class PostgresChatHistory implements ChatHistory {
-  constructor(private pool: pg.Pool, private sessionId: string, private tableName: string) {}
-
-  async getMessages(): Promise<Message[]> {
-    const result = await this.pool.query(
-      `SELECT role, content FROM ${this.tableName} WHERE session_id = $1 ORDER BY created_at`,
-      [this.sessionId],
-    );
-    return result.rows.map((row) => ({ role: row.role, content: row.content }));
-  }
-
-  async addMessage(message: Message): Promise<void> {
-    await this.pool.query(
-      `INSERT INTO ${this.tableName} (session_id, role, content) VALUES ($1, $2, $3)`,
-      [this.sessionId, message.role, message.content],
-    );
-  }
-
-  async clear(): Promise<void> {
-    await this.pool.query(`DELETE FROM ${this.tableName} WHERE session_id = $1`, [this.sessionId]);
-  }
-}
-
-async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyData> {
-  const credentials = await this.getCredentials<PostgresNodeCredentials>('postgres');
-  const tableName = this.getNodeParameter('tableName', itemIndex) as string;
-  const sessionId = getSessionId(this, itemIndex);
-  const k = this.getNodeParameter('contextWindowLength', itemIndex, 10) as number;
-
-  const pgConf = await configurePostgres.call(this, credentials);
-  const pool = pgConf.db.$pool;
-
-  const chatHistory = new PostgresChatHistory(pool, sessionId, tableName);
-
-  const memory = createMemory({
-    type: 'bufferWindow',
-    k,
-    sessionId,
-    chatHistory,
-  });
-
-  return { response: logWrapper(memory, this) };
-}
-```
+> **Note:** `OpenAIChatModel` is a built-in SDK class that implements the OpenAI Responses API.
+> For OpenAI-compatible providers (OpenRouter, DeepSeek, etc.), just set `baseURL` to the provider's endpoint.
 
 ---
 
 ## Community Node Examples
 
-### ImaginaryLLM Chat Model (Custom API)
+### ImaginaryLLM Chat Model
 
 ```typescript
-import { createChatModel, type Message, type GenerateResult } from '@n8n/ai-node-sdk';
+import {
+  BaseChatModel,
+  generateChatModelResponse,
+  type Message,
+  type GenerateResult,
+  type StreamChunk,
+  type ChatModelConfig,
+} from '@n8n/ai-node-sdk';
 import { NodeConnectionTypes, type INodeType, type ISupplyDataFunctions, type SupplyData } from 'n8n-workflow';
 
+// Custom chat model extending BaseChatModel
+class ImaginaryLlmChatModel extends BaseChatModel {
+  constructor(
+    private apiKey: string,
+    modelId: string,
+    config?: ChatModelConfig,
+  ) {
+    super('imaginary-llm', modelId, config);
+  }
+
+  async generate(messages: Message[], config?: ChatModelConfig): Promise<GenerateResult> {
+    // Convert n8n messages to provider format
+    const providerMessages = messages.map(m => ({
+      speaker: m.role === 'human' ? 'user' : m.role === 'ai' ? 'bot' : m.role,
+      text: m.content.find(c => c.type === 'text')?.text ?? '',
+    }));
+
+    // Call the API (using fetch or this.helpers.httpRequest in real node)
+    const response = await fetch('https://api.imaginary-llm.example.com/v1/generate', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: this.modelId,
+        conversation: providerMessages,
+        settings: {
+          creativity: config?.temperature ?? 0.7,
+          max_length: config?.maxTokens,
+        },
+      }),
+    });
+
+    const data = await response.json();
+
+    return {
+      text: data.reply.text,
+      toolCalls: data.reply.actions?.map((a: any) => ({
+        id: a.id,
+        name: a.name,
+        arguments: a.params,  // already parsed object
+      })),
+      usage: data.metrics ? {
+        promptTokens: data.metrics.input_tokens,
+        completionTokens: data.metrics.output_tokens,
+        totalTokens: data.metrics.input_tokens + data.metrics.output_tokens,
+      } : undefined,
+    };
+  }
+
+  async *stream(messages: Message[], config?: ChatModelConfig): AsyncIterable<StreamChunk> {
+    // Streaming implementation...
+    yield { type: 'text-delta', textDelta: '...' };
+    yield { type: 'finish', finishReason: 'stop' };
+  }
+}
+
+// The n8n node
 export class LmChatImaginaryLlm implements INodeType {
   description = {
     displayName: 'ImaginaryLLM Chat Model',
@@ -255,80 +191,9 @@ export class LmChatImaginaryLlm implements INodeType {
     const modelName = this.getNodeParameter('model', itemIndex) as string;
     const temperature = this.getNodeParameter('temperature', itemIndex) as number;
 
-    const generate = async (messages: Message[]): Promise<GenerateResult> => {
-      const response = await this.helpers.httpRequest({
-        method: 'POST',
-        url: 'https://api.imaginary-llm.example.com/v1/generate',
-        headers: { 'Authorization': `Bearer ${credentials.apiKey}` },
-        body: {
-          model: modelName,
-          conversation: messages.map((m) => ({ speaker: m.role, text: m.content })),
-          settings: { creativity: temperature },
-        },
-      });
+    const model = new ImaginaryLlmChatModel(credentials.apiKey, modelName, { temperature });
 
-      return {
-        text: response.reply.text,
-        toolCalls: response.reply.actions?.map((a: any) => ({
-          id: a.id, name: a.name, args: a.params,
-        })),
-      };
-    };
-
-    const model = createChatModel({ type: 'custom', generate });
-
-    return { response: model };
-  }
-}
-```
-
-### ImaginaryDB Chat Memory
-
-```typescript
-import { createMemory, logWrapper, type ChatHistory, type Message } from '@n8n/ai-node-sdk';
-import { NodeConnectionTypes, type INodeType, type ISupplyDataFunctions, type SupplyData } from 'n8n-workflow';
-
-class ImaginaryDbChatHistory implements ChatHistory {
-  constructor(private helpers: ISupplyDataFunctions['helpers'], private dbUrl: string, private sessionId: string) {}
-
-  async getMessages(): Promise<Message[]> {
-    const response = await this.helpers.httpRequest({ method: 'GET', url: `${this.dbUrl}/get/chat:${this.sessionId}` });
-    return response.value ? JSON.parse(response.value) : [];
-  }
-
-  async addMessage(message: Message): Promise<void> {
-    const messages = await this.getMessages();
-    messages.push(message);
-    await this.helpers.httpRequest({ method: 'POST', url: `${this.dbUrl}/set/chat:${this.sessionId}`, body: { value: JSON.stringify(messages) } });
-  }
-
-  async clear(): Promise<void> {
-    await this.helpers.httpRequest({ method: 'DELETE', url: `${this.dbUrl}/del/chat:${this.sessionId}` });
-  }
-}
-
-export class MemoryImaginaryDbChat implements INodeType {
-  description = {
-    displayName: 'ImaginaryDB Chat Memory',
-    name: 'memoryImaginaryDbChat',
-    outputs: [NodeConnectionTypes.AiMemory],
-    credentials: [{ name: 'imaginaryDbApi', required: true }],
-    properties: [
-      { displayName: 'Session ID', name: 'sessionId', type: 'string', default: '={{ $json.sessionId }}' },
-      { displayName: 'Context Window', name: 'contextWindow', type: 'number', default: 10 },
-    ],
-  };
-
-  async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyData> {
-    const credentials = await this.getCredentials<{ url: string }>('imaginaryDbApi');
-    const sessionId = this.getNodeParameter('sessionId', itemIndex) as string;
-    const k = this.getNodeParameter('contextWindow', itemIndex) as number;
-
-    const chatHistory = new ImaginaryDbChatHistory(this.helpers, credentials.url, sessionId);
-
-    const memory = createMemory({ type: 'bufferWindow', k, sessionId, chatHistory });
-
-    return { response: logWrapper(memory, this) };
+    return { response: generateChatModelResponse(this, { model }) };
   }
 }
 ```
@@ -339,8 +204,9 @@ export class MemoryImaginaryDbChat implements INodeType {
 
 | Before (LangChain) | After (SDK) |
 |--------------------|-------------|
-| `import { ChatOpenAI } from '@langchain/openai'` | `import { createChatModel } from '@n8n/ai-node-sdk'` |
-| `new ChatOpenAI({ callbacks: [...], ... })` | `createChatModel({ ... })` |
-| `import { logWrapper } from '@utils/logWrapper'` | `import { logWrapper } from '@n8n/ai-node-sdk'` |
-| Provider-specific classes | Single `createChatModel` |
-| LangChain message types | Simple `Message` interface |
+| `import { ChatOpenAI } from '@langchain/openai'` | `import { OpenAIChatModel, generateChatModelResponse } from '@n8n/ai-node-sdk'` |
+| `new ChatOpenAI({ ... })` | `new OpenAIChatModel(modelId, { baseURL, apiKey })` for OpenAI-compatible APIs |
+| Custom provider | `class MyModel extends BaseChatModel { ... }` for non-OpenAI APIs |
+| Direct LangChain instantiation | `generateChatModelResponse(this, { model })` wraps in adapter + logWrapper |
+| LangChain message types | Simple `Message` with roles: `system`, `human`, `ai`, `tool` |
+| `tool_calls[].args` | `toolCalls[].arguments` |
