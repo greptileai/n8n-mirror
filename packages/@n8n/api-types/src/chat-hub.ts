@@ -609,7 +609,7 @@ export const chatHubMessageWithButtonsSchema = z.object({
 	type: z.literal('with-buttons'),
 	text: z.string(),
 	blockUserInput: z.boolean(),
-	buttons: z.array(chatHubMessageButtonSchema),
+	buttons: z.array(chatHubMessageButtonSchema).min(1),
 });
 
 export type ChatHubMessageWithButtons = z.infer<typeof chatHubMessageWithButtonsSchema>;
