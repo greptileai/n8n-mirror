@@ -2,6 +2,7 @@ import { mock } from 'jest-mock-extended';
 import fs from 'node:fs/promises';
 import { Readable } from 'node:stream';
 
+import type { ObjectStoreConfig } from '@/binary-data/object-store/object-store.config';
 import { ObjectStoreService } from '@/binary-data/object-store/object-store.service.ee';
 import type { MetadataResponseHeaders } from '@/binary-data/object-store/types';
 import { ObjectStoreManager } from '@/binary-data/object-store.manager';
@@ -10,7 +11,8 @@ import { mockInstance, toFileId, toStream } from '@test/utils';
 jest.mock('fs/promises');
 
 const objectStoreService = mockInstance(ObjectStoreService);
-const objectStoreManager = new ObjectStoreManager(objectStoreService);
+const objectStoreConfig = mock<ObjectStoreConfig>();
+const objectStoreManager = new ObjectStoreManager(objectStoreService, objectStoreConfig);
 
 const workflowId = 'ObogjVbqpNOQpiyV';
 const executionId = '999';

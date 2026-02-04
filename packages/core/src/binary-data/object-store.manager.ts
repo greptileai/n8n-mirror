@@ -3,13 +3,17 @@ import fs from 'node:fs/promises';
 import type { Readable } from 'node:stream';
 import { v4 as uuid } from 'uuid';
 
+import { ObjectStoreConfig } from './object-store/object-store.config';
 import { ObjectStoreService } from './object-store/object-store.service.ee';
 import type { BinaryData } from './types';
 import { binaryToBuffer } from './utils';
 
 @Service()
 export class ObjectStoreManager implements BinaryData.Manager {
-	constructor(private readonly objectStoreService: ObjectStoreService) {}
+	constructor(
+		private readonly objectStoreService: ObjectStoreService,
+		private readonly config: ObjectStoreConfig,
+	) {}
 
 	async init() {
 		await this.objectStoreService.checkConnection();
@@ -89,18 +93,54 @@ export class ObjectStoreManager implements BinaryData.Manager {
 		await this.objectStoreService.deleteOne(oldFileId);
 	}
 
+	getStorageConfig(): BinaryData.StorageConfig {
+		return {
+			mode: 's3',
+			bucket: this.config.bucket.name,
+			region: this.config.bucket.region,
+			credentials: {
+				accessKeyId: this.config.credentials.accessKey,
+				secretAccessKey: this.config.credentials.accessSecret,
+			},
+			endpoint:
+				this.config.host !== '' ? `${this.config.protocol}://${this.config.host}` : undefined,
+		};
+	}
+
+	/**
+	 * S3 doesn't have directories - returns S3 URI for the location
+	 * @returns S3 URI (e.g., s3://bucket/path)
+	 */
+	async ensureLocation(location: BinaryData.FileLocation): Promise<string> {
+		const path = this.toPath(location);
+		return `s3://${this.config.bucket.name}/${path}`;
+	}
+
+	/**
+	 * Size calculation would require listing all objects in S3, which is expensive
+	 * Consider using CloudWatch metrics or S3 inventory reports instead
+	 * @returns Always returns 0
+	 */
+	async getSize(_location: BinaryData.FileLocation): Promise<number> {
+		return 0;
+	}
+
 	// ----------------------------------
 	//         private methods
 	// ----------------------------------
 
-	private toFileId(location: BinaryData.FileLocation) {
+	private toPath(location: BinaryData.FileLocation): string {
 		switch (location.type) {
 			case 'execution': {
 				const executionId = location.executionId || 'temp'; // missing only in edge case, see PR #7244
-				return `workflows/${location.workflowId}/executions/${executionId}/binary_data/${uuid()}`;
+				return `workflows/${location.workflowId}/executions/${executionId}`;
 			}
 			case 'custom':
-				return `${location.pathSegments.join('/')}/binary_data/${uuid()}`;
+				return location.pathSegments.join('/');
 		}
+	}
+
+	private toFileId(location: BinaryData.FileLocation) {
+		return `${this.toPath(location)}/binary_data/${uuid()}`;
 	}
 }

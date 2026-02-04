@@ -86,10 +86,9 @@ export class VectorStoreBenchmark extends BaseCommand<z.infer<typeof flagsSchema
 		this.log(`  Max Queries/sec: ${flags['max-queries-per-sec'] || 'unlimited'}`);
 		this.log('');
 
-		// Initialize the module
+		// Get the repository
 		const { VectorStoreDataRepository } = await import('./vector-store-data.repository');
 		const repository = Container.get(VectorStoreDataRepository);
-		await repository.init();
 
 		const results: BenchmarkResults[] = [];
 
@@ -184,8 +183,6 @@ export class VectorStoreBenchmark extends BaseCommand<z.infer<typeof flagsSchema
 				queryEmbedding,
 				k,
 			);
-
-			lastOperationTime = performance.now();
 		}
 
 		const endTime = performance.now();
@@ -221,7 +218,6 @@ export class VectorStoreBenchmark extends BaseCommand<z.infer<typeof flagsSchema
 
 		const startTime = performance.now();
 		let totalVectorsAdded = 0;
-		let lastOperationTime = startTime;
 
 		for (let tableIdx = 0; tableIdx < this.tableIdentifiers.length; tableIdx++) {
 			const table = this.tableIdentifiers[tableIdx];
@@ -245,7 +241,6 @@ export class VectorStoreBenchmark extends BaseCommand<z.infer<typeof flagsSchema
 
 				await repository.addVectors(table.memoryKey, table.projectId, documents, embeddings, false);
 				totalVectorsAdded += currentBatchSize;
-				lastOperationTime = performance.now();
 			}
 
 			this.log(`  Table ${tableIdx + 1}/${this.tableIdentifiers.length} populated`);

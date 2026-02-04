@@ -131,14 +131,6 @@ export class VectorStoreDataService implements IVectorStoreDataService {
 	}
 
 	/**
-	 * Initialize LanceDB storage.
-	 * Called during module initialization.
-	 */
-	async init(): Promise<void> {
-		await this.repository.init();
-	}
-
-	/**
 	 * Cleanup resources on shutdown.
 	 */
 	async shutdown(): Promise<void> {

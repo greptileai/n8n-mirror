@@ -227,7 +227,8 @@ export abstract class BaseCommand<F = never> {
 			}
 		}
 
-		const isS3Configured = Container.get(ObjectStoreConfig).bucket.name !== '';
+		const objectStoreConfig = Container.get(ObjectStoreConfig);
+		const isS3Configured = objectStoreConfig.bucket.name !== '';
 
 		if (isS3Configured) {
 			try {
@@ -239,7 +240,10 @@ export abstract class BaseCommand<F = never> {
 				const { ObjectStoreManager } = await import(
 					'n8n-core/dist/binary-data/object-store.manager'
 				);
-				binaryDataService.setManager('s3', new ObjectStoreManager(objectStoreService));
+				binaryDataService.setManager(
+					's3',
+					new ObjectStoreManager(objectStoreService, objectStoreConfig),
+				);
 			} catch {
 				if (isS3WriteMode) {
 					this.logger.error(

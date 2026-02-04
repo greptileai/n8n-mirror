@@ -6,10 +6,6 @@ import { Container } from '@n8n/di';
 export class VectorStoreModule implements ModuleInterface {
 	async init() {
 		await import('./vector-store-data.controller');
-
-		const { VectorStoreDataService } = await import('./vector-store-data.service');
-		const service = Container.get(VectorStoreDataService);
-		await service.init();
 	}
 
 	@OnShutdown()
