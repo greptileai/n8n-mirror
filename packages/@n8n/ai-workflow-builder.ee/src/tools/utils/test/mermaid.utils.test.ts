@@ -906,6 +906,40 @@ n1["Start"]
 			expect(result).toContain('n8n-nodes-base.set');
 		});
 
+		it('should include node ID even when includeNodeType and includeNodeParameters are false', () => {
+			const workflow: WorkflowMetadata = {
+				templateId: 9012,
+				name: 'Node ID Only Test',
+				workflow: {
+					name: 'Node ID Only Test',
+					nodes: [
+						{
+							parameters: { text: 'hello' },
+							id: 'abc-123-def-456',
+							name: 'Set Data',
+							type: 'n8n-nodes-base.set',
+							position: [0, 0],
+							typeVersion: 1,
+						},
+					],
+					connections: {},
+				},
+			};
+
+			const result = mermaidStringify(workflow, {
+				includeNodeId: true,
+				includeNodeType: false,
+				includeNodeParameters: false,
+			});
+
+			// Should contain node ID in brackets
+			expect(result).toContain('[abc-123-def-456]');
+			// Should NOT contain node type
+			expect(result).not.toContain('n8n-nodes-base.set');
+			// Should NOT contain parameters
+			expect(result).not.toContain('text');
+		});
+
 		it('should handle cyclic workflows without infinite loops', () => {
 			const workflow: WorkflowMetadata = {
 				templateId: 9004,

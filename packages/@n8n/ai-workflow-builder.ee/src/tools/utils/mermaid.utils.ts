@@ -382,7 +382,11 @@ class MermaidBuilder {
 			}
 		}
 
-		if (this.options.includeNodeType || this.options.includeNodeParameters) {
+		if (
+			this.options.includeNodeType ||
+			this.options.includeNodeParameters ||
+			this.options.includeNodeId
+		) {
 			const idPart = this.options.includeNodeId && node.id ? `[${node.id}] ` : '';
 			const typePart = this.options.includeNodeType ? this.buildNodeTypePart(node) : '';
 			const paramsPart =
