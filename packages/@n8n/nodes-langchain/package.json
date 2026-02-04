@@ -217,6 +217,7 @@
     "@modelcontextprotocol/sdk": "1.25.2",
     "@mozilla/readability": "0.6.0",
     "@n8n/ai-utilities": "workspace:*",
+    "@n8n/mcp-core": "workspace:*",
     "@n8n/client-oauth2": "workspace:*",
     "@n8n/config": "workspace:*",
     "@n8n/di": "workspace:*",

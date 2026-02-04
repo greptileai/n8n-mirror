@@ -111,6 +111,8 @@
     "@n8n/decorators": "workspace:*",
     "@n8n/di": "workspace:*",
     "@n8n/errors": "workspace:*",
+    "@n8n/mcp-core": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.25.2",
     "@n8n/n8n-nodes-langchain": "workspace:*",
     "@n8n/permissions": "workspace:*",
     "@n8n/syslog-client": "workspace:*",
