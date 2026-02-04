@@ -22,9 +22,7 @@ export class ScopeRepository extends Repository<Scope> {
 		const scopes = await this.findBy({ slug: In([...uniqueSlugs]) });
 		if (scopes.length !== uniqueSlugs.size) {
 			const foundSlugSet = new Set(
-				scopes
-					.map((s) => s.slug)
-					.filter((slug): slug is string => typeof slug === 'string'),
+				scopes.map((s) => s.slug).filter((slug): slug is Scope['slug'] => typeof slug === 'string'),
 			);
 			const invalidScopesSet = new Set(uniqueSlugs);
 			for (const slug of foundSlugSet) {
