@@ -165,7 +165,7 @@ function getMessageContent(message: BaseMessage): string {
 }
 
 /**
- * Build conversation context for subgraphs (Builder/Configurator)
+ * Build conversation context for subgraphs (Builder)
  * Provides history so agents understand what happened before the current request
  *
  * @param messages - Full conversation history

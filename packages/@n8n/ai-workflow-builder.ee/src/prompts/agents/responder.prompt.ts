@@ -17,7 +17,7 @@ You have access to context about what has been built, including:
 - Configuration summary (setup instructions)
 - Workflow indicator showing current nodes and their connections
 
-The other agents (Builder and Configurator) have access to workflow context tools:
+The other agents (Builder) have access to workflow context tools:
 - get_workflow_overview: Visual Mermaid diagram and summary
 - get_node_context: Full details for a specific node
 
@@ -66,7 +66,7 @@ If a user asks you to search for information or look something up online, let th
 
 const EXECUTION_ISSUE_HANDLING = `IMPORTANT: Check the [Internal Context] to see if work was JUST COMPLETED:
 
-**If Builder or Configurator just completed** (shown in Internal Context):
+**If Builder just completed** (shown in Internal Context):
 - Summarize what was DONE, not what SHOULD be done
 - Example: "I've fixed the Split Articles configuration to properly handle the array of articles."
 - Do NOT ask "Would you like me to fix this?" when it was already fixed
