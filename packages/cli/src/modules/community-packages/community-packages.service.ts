@@ -142,45 +142,6 @@ export class CommunityPackagesService {
 		return { packageName, scope, version, rawString };
 	}
 
-	/** @deprecated */
-	async executeNpmCommand(args: string[], options?: { doNotHandleError?: boolean }) {
-		const execOptions = {
-			cwd: this.downloadFolder,
-			env: {
-				NODE_PATH: process.env.NODE_PATH,
-				PATH: process.env.PATH,
-				APPDATA: process.env.APPDATA,
-				NODE_ENV: 'production',
-			},
-			shell: true,
-		};
-
-		try {
-			const commandResult = await asyncExecFile('npm', args, execOptions);
-			return commandResult.stdout;
-		} catch (error) {
-			if (options?.doNotHandleError) throw error;
-
-			const errorMessage = error instanceof Error ? error.message : UNKNOWN_FAILURE_REASON;
-
-			const map = {
-				[NPM_PACKAGE_NOT_FOUND_ERROR]: PACKAGE_NOT_FOUND,
-				[NPM_NO_VERSION_AVAILABLE]: PACKAGE_NOT_FOUND,
-				[NPM_PACKAGE_VERSION_NOT_FOUND_ERROR]: PACKAGE_VERSION_NOT_FOUND,
-				[NPM_DISK_NO_SPACE]: DISK_IS_FULL,
-				[NPM_DISK_INSUFFICIENT_SPACE]: DISK_IS_FULL,
-			};
-
-			Object.entries(map).forEach(([npmMessage, n8nMessage]) => {
-				if (errorMessage.includes(npmMessage)) throw new UnexpectedError(n8nMessage);
-			});
-
-			this.logger.warn('npm command failed', { errorMessage });
-
-			throw new UnexpectedError(PACKAGE_FAILED_TO_INSTALL);
-		}
-	}
-
 	matchPackagesWithUpdates(
 		packages: InstalledPackages[],
 		updates?: CommunityPackages.AvailableUpdates,
