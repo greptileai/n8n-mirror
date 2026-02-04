@@ -11,8 +11,8 @@ import type {
 import {
 	TRIGGER_NODE_CREATOR_VIEW,
 	HTTP_REQUEST_NODE_TYPE,
-	REGULAR_NODE_CREATOR_VIEW,
 	WEBHOOK_NODE_TYPE,
+	REGULAR_NODE_CREATOR_VIEW,
 	AI_NODE_CREATOR_VIEW,
 	AI_OTHERS_NODE_CREATOR_VIEW,
 	HITL_SUBCATEGORY,
@@ -324,8 +324,8 @@ registerKeyHook('MainViewArrowLeft', {
 					:root-view="activeViewStack.rootView"
 					show-icon
 					show-request
-					@add-http-node="emit('nodeTypeSelected', [{ type: HTTP_REQUEST_NODE_TYPE }])"
 					@add-webhook-node="emit('nodeTypeSelected', [{ type: WEBHOOK_NODE_TYPE }])"
+					@add-http-node="emit('nodeTypeSelected', [{ type: HTTP_REQUEST_NODE_TYPE }])"
 				/>
 			</template>
 		</ItemsRenderer>
