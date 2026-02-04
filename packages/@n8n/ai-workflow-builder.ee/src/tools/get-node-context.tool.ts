@@ -1,7 +1,7 @@
 import { tool } from '@langchain/core/tools';
 import type { Logger } from '@n8n/backend-common';
 import type { IConnections, NodeConnectionType } from 'n8n-workflow';
-import { mapConnectionsByDestination } from 'n8n-workflow';
+import { isNodeConnectionType, mapConnectionsByDestination } from 'n8n-workflow';
 import { z } from 'zod';
 
 import { ValidationError, ToolExecutionError } from '../errors';
@@ -13,6 +13,26 @@ import { createSuccessResponse, createErrorResponse } from './helpers/response';
 import { getEffectiveWorkflow, getWorkflowState } from './helpers/state';
 
 const DISPLAY_TITLE = 'Getting node context';
+
+/**
+ * Type guard to check if a value is a Record<string, unknown>
+ */
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Safely gets node run data from execution data
+ */
+function getNodeRunData(
+	executionData: Record<string, unknown> | undefined,
+	nodeName: string,
+): unknown {
+	if (!executionData || !isRecord(executionData.runData)) {
+		return undefined;
+	}
+	return executionData.runData[nodeName];
+}
 
 /**
  * Schema for getting node context
@@ -86,10 +106,8 @@ function getParentConnections(
 
 	const parents: Array<{ node: string; type: NodeConnectionType }> = [];
 
-	for (const [type, typeConns] of Object.entries(nodeConns) as Array<
-		[NodeConnectionType, IConnections[string][NodeConnectionType]]
-	>) {
-		if (!typeConns) continue;
+	for (const [type, typeConns] of Object.entries(nodeConns)) {
+		if (!isNodeConnectionType(type) || !typeConns) continue;
 
 		for (const connArray of typeConns) {
 			if (!connArray) continue;
@@ -114,10 +132,8 @@ function getChildConnections(
 
 	const children: Array<{ node: string; type: NodeConnectionType }> = [];
 
-	for (const [type, typeConns] of Object.entries(nodeConns) as Array<
-		[NodeConnectionType, IConnections[string][NodeConnectionType]]
-	>) {
-		if (!typeConns) continue;
+	for (const [type, typeConns] of Object.entries(nodeConns)) {
+		if (!isNodeConnectionType(type) || !typeConns) continue;
 
 		for (const connArray of typeConns) {
 			if (!connArray) continue;
@@ -213,9 +229,7 @@ function buildNodeContext(
 		}
 
 		// RunData from executionData
-		const nodeRunData = executionData?.runData
-			? (executionData.runData as Record<string, unknown>)[node.name]
-			: undefined;
+		const nodeRunData = getNodeRunData(executionData, node.name);
 		if (nodeRunData) {
 			parts.push('');
 			parts.push('Execution data (from last run):');
@@ -300,9 +314,7 @@ export function createGetNodeContextTool(logger?: Logger): BuilderTool {
 				const children = getChildConnections(nodeName, workflow.connections);
 
 				const nodeSchema = executionSchema.find((s) => s.nodeName === nodeName);
-				const nodeRunData = executionData?.runData
-					? (executionData.runData as Record<string, unknown>)[nodeName]
-					: undefined;
+				const nodeRunData = getNodeRunData(executionData, nodeName);
 
 				const output: GetNodeContextOutput = {
 					found: true,
