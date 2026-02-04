@@ -30,6 +30,43 @@ export const useWorkflowSetupState = (nodes?: Ref<INodeUi[]>) => {
 
 	const sourceNodes = computed(() => nodes?.value ?? workflowsStore.allNodes);
 
+	const getCredentialDisplayName = (credentialType: string): string => {
+		const credentialTypeInfo = credentialsStore.getCredentialTypeByName(credentialType);
+		return credentialTypeInfo?.displayName ?? credentialType;
+	};
+
+	/**
+	 * Get all credential types that a node requires.
+	 * Combines credentials from:
+	 * 1. Node type definition (via getNodeTypeDisplayableCredentials)
+	 * 2. Node issues (for dynamically-selected credentials like HTTP Request auth)
+	 * 3. Currently assigned credentials on the node
+	 */
+	const getNodeCredentialTypes = (node: INodeUi): string[] => {
+		const credentialTypes = new Set<string>();
+
+		// 1. Credentials from node type definition
+		const displayableCredentials = getNodeTypeDisplayableCredentials(nodeTypesStore, node);
+		for (const cred of displayableCredentials) {
+			credentialTypes.add(cred.name);
+		}
+
+		// 2. Credentials from node issues (for dynamic credential selection like HTTP Request)
+		const credentialIssues = node.issues?.credentials ?? {};
+		for (const credType of Object.keys(credentialIssues)) {
+			credentialTypes.add(credType);
+		}
+
+		// 3. Currently assigned credentials
+		if (node.credentials) {
+			for (const credType of Object.keys(node.credentials)) {
+				credentialTypes.add(credType);
+			}
+		}
+
+		return Array.from(credentialTypes);
+	};
+
 	/**
 	 * Get nodes that require credentials, sorted by X position (left to right).
 	 */
@@ -38,30 +75,24 @@ export const useWorkflowSetupState = (nodes?: Ref<INodeUi[]>) => {
 			.filter((node) => !node.disabled)
 			.map((node) => ({
 				node,
-				requiredCredentials: getNodeTypeDisplayableCredentials(nodeTypesStore, node),
+				credentialTypes: getNodeCredentialTypes(node),
 			}))
-			.filter(({ requiredCredentials }) => requiredCredentials.length > 0);
+			.filter(({ credentialTypes }) => credentialTypes.length > 0);
 
 		return sortBy(nodesWithCredentials, ({ node }) => node.position[0]);
 	});
-
-	const getCredentialDisplayName = (credentialType: string): string => {
-		const credentialTypeInfo = credentialsStore.getCredentialTypeByName(credentialType);
-		return credentialTypeInfo?.displayName ?? credentialType;
-	};
 
 	/**
 	 * Node setup states - one entry per node that requires credentials.
 	 * This data is used by cards component.
 	 */
 	const nodeSetupStates = computed<NodeSetupState[]>(() => {
-		return nodesRequiringCredentials.value.map(({ node, requiredCredentials }) => {
+		return nodesRequiringCredentials.value.map(({ node, credentialTypes }) => {
 			const credentialIssues = node.issues?.credentials ?? {};
 
-			// Build requirements from node type's required credentials
-			const credentialRequirements: NodeCredentialRequirement[] = requiredCredentials.map(
-				(credentialDescription) => {
-					const credType = credentialDescription.name;
+			// Build requirements from all credential types
+			const credentialRequirements: NodeCredentialRequirement[] = credentialTypes.map(
+				(credType) => {
 					const credValue = node.credentials?.[credType];
 					const selectedCredentialId =
 						typeof credValue === 'string' ? undefined : (credValue?.id ?? undefined);
