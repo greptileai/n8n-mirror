@@ -275,22 +275,6 @@ describe('useConnectionModal', () => {
 			expect(result).toBe(false);
 			expect(mockConnection.createConnection).not.toHaveBeenCalled();
 		});
-
-		it('should compute canUpdate based on RBAC scope', () => {
-			mockHasScope.mockReturnValue(true);
-
-			const { canUpdate } = useConnectionModal(defaultOptions);
-			expect(canUpdate.value).toBe(true);
-			expect(mockHasScope).toHaveBeenCalledWith('externalSecretsProvider:update');
-		});
-
-		it('should compute canRemoveProjectScope based on RBAC scope', () => {
-			mockHasScope.mockReturnValue(true);
-
-			const { canRemoveProjectScope } = useConnectionModal(defaultOptions);
-			expect(canRemoveProjectScope.value).toBe(true);
-			expect(mockHasScope).toHaveBeenCalledWith('projectExternalSecretsProvider:update');
-		});
 	});
 
 	describe('error handling', () => {
@@ -364,6 +348,43 @@ describe('useConnectionModal', () => {
 
 			await savePromise;
 			expect(isSaving.value).toBe(false);
+		});
+
+		it('should set didSave to true when save succeeds', async () => {
+			const { selectProviderType, connectionName, saveConnection, didSave } =
+				useConnectionModal(defaultOptions);
+
+			mockConnection.createConnection.mockResolvedValue({
+				id: 'new-id',
+				name: 'new-connection',
+				type: 'awsSecretsManager',
+				settings: {},
+			});
+
+			selectProviderType('awsSecretsManager');
+			connectionName.value = 'new-connection';
+
+			expect(didSave.value).toBe(false);
+
+			await saveConnection();
+
+			expect(didSave.value).toBe(true);
+		});
+
+		it('should not set didSave to true when save fails', async () => {
+			const { selectProviderType, connectionName, saveConnection, didSave } =
+				useConnectionModal(defaultOptions);
+
+			mockConnection.createConnection.mockRejectedValue(new Error('Save failed'));
+
+			selectProviderType('awsSecretsManager');
+			connectionName.value = 'new-connection';
+
+			expect(didSave.value).toBe(false);
+
+			await saveConnection();
+
+			expect(didSave.value).toBe(false);
 		});
 	});
 

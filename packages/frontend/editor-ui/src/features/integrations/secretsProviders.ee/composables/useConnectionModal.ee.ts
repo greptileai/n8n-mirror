@@ -43,6 +43,7 @@ export function useConnectionModal(options: UseConnectionModalOptions) {
 	const connectionSettings = ref<Record<string, IUpdateInformation['value']>>({});
 	const originalSettings = ref<Record<string, IUpdateInformation['value']>>({});
 	const isSaving = ref(false);
+	const didSave = ref(false);
 
 	// Connection composable (low-level API operations)
 	const connection = useSecretsProviderConnection();
@@ -81,8 +82,8 @@ export function useConnectionModal(options: UseConnectionModalOptions) {
 	const canCreate = computed(() => rbacStore.hasScope('externalSecretsProvider:create'));
 	const canUpdate = computed(() => rbacStore.hasScope('externalSecretsProvider:update'));
 	const canRemoveProjectScope = computed(() =>
-		// Project-scoped permission: can remove connection from project but not share with others
-		rbacStore.hasScope('projectExternalSecretsProvider:update'),
+		// TODO: allow removing projects from scope external secrets providers with project scope permissions
+		rbacStore.hasScope('externalSecretsProvider:update'),
 	);
 
 	// Computed - State
@@ -345,6 +346,10 @@ export function useConnectionModal(options: UseConnectionModalOptions) {
 				? await updateExistingConnection()
 				: await createNewConnection();
 
+			if (success) {
+				didSave.value = true;
+			}
+
 			return success;
 		} catch (error) {
 			toast.showError(error, i18n.baseText('generic.error'), error?.response?.data?.data.error);
@@ -362,6 +367,7 @@ export function useConnectionModal(options: UseConnectionModalOptions) {
 		selectedProviderType,
 		connectionSettings,
 		isSaving,
+		didSave,
 		connection,
 
 		// Scope state

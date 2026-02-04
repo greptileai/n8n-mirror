@@ -78,7 +78,6 @@ const modal = useConnectionModal({
 });
 
 const sharedWithProjects = ref<ProjectSharingData[]>([]);
-const didSave = ref(false);
 
 const sidebarItems = computed(() => {
 	const menuItems: IMenuItem[] = [
@@ -165,7 +164,6 @@ function handleSettingChange(update: IUpdateInformation) {
 
 async function handleSave() {
 	await modal.saveConnection();
-	didSave.value = true;
 }
 
 async function handleBeforeClose() {
@@ -184,7 +182,7 @@ async function handleBeforeClose() {
 		}
 	}
 
-	props.data.onClose?.(didSave.value);
+	props.data.onClose?.(modal.didSave.value);
 	return true;
 }
 

@@ -48,6 +48,7 @@ const mockConnectionModal = {
 	isEditMode: { value: false },
 	hasUnsavedChanges: { value: false },
 	isSaving: { value: false },
+	didSave: { value: false },
 	connection: {
 		isLoading: { value: false },
 		connectionState: { value: 'initializing' },
