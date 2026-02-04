@@ -1,8 +1,18 @@
 import { mock } from 'jest-mock-extended';
 import type { ITriggerFunctions, IRun, INode, Logger, IDeferredPromise } from 'n8n-workflow';
-import { NodeOperationError } from 'n8n-workflow';
+import { NodeOperationError, sleep } from 'n8n-workflow';
 
 import { getAutoCommitSettings, configureDataEmitter, type KafkaTriggerOptions } from '../utils';
+
+jest.mock('n8n-workflow', () => {
+	const actual = jest.requireActual('n8n-workflow');
+	return {
+		...actual,
+		sleep: jest.fn().mockResolvedValue(undefined),
+	};
+});
+
+const mockedSleep = jest.mocked(sleep);
 
 describe('Kafka Utils', () => {
 	describe('getAutoCommitSettings', () => {
@@ -151,6 +161,7 @@ describe('Kafka Utils', () => {
 			ctx.getMode.mockReturnValue(mode);
 			ctx.getNode.mockReturnValue(mockNode);
 			ctx.logger = mockLogger;
+			ctx.getWorkflowSettings.mockReturnValue({ executionTimeout: 3600 });
 
 			// Mock helpers.createDeferredPromise
 			if (deferredPromise) {
@@ -162,6 +173,15 @@ describe('Kafka Utils', () => {
 
 			return ctx;
 		};
+
+		beforeEach(() => {
+			jest.clearAllMocks();
+			jest.useFakeTimers();
+		});
+
+		afterEach(() => {
+			jest.useRealTimers();
+		});
 
 		describe('immediate emit mode', () => {
 			it('should emit immediately in manual mode regardless of resolveOffset setting', async () => {
@@ -300,7 +320,7 @@ describe('Kafka Utils', () => {
 				expect(result).toEqual({ success: true });
 			});
 
-			it('should return failure when execution status is not "success"', async () => {
+			it('should return failure and sleep when execution status is not "success"', async () => {
 				const deferredPromise = createDeferredPromise<IRun>();
 				const ctx = createMockContext({ resolveOffset: 'onSuccess' }, 'trigger', deferredPromise);
 				const options: KafkaTriggerOptions = {};
@@ -314,8 +334,26 @@ describe('Kafka Utils', () => {
 
 				const result = await resultPromise;
 
+				expect(mockedSleep).toHaveBeenCalledWith(5000); // DEFAULT_ERROR_RETRY_DELAY_MS
 				expect(ctx.logger.error).toHaveBeenCalled();
 				expect(result).toEqual({ success: false });
+			});
+
+			it('should use custom errorRetryDelay when provided', async () => {
+				const deferredPromise = createDeferredPromise<IRun>();
+				const ctx = createMockContext({ resolveOffset: 'onSuccess' }, 'trigger', deferredPromise);
+				const options: KafkaTriggerOptions = { errorRetryDelay: 10000 };
+
+				const emitter = configureDataEmitter(ctx, options, 1.3);
+				const testData = [{ json: { message: 'test' } }];
+
+				const resultPromise = emitter(testData);
+
+				deferredPromise.resolveWith({ status: 'error' } as unknown as IRun);
+
+				await resultPromise;
+
+				expect(mockedSleep).toHaveBeenCalledWith(10000);
 			});
 		});
 
@@ -369,7 +407,85 @@ describe('Kafka Utils', () => {
 
 				const result = await resultPromise;
 
+				expect(mockedSleep).toHaveBeenCalled();
 				expect(result).toEqual({ success: false });
+			});
+		});
+
+		describe('timeout handling', () => {
+			it('should timeout and return failure when execution takes too long', async () => {
+				const deferredPromise = createDeferredPromise<IRun>();
+				const ctx = createMockContext(
+					{ resolveOffset: 'onCompletion' },
+					'trigger',
+					deferredPromise,
+				);
+				ctx.getWorkflowSettings.mockReturnValue({ executionTimeout: 1 }); // 1 second timeout
+				const options: KafkaTriggerOptions = {};
+
+				const emitter = configureDataEmitter(ctx, options, 1.3);
+				const testData = [{ json: { message: 'test' } }];
+
+				const resultPromise = emitter(testData);
+
+				// Advance timers past the timeout
+				jest.advanceTimersByTime(1001);
+
+				const result = await resultPromise;
+
+				expect(mockedSleep).toHaveBeenCalled();
+				expect(ctx.logger.error).toHaveBeenCalled();
+				expect(result).toEqual({ success: false });
+			});
+
+			it('should use default timeout of 3600 seconds when not configured', async () => {
+				const deferredPromise = createDeferredPromise<IRun>();
+				const ctx = createMockContext(
+					{ resolveOffset: 'onCompletion' },
+					'trigger',
+					deferredPromise,
+				);
+				ctx.getWorkflowSettings.mockReturnValue({}); // No timeout configured
+				const options: KafkaTriggerOptions = {};
+
+				const emitter = configureDataEmitter(ctx, options, 1.3);
+				const testData = [{ json: { message: 'test' } }];
+
+				const resultPromise = emitter(testData);
+
+				// Resolve before timeout
+				deferredPromise.resolveWith({ status: 'success' } as unknown as IRun);
+
+				const result = await resultPromise;
+
+				expect(result).toEqual({ success: true });
+			});
+
+			it('should clear timeout when execution completes before timeout', async () => {
+				const deferredPromise = createDeferredPromise<IRun>();
+				const ctx = createMockContext(
+					{ resolveOffset: 'onCompletion' },
+					'trigger',
+					deferredPromise,
+				);
+				ctx.getWorkflowSettings.mockReturnValue({ executionTimeout: 10 });
+				const options: KafkaTriggerOptions = {};
+
+				const emitter = configureDataEmitter(ctx, options, 1.3);
+				const testData = [{ json: { message: 'test' } }];
+
+				const resultPromise = emitter(testData);
+
+				// Resolve quickly
+				deferredPromise.resolveWith({ status: 'success' } as unknown as IRun);
+
+				const result = await resultPromise;
+
+				// Advance timers past what would have been the timeout
+				jest.advanceTimersByTime(15000);
+
+				// Should not have logged any timeout error
+				expect(result).toEqual({ success: true });
 			});
 		});
 
@@ -392,6 +508,7 @@ describe('Kafka Utils', () => {
 
 				const result = await resultPromise;
 
+				expect(mockedSleep).toHaveBeenCalledWith(5000);
 				expect(ctx.logger.error).toHaveBeenCalledWith('Execution failed', expect.any(Object));
 				expect(result).toEqual({ success: false });
 			});
@@ -415,6 +532,7 @@ describe('Kafka Utils', () => {
 
 				const result = await resultPromise;
 
+				expect(mockedSleep).toHaveBeenCalled();
 				expect(result).toEqual({ success: false });
 			});
 		});
