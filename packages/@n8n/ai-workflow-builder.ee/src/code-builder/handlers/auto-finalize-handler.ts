@@ -9,7 +9,7 @@ import type { BaseMessage } from '@langchain/core/messages';
 import { HumanMessage } from '@langchain/core/messages';
 import type { WorkflowJSON } from '@n8n/workflow-sdk';
 
-import type { StreamOutput, StreamGenerationError } from '../../types/streaming';
+import type { StreamOutput } from '../../types/streaming';
 import type { ParseAndValidateResult } from '../types';
 import { FIX_AND_FINALIZE_INSTRUCTION } from '../constants';
 
@@ -48,12 +48,8 @@ export interface AutoFinalizeParams {
 	code: string | null;
 	/** The current workflow context for validation */
 	currentWorkflow: WorkflowJSON | undefined;
-	/** Current iteration number */
-	iteration: number;
 	/** Message history to append feedback to */
 	messages: BaseMessage[];
-	/** Generation errors array to track errors */
-	generationErrors: StreamGenerationError[];
 }
 
 /**
@@ -66,8 +62,6 @@ export interface AutoFinalizeResult {
 	promptedForCode?: boolean;
 	/** The validated workflow (only on success) */
 	workflow?: WorkflowJSON;
-	/** The source code (only on success) */
-	sourceCode?: string;
 	/** Parse duration in milliseconds */
 	parseDuration?: number;
 }
@@ -101,7 +95,7 @@ export class AutoFinalizeHandler {
 	async *execute(
 		params: AutoFinalizeParams,
 	): AsyncGenerator<StreamOutput, AutoFinalizeResult, unknown> {
-		const { code, currentWorkflow, iteration, messages, generationErrors } = params;
+		const { code, currentWorkflow, messages } = params;
 
 		// No code yet - prompt to create
 		if (!code) {
@@ -137,14 +131,6 @@ export class AutoFinalizeHandler {
 					warnings: result.warnings,
 				});
 
-				// Track as generation error
-				generationErrors.push({
-					message: `Validation warnings:\n${warningText}`,
-					code,
-					iteration,
-					type: 'validation',
-				});
-
 				// Send warnings back to agent for correction
 				messages.push(
 					new HumanMessage(
@@ -164,7 +150,6 @@ export class AutoFinalizeHandler {
 			return {
 				success: true,
 				workflow: result.workflow,
-				sourceCode: code,
 				parseDuration,
 			};
 		} catch (error) {
@@ -175,14 +160,6 @@ export class AutoFinalizeHandler {
 			this.debugLog('AUTO_FINALIZE', '========== AUTO-FINALIZE FAILED ==========', {
 				parseDurationMs: parseDuration,
 				errorMessage,
-			});
-
-			// Track the generation error
-			generationErrors.push({
-				message: errorMessage,
-				code,
-				iteration,
-				type: 'parse',
 			});
 
 			// Send error back to agent for correction

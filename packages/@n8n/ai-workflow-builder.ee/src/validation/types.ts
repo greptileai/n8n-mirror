@@ -99,8 +99,6 @@ export interface ProgrammaticEvaluationInput {
 	userPrompt?: string;
 	referenceWorkflows?: SimpleWorkflow[];
 	preset?: 'strict' | 'standard' | 'lenient';
-	/** Generated TypeScript SDK code for graph validation */
-	generatedCode?: string;
 }
 
 export interface NodeResolvedConnectionTypesInfo {

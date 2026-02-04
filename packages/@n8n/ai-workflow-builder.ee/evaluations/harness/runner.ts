@@ -178,16 +178,14 @@ function buildContext(args: {
 	globalContext?: GlobalRunContext;
 	testCaseContext?: TestCaseContext;
 	referenceWorkflows?: SimpleWorkflow[];
-	generatedCode?: string;
 }): EvaluationContext {
-	const { prompt, globalContext, testCaseContext, referenceWorkflows, generatedCode } = args;
+	const { prompt, globalContext, testCaseContext, referenceWorkflows } = args;
 
 	return {
 		prompt,
 		...(globalContext ?? {}),
 		...(testCaseContext ?? {}),
 		...(referenceWorkflows?.length ? { referenceWorkflows } : {}),
-		...(generatedCode ? { generatedCode } : {}),
 	};
 }
 
@@ -490,9 +488,8 @@ async function runLocalExample(args: {
 		}, globalContext?.llmCallLimiter);
 		const genDurationMs = Date.now() - genStartTime;
 
-		// Extract workflow and optional generated code
+		// Extract workflow
 		const workflow = isGenerationResult(genResult) ? genResult.workflow : genResult;
-		const generatedCode = isGenerationResult(genResult) ? genResult.generatedCode : undefined;
 
 		lifecycle?.onWorkflowGenerated?.(workflow, genDurationMs);
 
@@ -504,7 +501,6 @@ async function runLocalExample(args: {
 			},
 			testCaseContext: testCase.context,
 			referenceWorkflows: testCase.referenceWorkflows,
-			generatedCode,
 		});
 
 		// Run evaluators in parallel
@@ -536,7 +532,6 @@ async function runLocalExample(args: {
 					? { discoveryDurationMs, builderDurationMs, responderDurationMs, nodeCount }
 					: undefined,
 			workflow,
-			generatedCode,
 		};
 
 		artifactSaver?.saveExample(result);
@@ -1108,9 +1103,8 @@ async function runLangsmith(config: LangsmithRunConfig): Promise<RunSummary> {
 			});
 			const genDurationMs = Date.now() - genStart;
 
-			// Extract workflow and optional generated code
+			// Extract workflow
 			const workflow = isGenerationResult(genResult) ? genResult.workflow : genResult;
-			const generatedCode = isGenerationResult(genResult) ? genResult.generatedCode : undefined;
 
 			lifecycle?.onWorkflowGenerated?.(workflow, genDurationMs);
 
@@ -1122,7 +1116,6 @@ async function runLangsmith(config: LangsmithRunConfig): Promise<RunSummary> {
 				prompt,
 				globalContext: effectiveGlobalContext,
 				testCaseContext: extracted,
-				generatedCode,
 			});
 
 			// Run all evaluators in parallel
@@ -1169,7 +1162,6 @@ async function runLangsmith(config: LangsmithRunConfig): Promise<RunSummary> {
 						? { discoveryDurationMs, builderDurationMs, responderDurationMs, nodeCount }
 						: undefined,
 				workflow,
-				generatedCode,
 			};
 
 			artifactSaver?.saveExample(result);

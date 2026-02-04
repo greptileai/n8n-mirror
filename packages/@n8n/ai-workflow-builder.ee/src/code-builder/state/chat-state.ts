@@ -8,8 +8,6 @@
 import type { BaseMessage } from '@langchain/core/messages';
 import type { WorkflowJSON } from '@n8n/workflow-sdk';
 
-import type { StreamGenerationError } from '../../types/streaming';
-
 /**
  * Manages all state for a single chat session.
  *
@@ -20,7 +18,6 @@ export class ChatState {
 	// Core loop state
 	private _iteration = 0;
 	private _workflow: WorkflowJSON | null = null;
-	private _sourceCode: string | null = null;
 	private _parseDuration = 0;
 	private _consecutiveParseErrors = 0;
 
@@ -35,9 +32,6 @@ export class ChatState {
 	private _textEditorValidateAttempts = 0;
 	private _validatePassedThisIteration = false;
 
-	// Generation error tracking
-	private _generationErrors: StreamGenerationError[] = [];
-
 	// ============= Getters =============
 
 	get iteration(): number {
@@ -46,10 +40,6 @@ export class ChatState {
 
 	get workflow(): WorkflowJSON | null {
 		return this._workflow;
-	}
-
-	get sourceCode(): string | null {
-		return this._sourceCode;
 	}
 
 	get parseDuration(): number {
@@ -84,10 +74,6 @@ export class ChatState {
 		return this._validatePassedThisIteration;
 	}
 
-	get generationErrors(): StreamGenerationError[] {
-		return this._generationErrors;
-	}
-
 	// ============= Iteration Management =============
 
 	incrementIteration(): void {
@@ -103,9 +89,8 @@ export class ChatState {
 
 	// ============= Workflow Management =============
 
-	setWorkflow(workflow: WorkflowJSON, sourceCode: string): void {
+	setWorkflow(workflow: WorkflowJSON): void {
 		this._workflow = workflow;
-		this._sourceCode = sourceCode;
 	}
 
 	clearWorkflow(): void {
@@ -148,16 +133,6 @@ export class ChatState {
 
 	resetValidatePassedThisIteration(): void {
 		this._validatePassedThisIteration = false;
-	}
-
-	// ============= Generation Error Tracking =============
-
-	addGenerationError(error: StreamGenerationError): void {
-		this._generationErrors.push(error);
-	}
-
-	hasGenerationErrors(): boolean {
-		return this._generationErrors.length > 0;
 	}
 
 	// ============= Loop Control =============

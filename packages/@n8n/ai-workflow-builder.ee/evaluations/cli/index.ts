@@ -181,7 +181,6 @@ function createCodeWorkflowBuilderGenerator(
 		});
 
 		let workflow: SimpleWorkflow | null = null;
-		let generatedCode: string | undefined;
 
 		// Create an AbortController to properly cancel the agent on timeout or error.
 		// Without this, the agent continues running even after Promise.race rejects,
@@ -204,7 +203,6 @@ function createCodeWorkflowBuilderGenerator(
 				for (const message of output.messages) {
 					if (isWorkflowUpdateChunk(message)) {
 						workflow = JSON.parse(message.codeSnippet) as SimpleWorkflow;
-						generatedCode = message.sourceCode;
 					}
 				}
 			}
@@ -218,7 +216,7 @@ function createCodeWorkflowBuilderGenerator(
 			throw new WorkflowGenerationError('CodeWorkflowBuilder did not produce a workflow');
 		}
 
-		return { workflow, generatedCode };
+		return { workflow };
 	};
 }
 

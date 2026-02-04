@@ -9,12 +9,7 @@ import type { BaseMessage } from '@langchain/core/messages';
 import { ToolMessage } from '@langchain/core/messages';
 import type { WorkflowJSON } from '@n8n/workflow-sdk';
 
-import type {
-	StreamOutput,
-	ToolProgressChunk,
-	WorkflowUpdateChunk,
-	StreamGenerationError,
-} from '../../types/streaming';
+import type { StreamOutput, ToolProgressChunk, WorkflowUpdateChunk } from '../../types/streaming';
 import type { ParseAndValidateResult } from '../types';
 import type { WarningTracker } from '../state/warning-tracker';
 import { FIX_AND_FINALIZE_INSTRUCTION } from '../constants';
@@ -55,7 +50,6 @@ export interface ValidateToolParams {
 	currentWorkflow: WorkflowJSON | undefined;
 	iteration: number;
 	messages: BaseMessage[];
-	generationErrors: StreamGenerationError[];
 	warningTracker: WarningTracker;
 }
 
@@ -65,7 +59,6 @@ export interface ValidateToolParams {
 export interface ValidateToolResult {
 	workflowReady: boolean;
 	workflow?: WorkflowJSON;
-	sourceCode?: string;
 	parseDuration?: number;
 }
 
@@ -99,15 +92,7 @@ export class ValidateToolHandler {
 	async *execute(
 		params: ValidateToolParams,
 	): AsyncGenerator<StreamOutput, ValidateToolResult, unknown> {
-		const {
-			toolCallId,
-			code,
-			currentWorkflow,
-			iteration,
-			messages,
-			generationErrors,
-			warningTracker,
-		} = params;
+		const { toolCallId, code, currentWorkflow, iteration, messages, warningTracker } = params;
 
 		this.debugLog('VALIDATE_TOOL', '========== VALIDATE ATTEMPT ==========', {
 			iteration,
@@ -165,14 +150,6 @@ export class ValidateToolHandler {
 					const warningText = newWarnings.map((w) => `- [${w.code}] ${w.message}`).join('\n');
 					const errorContext = this.getErrorContext(code, newWarnings[0].message);
 
-					// Track as generation error
-					generationErrors.push({
-						message: `Validation warnings:\n${warningText}`,
-						code,
-						iteration,
-						type: 'validation',
-					});
-
 					messages.push(
 						new ToolMessage({
 							tool_call_id: toolCallId,
@@ -181,13 +158,12 @@ export class ValidateToolHandler {
 					);
 
 					// Stream partial workflow for progressive rendering
-					yield this.createWorkflowUpdateChunk(result.workflow, code);
+					yield this.createWorkflowUpdateChunk(result.workflow);
 					yield this.createToolProgressChunk('completed');
 
 					return {
 						workflowReady: false,
 						workflow: result.workflow,
-						sourceCode: code,
 						parseDuration,
 					};
 				}
@@ -211,13 +187,12 @@ export class ValidateToolHandler {
 			});
 
 			// Stream workflow update
-			yield this.createWorkflowUpdateChunk(result.workflow, code);
+			yield this.createWorkflowUpdateChunk(result.workflow);
 			yield this.createToolProgressChunk('completed');
 
 			return {
 				workflowReady: true,
 				workflow: result.workflow,
-				sourceCode: code,
 				parseDuration,
 			};
 		} catch (error) {
@@ -228,14 +203,6 @@ export class ValidateToolHandler {
 			this.debugLog('VALIDATE_TOOL', '========== VALIDATE FAILED ==========', {
 				parseDurationMs: parseDuration,
 				errorMessage,
-			});
-
-			// Track the generation error
-			generationErrors.push({
-				message: errorMessage,
-				code,
-				iteration,
-				type: 'parse',
 			});
 
 			messages.push(
@@ -273,14 +240,13 @@ export class ValidateToolHandler {
 	/**
 	 * Create a workflow update chunk
 	 */
-	private createWorkflowUpdateChunk(workflow: WorkflowJSON, sourceCode: string): StreamOutput {
+	private createWorkflowUpdateChunk(workflow: WorkflowJSON): StreamOutput {
 		return {
 			messages: [
 				{
 					role: 'assistant',
 					type: 'workflow-updated',
 					codeSnippet: JSON.stringify(workflow, null, 2),
-					sourceCode,
 				} as WorkflowUpdateChunk,
 			],
 		};

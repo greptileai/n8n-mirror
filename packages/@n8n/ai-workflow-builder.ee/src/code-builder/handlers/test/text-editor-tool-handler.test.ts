@@ -4,8 +4,7 @@
 
 import { ToolMessage, HumanMessage } from '@langchain/core/messages';
 import type { BaseMessage } from '@langchain/core/messages';
-import { TextEditorToolHandler } from '../handlers/text-editor-tool-handler';
-import type { StreamGenerationError } from '../../types/streaming';
+import { TextEditorToolHandler } from '../text-editor-tool-handler';
 
 describe('TextEditorToolHandler', () => {
 	let handler: TextEditorToolHandler;
@@ -15,7 +14,6 @@ describe('TextEditorToolHandler', () => {
 	let mockGetErrorContext: jest.Mock;
 	let mockDebugLog: jest.Mock;
 	let messages: BaseMessage[];
-	let generationErrors: StreamGenerationError[];
 
 	beforeEach(() => {
 		mockTextEditorExecute = jest.fn();
@@ -24,7 +22,6 @@ describe('TextEditorToolHandler', () => {
 		mockGetErrorContext = jest.fn().mockReturnValue('Code context:\n1: const x = 1;');
 		mockDebugLog = jest.fn();
 		messages = [];
-		generationErrors = [];
 
 		handler = new TextEditorToolHandler({
 			textEditorExecute: mockTextEditorExecute,
@@ -49,7 +46,6 @@ describe('TextEditorToolHandler', () => {
 			const generator = handler.execute({
 				...baseParams,
 				messages,
-				generationErrors,
 			});
 
 			const chunks: unknown[] = [];
@@ -74,7 +70,6 @@ describe('TextEditorToolHandler', () => {
 				...baseParams,
 				args: { command: 'str_replace', path: '/workflow.ts', old_str: 'x', new_str: 'y' },
 				messages,
-				generationErrors,
 			});
 
 			const chunks: unknown[] = [];
@@ -106,7 +101,6 @@ describe('TextEditorToolHandler', () => {
 				...baseParams,
 				args: { command: 'create', path: '/workflow.ts', file_text: 'const workflow = {};' },
 				messages,
-				generationErrors,
 			});
 
 			const chunks: unknown[] = [];
@@ -138,7 +132,6 @@ describe('TextEditorToolHandler', () => {
 				...baseParams,
 				args: { command: 'create', path: '/workflow.ts', file_text: 'const workflow = {};' },
 				messages,
-				generationErrors,
 			});
 
 			const chunks: unknown[] = [];
@@ -151,10 +144,6 @@ describe('TextEditorToolHandler', () => {
 			expect(messages[0]).toBeInstanceOf(ToolMessage);
 			expect(messages[1]).toBeInstanceOf(HumanMessage);
 			expect((messages[1] as HumanMessage).content).toContain('WARN001');
-
-			// Should track generation error
-			expect(generationErrors.length).toBe(1);
-			expect(generationErrors[0].type).toBe('validation');
 		});
 
 		it('should auto-validate after create and return workflowReady false on parse error', async () => {
@@ -166,7 +155,6 @@ describe('TextEditorToolHandler', () => {
 				...baseParams,
 				args: { command: 'create', path: '/workflow.ts', file_text: 'const workflow = {};' },
 				messages,
-				generationErrors,
 			});
 
 			const chunks: unknown[] = [];
@@ -179,10 +167,6 @@ describe('TextEditorToolHandler', () => {
 			expect(messages[0]).toBeInstanceOf(ToolMessage);
 			expect(messages[1]).toBeInstanceOf(HumanMessage);
 			expect((messages[1] as HumanMessage).content).toContain('Parse error');
-
-			// Should track generation error
-			expect(generationErrors.length).toBe(1);
-			expect(generationErrors[0].type).toBe('parse');
 		});
 
 		it('should handle text editor execution error', async () => {
@@ -194,7 +178,6 @@ describe('TextEditorToolHandler', () => {
 				...baseParams,
 				args: { command: 'str_replace', path: '/workflow.ts', old_str: 'x', new_str: 'y' },
 				messages,
-				generationErrors,
 			});
 
 			const chunks: unknown[] = [];
@@ -214,7 +197,6 @@ describe('TextEditorToolHandler', () => {
 			const generator = handler.execute({
 				...baseParams,
 				messages,
-				generationErrors,
 			});
 
 			const chunks: unknown[] = [];

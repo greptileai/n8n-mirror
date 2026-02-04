@@ -5,7 +5,6 @@ import type { ProgrammaticEvaluationInput, ProgrammaticViolation } from '@/valid
 import {
 	evaluateConnections,
 	evaluateCredentials,
-	evaluateGraphValidation,
 	evaluateNodes,
 	evaluateParameters,
 	evaluateTools,
@@ -24,7 +23,7 @@ export async function programmaticEvaluation(
 	input: ProgrammaticEvaluationInput,
 	nodeTypes: INodeTypeDescription[],
 ) {
-	const { generatedWorkflow, referenceWorkflows, generatedCode, preset = 'standard' } = input;
+	const { generatedWorkflow, referenceWorkflows, preset = 'standard' } = input;
 
 	const connectionsEvaluationResult = evaluateConnections(generatedWorkflow, nodeTypes);
 	const nodesEvaluationResult = evaluateNodes(generatedWorkflow, nodeTypes);
