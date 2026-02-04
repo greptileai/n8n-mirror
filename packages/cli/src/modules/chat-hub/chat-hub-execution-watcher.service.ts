@@ -61,7 +61,8 @@ export class ChatHubExecutionWatcherService {
 
 		this.logger.debug('Chat hub execution resumed, notifying frontend', { executionId });
 
-		await this.executionStore.update(executionId, { awaitingResume: false });
+		// Notify frontend that execution is running again
+		await this.chatStreamService.startExecution(context.userId, context.sessionId);
 
 		// External resume (button click, Wait node, Form, Slack HITL, etc.)
 		// Create new message for the follow-up response
@@ -72,19 +73,27 @@ export class ChatHubExecutionWatcherService {
 			await this.messageRepository.updateChatMessage(context.messageId, { status: 'success' });
 			await this.createNextMessage(context, newMessageId, executionId);
 
-			// Update context: link new message to waiting message
+			// Update store with new message ID
 			await this.executionStore.update(executionId, {
 				previousMessageId: context.messageId,
 				messageId: newMessageId,
 				createMessageOnResume: false,
+				awaitingResume: false,
 			});
 
-			context.previousMessageId = context.messageId;
-			context.messageId = newMessageId;
+			await this.chatStreamService.startStream({
+				userId: context.userId,
+				sessionId: context.sessionId,
+				messageId: newMessageId,
+				previousMessageId: context.messageId,
+				retryOfMessageId: null,
+				executionId: parseInt(executionId, 10),
+			});
+			return;
 		}
 
-		// Notify frontend that execution is running again
-		await this.chatStreamService.startExecution(context.userId, context.sessionId);
+		await this.executionStore.update(executionId, { awaitingResume: false });
+
 		await this.chatStreamService.startStream({
 			userId: context.userId,
 			sessionId: context.sessionId,

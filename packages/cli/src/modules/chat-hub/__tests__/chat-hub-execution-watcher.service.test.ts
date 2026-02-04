@@ -141,6 +141,7 @@ describe('ChatHubExecutionWatcherService', () => {
 				previousMessageId: WAITING_MESSAGE_ID,
 				messageId: MOCK_NEW_MESSAGE_ID,
 				createMessageOnResume: false,
+				awaitingResume: false,
 			});
 
 			// Should notify with new message ID
