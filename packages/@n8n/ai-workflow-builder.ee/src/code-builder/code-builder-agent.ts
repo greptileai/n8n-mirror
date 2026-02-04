@@ -1,4 +1,3 @@
-/* eslint-disable complexity */
 /**
  * Code Builder Agent
  *
@@ -30,9 +29,9 @@ import {
 } from './constants';
 import { AutoFinalizeHandler } from './handlers/auto-finalize-handler';
 import { ParseValidateHandler } from './handlers/parse-validate-handler';
-import { calculateCost } from './utils/cost-calculator';
-import { extractTextContent, extractThinkingContent } from './utils/content-extractors';
 import type { WorkflowCodeOutput, CodeBuilderAgentConfig } from './types';
+import { extractTextContent, extractThinkingContent } from './utils/content-extractors';
+import { calculateCost } from './utils/cost-calculator';
 export type { CodeBuilderAgentConfig } from './types';
 import { buildCodeBuilderPrompt, type HistoryContext } from '../prompts/code-builder';
 import { createCodeBuilderGetTool } from '../tools/code-builder-get.tool';
@@ -94,8 +93,8 @@ export class CodeBuilderAgent {
 
 		// Initialize auto-finalize handler
 		this.autoFinalizeHandler = new AutoFinalizeHandler({
-			parseAndValidate: (code, currentWorkflow) =>
-				this.parseValidateHandler.parseAndValidate(code, currentWorkflow),
+			parseAndValidate: async (code, currentWorkflow) =>
+				await this.parseValidateHandler.parseAndValidate(code, currentWorkflow),
 			getErrorContext: (code, errorMessage) =>
 				this.parseValidateHandler.getErrorContext(code, errorMessage),
 			debugLog: (ctx, msg, data) => this.debugLog(ctx, msg, data),
