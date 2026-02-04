@@ -3498,6 +3498,8 @@
 	"workflows.publish": "Publish",
 	"workflows.published": "Published",
 	"workflows.publish.permissionDenied": "You don't have permission to publish this workflow",
+	"workflows.nameVersion": "Name version",
+	"workflows.unpublish": "Unpublish",
 	"workflows.project.add": "Add workflow to project",
 	"workflows.item.open": "Open",
 	"workflows.item.share": "Share...",
