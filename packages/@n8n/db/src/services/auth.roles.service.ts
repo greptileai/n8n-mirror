@@ -106,7 +106,7 @@ export class AuthRolesService {
 
 	private async getPersonalOwnerSettingsScopes() {
 		const settingKeys = [PERSONAL_SPACE_PUBLISHING_SETTING.key, PERSONAL_SPACE_SHARING_SETTING.key];
-		const rows = await this.settingsRepository.findByKeys(settingKeys);
+		const rows = (await this.settingsRepository.findByKeys(settingKeys)) ?? [];
 		const personalSpacePublishingValue = rows.find(
 			(r) => r.key === PERSONAL_SPACE_PUBLISHING_SETTING.key,
 		)?.value;
@@ -116,13 +116,14 @@ export class AuthRolesService {
 
 		const scopes = [];
 
-		if (personalSpacePublishingValue === 'true') {
+		// Default to true when setting is missing for backward compatibility (existing instances without these settings)
+		if (personalSpacePublishingValue === 'true' || personalSpacePublishingValue === undefined) {
 			scopes.push(...PERSONAL_SPACE_PUBLISHING_SETTING.scopes);
 			this.logger.debug(
 				`${PERSONAL_SPACE_PUBLISHING_SETTING.key} is enabled - allowing ${PERSONAL_SPACE_PUBLISHING_SETTING.scopes.join(', ')} scopes to ${PROJECT_OWNER_ROLE_SLUG} role`,
 			);
 		}
-		if (personalSpaceSharingValue === 'true') {
+		if (personalSpaceSharingValue === 'true' || personalSpaceSharingValue === undefined) {
 			scopes.push(...PERSONAL_SPACE_SHARING_SETTING.scopes);
 			this.logger.debug(
 				`${PERSONAL_SPACE_SHARING_SETTING.key} is enabled - allowing ${PERSONAL_SPACE_SHARING_SETTING.scopes.join(', ')} scopes to ${PROJECT_OWNER_ROLE_SLUG} role`,

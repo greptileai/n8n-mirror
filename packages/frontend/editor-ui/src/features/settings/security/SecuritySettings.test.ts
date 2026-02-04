@@ -65,6 +65,33 @@ describe('SecuritySettings', () => {
 		expect(getByTestId('security-personal-space-sharing-toggle')).toBeInTheDocument();
 	});
 
+	it('should call updateSecuritySettings and show toast when enabling personal space publishing', async () => {
+		updateSecuritySettings.mockResolvedValue({
+			...defaultSettings,
+			personalSpacePublishing: true,
+		});
+
+		const { getByTestId } = renderView();
+
+		await waitFor(() => {
+			expect(getByTestId('security-personal-space-publishing-toggle')).toBeInTheDocument();
+		});
+
+		const publishingToggle = getByTestId('security-personal-space-publishing-toggle');
+		await userEvent.click(publishingToggle);
+
+		await waitFor(() => {
+			expect(updateSecuritySettings).toHaveBeenCalledWith(expect.anything(), {
+				personalSpacePublishing: true,
+			});
+		});
+		expect(showToast).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: 'success',
+			}),
+		);
+	});
+
 	it('should call updateSecuritySettings and show toast when enabling personal space sharing', async () => {
 		updateSecuritySettings.mockResolvedValue({
 			...defaultSettings,
@@ -90,6 +117,36 @@ describe('SecuritySettings', () => {
 				type: 'success',
 			}),
 		);
+	});
+
+	it('should show confirm dialog when disabling personal space publishing', async () => {
+		getSecuritySettings.mockResolvedValue({
+			...defaultSettings,
+			personalSpacePublishing: true,
+		});
+		confirmMessage.mockResolvedValue(MODAL_CONFIRM);
+		updateSecuritySettings.mockResolvedValue({
+			...defaultSettings,
+			personalSpacePublishing: false,
+		});
+
+		const { getByTestId } = renderView();
+
+		await waitFor(() => {
+			expect(getByTestId('security-personal-space-publishing-toggle')).toBeInTheDocument();
+		});
+
+		const publishingToggle = getByTestId('security-personal-space-publishing-toggle');
+		await userEvent.click(publishingToggle);
+
+		await waitFor(() => {
+			expect(confirmMessage).toHaveBeenCalled();
+		});
+		await waitFor(() => {
+			expect(updateSecuritySettings).toHaveBeenCalledWith(expect.anything(), {
+				personalSpacePublishing: false,
+			});
+		});
 	});
 
 	it('should show confirm dialog when disabling personal space sharing', async () => {
@@ -120,6 +177,28 @@ describe('SecuritySettings', () => {
 				personalSpaceSharing: false,
 			});
 		});
+	});
+
+	it('should not call updateSecuritySettings when user cancels disable publishing confirmation', async () => {
+		getSecuritySettings.mockResolvedValue({
+			...defaultSettings,
+			personalSpacePublishing: true,
+		});
+		confirmMessage.mockResolvedValue('cancel');
+
+		const { getByTestId } = renderView();
+
+		await waitFor(() => {
+			expect(getByTestId('security-personal-space-publishing-toggle')).toBeInTheDocument();
+		});
+
+		const publishingToggle = getByTestId('security-personal-space-publishing-toggle');
+		await userEvent.click(publishingToggle);
+
+		await waitFor(() => {
+			expect(confirmMessage).toHaveBeenCalled();
+		});
+		expect(updateSecuritySettings).not.toHaveBeenCalled();
 	});
 
 	it('should not call updateSecuritySettings when user cancels disable sharing confirmation', async () => {

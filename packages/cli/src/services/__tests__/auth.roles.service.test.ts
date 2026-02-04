@@ -95,8 +95,8 @@ describe('AuthRolesService', () => {
 
 	beforeEach(() => {
 		jest.restoreAllMocks();
-		// Default to null (returns true for backward compatibility) so existing tests work
-		settingsRepository.findByKey.mockResolvedValue(null);
+		// AuthRolesService uses findByKeys; default to [] so missing settings => undefined => backward compat (grant scopes)
+		settingsRepository.findByKeys.mockResolvedValue([]);
 	});
 
 	describe('init - syncScopes', () => {
@@ -446,21 +446,29 @@ describe('AuthRolesService', () => {
 				publishing: boolean | null,
 				sharing: boolean | null,
 			): void {
-				settingsRepository.findByKey.mockImplementation(async (key: string) => {
-					const value = (enabled: boolean | null) =>
-						enabled === null ? null : ({ value: enabled ? 'true' : 'false' } as any);
-					if (key === PERSONAL_SPACE_PUBLISHING_SETTING.key) return value(publishing);
-					if (key === PERSONAL_SPACE_SHARING_SETTING.key) return value(sharing);
-					return null;
-				});
+				const rows: { key: string; value: string; loadOnStartup: boolean }[] = [];
+				if (publishing !== null) {
+					rows.push({
+						key: PERSONAL_SPACE_PUBLISHING_SETTING.key,
+						value: publishing ? 'true' : 'false',
+						loadOnStartup: true,
+					});
+				}
+				if (sharing !== null) {
+					rows.push({
+						key: PERSONAL_SPACE_SHARING_SETTING.key,
+						value: sharing ? 'true' : 'false',
+						loadOnStartup: true,
+					});
+				}
+				settingsRepository.findByKeys.mockResolvedValue(rows);
 			}
 
 			describe('personal space publishing', () => {
 				test('should add workflow:publish to personalOwner role when setting is null (backward compatibility)', async () => {
 					const allScopes = createAllScopes();
 					setupDefaultMocks(allScopes);
-					settingsRepository.findByKey.mockResolvedValue(null);
-
+					// findByKeys default [] in beforeEach => both values undefined => backward compat => grant scopes
 					await authRolesService.init();
 
 					const personalOwnerCall = roleRepository.create.mock.calls.find(
@@ -476,7 +484,7 @@ describe('AuthRolesService', () => {
 				test('should add workflow:publish to personalOwner role when setting is true', async () => {
 					const allScopes = createAllScopes();
 					setupDefaultMocks(allScopes);
-					settingsRepository.findByKey.mockResolvedValue({ value: 'true' } as any);
+					mockPersonalSpaceSettings(true, null);
 
 					await authRolesService.init();
 
@@ -493,7 +501,7 @@ describe('AuthRolesService', () => {
 				test('should NOT add workflow:publish to personalOwner role when setting is false', async () => {
 					const allScopes = createAllScopes();
 					setupDefaultMocks(allScopes);
-					settingsRepository.findByKey.mockResolvedValue({ value: 'false' } as any);
+					mockPersonalSpaceSettings(false, null);
 
 					await authRolesService.init();
 
@@ -522,7 +530,7 @@ describe('AuthRolesService', () => {
 					scopeRepository.find.mockResolvedValue(allScopes);
 					roleRepository.find.mockResolvedValue([existingRole]);
 					roleRepository.save.mockImplementation(async (entities) => entities as any);
-					settingsRepository.findByKey.mockResolvedValue({ value: 'true' } as any);
+					mockPersonalSpaceSettings(true, null);
 
 					await authRolesService.init();
 
@@ -557,7 +565,7 @@ describe('AuthRolesService', () => {
 					scopeRepository.find.mockResolvedValue(allScopes);
 					roleRepository.find.mockResolvedValue([existingRole]);
 					roleRepository.save.mockImplementation(async (entities) => entities as any);
-					settingsRepository.findByKey.mockResolvedValue({ value: 'false' } as any);
+					mockPersonalSpaceSettings(false, null);
 
 					await authRolesService.init();
 
@@ -581,8 +589,7 @@ describe('AuthRolesService', () => {
 				test('should add sharing scopes to personalOwner role when setting is null (backward compatibility)', async () => {
 					const allScopes = createAllScopes();
 					setupDefaultMocks(allScopes);
-					settingsRepository.findByKey.mockResolvedValue(null);
-
+					// findByKeys default [] in beforeEach => both values undefined => backward compat => grant scopes
 					await authRolesService.init();
 
 					const personalOwnerCall = roleRepository.create.mock.calls.find(

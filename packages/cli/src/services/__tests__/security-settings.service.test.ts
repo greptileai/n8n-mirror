@@ -63,48 +63,47 @@ describe('SecuritySettingsService', () => {
 		});
 	});
 
-	describe('isPersonalSpacePublishingEnabled', () => {
-		test('should return true when setting does not exist (backward compatibility) with original behaviour', async () => {
-			settingsRepository.findByKey.mockResolvedValue(null);
+	describe('arePersonalSpaceSettingsEnabled (personalSpacePublishing)', () => {
+		test('should return personalSpacePublishing true when setting does not exist (backward compatibility)', async () => {
+			settingsRepository.findByKeys.mockResolvedValue([]);
 
-			const result = await securitySettingsService.isPersonalSpaceSettingEnabled(
-				PERSONAL_SPACE_PUBLISHING_SETTING,
-			);
+			const result = await securitySettingsService.arePersonalSpaceSettingsEnabled();
 
-			expect(settingsRepository.findByKey).toHaveBeenCalledWith(
+			expect(settingsRepository.findByKeys).toHaveBeenCalledWith([
 				PERSONAL_SPACE_PUBLISHING_SETTING.key,
-			);
-			expect(result).toBe(true);
+				PERSONAL_SPACE_SHARING_SETTING.key,
+			]);
+			expect(result.personalSpacePublishing).toBe(true);
 		});
 
-		test('should return true when setting value is "true"', async () => {
-			settingsRepository.findByKey.mockResolvedValue({
-				key: PERSONAL_SPACE_PUBLISHING_SETTING.key,
-				value: 'true',
-			} as never);
+		test('should return personalSpacePublishing true when setting value is "true"', async () => {
+			settingsRepository.findByKeys.mockResolvedValue([
+				{ key: PERSONAL_SPACE_PUBLISHING_SETTING.key, value: 'true' },
+			] as never);
 
-			const result = await securitySettingsService.isPersonalSpaceSettingEnabled(
-				PERSONAL_SPACE_PUBLISHING_SETTING,
-			);
+			const result = await securitySettingsService.arePersonalSpaceSettingsEnabled();
 
-			expect(result).toBe(true);
+			expect(result.personalSpacePublishing).toBe(true);
 		});
 
-		test.each([
-			{ value: 'false', description: '"false"' },
-			{ value: 'invalid', description: 'an invalid string' },
-			{ value: '', description: 'an empty string' },
-		])('should return false when setting value is $description', async ({ value }) => {
-			settingsRepository.findByKey.mockResolvedValue({
-				key: PERSONAL_SPACE_PUBLISHING_SETTING.key,
-				value,
-			} as never);
+		test('should return personalSpacePublishing false when setting value is "false"', async () => {
+			settingsRepository.findByKeys.mockResolvedValue([
+				{ key: PERSONAL_SPACE_PUBLISHING_SETTING.key, value: 'false' },
+			] as never);
 
-			const result = await securitySettingsService.isPersonalSpaceSettingEnabled(
-				PERSONAL_SPACE_PUBLISHING_SETTING,
-			);
+			const result = await securitySettingsService.arePersonalSpaceSettingsEnabled();
 
-			expect(result).toBe(false);
+			expect(result.personalSpacePublishing).toBe(false);
+		});
+
+		test('should return personalSpacePublishing true for values other than "false" (e.g. empty or invalid)', async () => {
+			settingsRepository.findByKeys.mockResolvedValue([
+				{ key: PERSONAL_SPACE_PUBLISHING_SETTING.key, value: 'invalid' },
+			] as never);
+
+			const result = await securitySettingsService.arePersonalSpaceSettingsEnabled();
+
+			expect(result.personalSpacePublishing).toBe(true);
 		});
 	});
 
@@ -146,46 +145,47 @@ describe('SecuritySettingsService', () => {
 		});
 	});
 
-	describe('isPersonalSpaceSharingEnabled', () => {
-		test('should return true when setting does not exist (backward compatibility)', async () => {
-			settingsRepository.findByKey.mockResolvedValue(null);
+	describe('arePersonalSpaceSettingsEnabled (personalSpaceSharing)', () => {
+		test('should return personalSpaceSharing true when setting does not exist (backward compatibility)', async () => {
+			settingsRepository.findByKeys.mockResolvedValue([]);
 
-			const result = await securitySettingsService.isPersonalSpaceSettingEnabled(
-				PERSONAL_SPACE_SHARING_SETTING,
-			);
+			const result = await securitySettingsService.arePersonalSpaceSettingsEnabled();
 
-			expect(settingsRepository.findByKey).toHaveBeenCalledWith(PERSONAL_SPACE_SHARING_SETTING.key);
-			expect(result).toBe(true);
+			expect(settingsRepository.findByKeys).toHaveBeenCalledWith([
+				PERSONAL_SPACE_PUBLISHING_SETTING.key,
+				PERSONAL_SPACE_SHARING_SETTING.key,
+			]);
+			expect(result.personalSpaceSharing).toBe(true);
 		});
 
-		test('should return true when setting value is "true"', async () => {
-			settingsRepository.findByKey.mockResolvedValue({
-				key: PERSONAL_SPACE_SHARING_SETTING.key,
-				value: 'true',
-			} as never);
+		test('should return personalSpaceSharing true when setting value is "true"', async () => {
+			settingsRepository.findByKeys.mockResolvedValue([
+				{ key: PERSONAL_SPACE_SHARING_SETTING.key, value: 'true' },
+			] as never);
 
-			const result = await securitySettingsService.isPersonalSpaceSettingEnabled(
-				PERSONAL_SPACE_SHARING_SETTING,
-			);
+			const result = await securitySettingsService.arePersonalSpaceSettingsEnabled();
 
-			expect(result).toBe(true);
+			expect(result.personalSpaceSharing).toBe(true);
 		});
 
-		test.each([
-			{ value: 'false', description: '"false"' },
-			{ value: 'invalid', description: 'an invalid string' },
-			{ value: '', description: 'an empty string' },
-		])('should return false when setting value is $description', async ({ value }) => {
-			settingsRepository.findByKey.mockResolvedValue({
-				key: PERSONAL_SPACE_SHARING_SETTING.key,
-				value,
-			} as never);
+		test('should return personalSpaceSharing false when setting value is "false"', async () => {
+			settingsRepository.findByKeys.mockResolvedValue([
+				{ key: PERSONAL_SPACE_SHARING_SETTING.key, value: 'false' },
+			] as never);
 
-			const result = await securitySettingsService.isPersonalSpaceSettingEnabled(
-				PERSONAL_SPACE_SHARING_SETTING,
-			);
+			const result = await securitySettingsService.arePersonalSpaceSettingsEnabled();
 
-			expect(result).toBe(false);
+			expect(result.personalSpaceSharing).toBe(false);
+		});
+
+		test('should return personalSpaceSharing true for values other than "false" (e.g. empty or invalid)', async () => {
+			settingsRepository.findByKeys.mockResolvedValue([
+				{ key: PERSONAL_SPACE_SHARING_SETTING.key, value: '' },
+			] as never);
+
+			const result = await securitySettingsService.arePersonalSpaceSettingsEnabled();
+
+			expect(result.personalSpaceSharing).toBe(true);
 		});
 	});
 });

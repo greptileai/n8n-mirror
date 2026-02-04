@@ -26,11 +26,10 @@ describe('SecuritySettingsController', () => {
 	});
 
 	describe('GET /settings/security', () => {
-		it('should return security settings and call service for both settings', async () => {
-			securitySettingsService.isPersonalSpaceSettingEnabled.mockImplementation(async (setting) => {
-				if (setting === PERSONAL_SPACE_PUBLISHING_SETTING) return true;
-				if (setting === PERSONAL_SPACE_SHARING_SETTING) return false;
-				return false;
+		it('should return security settings and call service', async () => {
+			securitySettingsService.arePersonalSpaceSettingsEnabled.mockResolvedValue({
+				personalSpacePublishing: true,
+				personalSpaceSharing: false,
 			});
 
 			const response = await ownerAgent.get('/settings/security').expect(200);
@@ -41,17 +40,11 @@ describe('SecuritySettingsController', () => {
 					personalSpaceSharing: false,
 				},
 			});
-			expect(securitySettingsService.isPersonalSpaceSettingEnabled).toHaveBeenCalledTimes(2);
-			expect(securitySettingsService.isPersonalSpaceSettingEnabled).toHaveBeenCalledWith(
-				PERSONAL_SPACE_PUBLISHING_SETTING,
-			);
-			expect(securitySettingsService.isPersonalSpaceSettingEnabled).toHaveBeenCalledWith(
-				PERSONAL_SPACE_SHARING_SETTING,
-			);
+			expect(securitySettingsService.arePersonalSpaceSettingsEnabled).toHaveBeenCalledTimes(1);
 		});
 
 		it('should handle service errors gracefully', async () => {
-			securitySettingsService.isPersonalSpaceSettingEnabled.mockRejectedValue(
+			securitySettingsService.arePersonalSpaceSettingsEnabled.mockRejectedValue(
 				new Error('Database connection failed'),
 			);
 
