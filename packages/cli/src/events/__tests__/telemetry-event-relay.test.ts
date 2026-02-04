@@ -2084,6 +2084,21 @@ describe('TelemetryEventRelay', () => {
 			});
 		});
 
+		it('should track workflow_sharing update', () => {
+			const event: RelayEventMap['instance-policies-updated'] = {
+				user: { id: 'user789' },
+				settingName: 'workflow_sharing',
+				value: true,
+			};
+
+			eventService.emit('instance-policies-updated', event);
+
+			expect(telemetry.track).toHaveBeenCalledWith('User updated instance policies', {
+				user_id: 'user789',
+				workflow_sharing: true,
+			});
+		});
+
 		it('should track 2fa_enforcement update', () => {
 			const event: RelayEventMap['instance-policies-updated'] = {
 				user: { id: 'user456' },

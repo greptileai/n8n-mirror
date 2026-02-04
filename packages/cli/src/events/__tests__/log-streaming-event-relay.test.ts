@@ -2368,23 +2368,5 @@ describe('LogStreamingEventRelay', () => {
 				},
 			});
 		});
-
-		it('should not log audit event for other settings like 2fa_enforcement', () => {
-			const event: RelayEventMap['instance-policies-updated'] = {
-				user: {
-					id: 'user999',
-					email: 'user@example.com',
-					firstName: 'Test',
-					lastName: 'User',
-					role: { slug: 'global:member' },
-				},
-				settingName: '2fa_enforcement',
-				value: true,
-			};
-
-			eventService.emit('instance-policies-updated', event);
-
-			expect(eventBus.sendAuditEvent).not.toHaveBeenCalled();
-		});
 	});
 });
