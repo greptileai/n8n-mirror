@@ -31,6 +31,17 @@ docker run -it --rm --name n8n -p 5678:5678 -v n8n_data:/home/node/.n8n docker.n
 
 Access the editor at http://localhost:5678
 
+## ✨ Smart AI-Powered Workflow Templates
+
+Kickstart your automation with AI-powered templates! Use these ready-to-go workflows to integrate AI into your projects instantly:
+
+- **Email Summarizer** 🤖: Automatically summarize incoming emails using GPT or your own LLM.
+- **Social Media Auto-Poster** 📅: Schedule and post to multiple platforms using AI-generated captions.
+- **AI Chat Assistant** 💬: Add a chatbot to your website that learns from your own knowledge base.
+- **Document Analyzer** 📄: Automatically extract insights from PDFs and spreadsheets.
+
+Explore more [here](https://n8n.io/workflows) and plug them directly into your n8n instance.
+
 ## Resources
 
 - 📚 [Documentation](https://docs.n8n.io)
@@ -70,3 +81,6 @@ Want to shape the future of automation? Check out our [job posts](https://n8n.io
 **Short answer:** It means "nodemation" and is pronounced as n-eight-n.
 
 **Long answer:** "I get that question quite often (more often than I expected) so I decided it is probably best to answer it here. While looking for a good name for the project with a free domain I realized very quickly that all the good ones I could think of were already taken. So, in the end, I chose nodemation. 'node-' in the sense that it uses a Node-View and that it uses Node.js and '-mation' for 'automation' which is what the project is supposed to help with. However, I did not like how long the name was and I could not imagine writing something that long every time in the CLI. That is when I then ended up on 'n8n'." - **Jan Oberhauser, Founder and CEO, n8n.io**
+
+
+
