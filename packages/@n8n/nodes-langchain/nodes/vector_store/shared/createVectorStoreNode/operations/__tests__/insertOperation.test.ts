@@ -42,8 +42,10 @@ jest.mock('../../../processDocuments', () => ({
 }));
 
 // Mock helper functions
-jest.mock('@utils/helpers', () => ({
+jest.mock('@n8n/ai-node-sdk', () => ({
 	logAiEvent: jest.fn(),
+	N8nBinaryLoader: class {},
+	N8nJsonLoader: class {},
 }));
 
 // Helper functions for testing

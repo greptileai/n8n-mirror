@@ -12,11 +12,8 @@ import type { VectorStoreNodeConstructorArgs } from '../../types';
 import { handleRetrieveOperation } from '../retrieveOperation';
 
 // Mock helper functions
-jest.mock('@utils/helpers', () => ({
+jest.mock('@n8n/ai-node-sdk', () => ({
 	getMetadataFiltersValues: jest.fn().mockReturnValue({ testFilter: 'value' }),
-}));
-
-jest.mock('@utils/logWrapper', () => ({
 	logWrapper: jest.fn().mockImplementation((obj) => obj),
 }));
 

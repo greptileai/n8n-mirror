@@ -12,7 +12,7 @@ jest.mock('@langchain/cohere', () => ({
 }));
 
 // Mock the logWrapper utility
-jest.mock('@utils/logWrapper', () => ({
+jest.mock('@n8n/ai-node-sdk', () => ({
 	logWrapper: jest.fn().mockImplementation((obj) => ({ logWrapped: obj })),
 }));
 
