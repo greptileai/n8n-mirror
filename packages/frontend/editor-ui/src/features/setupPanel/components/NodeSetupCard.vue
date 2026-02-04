@@ -28,10 +28,6 @@ const nodeType = computed(() =>
 	nodeTypesStore.getNodeType(props.state.node.type, props.state.node.typeVersion),
 );
 
-const nodeDisplayName = computed(() => {
-	return nodeType.value?.displayName ?? props.state.node.name;
-});
-
 const onHeaderClick = () => {
 	expanded.value = !expanded.value;
 };
@@ -59,7 +55,7 @@ const onTestClick = () => {
 				size="medium"
 			/>
 			<NodeIcon v-else :node-type="nodeType" :size="24" />
-			<span :class="$style.nodeName">{{ nodeDisplayName }}</span>
+			<span :class="$style.nodeName">{{ props.state.node.name }}</span>
 			<N8nIcon
 				:class="$style.chevron"
 				:icon="expanded ? 'chevron-up' : 'chevron-down'"

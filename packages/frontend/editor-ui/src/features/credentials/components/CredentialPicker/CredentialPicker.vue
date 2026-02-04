@@ -213,6 +213,7 @@ watch(
 			/>
 
 			<N8nTooltip
+				v-if="props.selectedCredentialId"
 				:disabled="credentialPermissions.update"
 				:content="i18n.baseText('nodeCredentials.updateCredential.permissionDenied')"
 				:placement="'top'"
@@ -222,7 +223,6 @@ watch(
 					type="secondary"
 					:class="{
 						[$style.edit]: true,
-						[$style.invisible]: !props.selectedCredentialId,
 					}"
 					:title="i18n.baseText('nodeCredentials.updateCredential')"
 					data-test-id="credential-edit-button"
@@ -232,6 +232,7 @@ watch(
 			</N8nTooltip>
 
 			<N8nTooltip
+				v-if="props.showDelete && props.selectedCredentialId"
 				:disabled="credentialPermissions.update"
 				:content="i18n.baseText('nodeCredentials.deleteCredential.permissionDenied')"
 				:placement="'top'"
