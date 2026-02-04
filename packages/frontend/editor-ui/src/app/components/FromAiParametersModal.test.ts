@@ -8,13 +8,14 @@ import { useWorkflowsStore } from '@/app/stores/workflows.store';
 import { useAgentRequestStore } from '@n8n/stores/useAgentRequestStore';
 import { useProjectsStore } from '@/features/collaboration/projects/projects.store';
 import { useRouter } from 'vue-router';
-import type { Workflow } from 'n8n-workflow';
+import { Workflow } from 'n8n-workflow';
 import { NodeConnectionTypes } from 'n8n-workflow';
 import { useNodeTypesStore } from '@/app/stores/nodeTypes.store';
 import { nextTick } from 'vue';
 import { mock } from 'vitest-mock-extended';
 import { createTestWorkflow } from '@/__tests__/mocks';
 import { type MockedStore, mockedStore } from '@/__tests__/utils';
+import { IWorkflowDb } from '@/Interface';
 
 const ModalStub = {
 	template: `
@@ -126,6 +127,7 @@ describe('FromAiParametersModal', () => {
 			},
 		});
 		workflowsStore = useWorkflowsStore();
+		workflowsStore.workflow = mock<IWorkflowDb>({ id: 'test-wf-id' });
 		workflowsStore.getNodeByName = vi.fn().mockImplementation((name: string) => {
 			switch (name) {
 				case 'Test Node':
@@ -326,6 +328,7 @@ describe('FromAiParametersModal', () => {
 			currentNodeParameters: {},
 			credentials: undefined,
 			projectId: 'test-project-id',
+			workflowId: 'test-wf-id',
 		});
 	});
 
