@@ -1308,13 +1308,9 @@ Respond the title only:`,
 			.map(
 				(artifact, index) => `
 
-### Document ${index + 1}: ${artifact.title}
+### Document ${index + 1}: ${artifact.title} (type: ${artifact.type})
 
-Type: ${artifact.type}
-Content:
-\`\`\`${artifact.type}
 ${artifact.content}
-\`\`\`
 `,
 			)
 			.join('\n');

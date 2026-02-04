@@ -130,7 +130,7 @@ const text = computed(() =>
 	messageChunks.value.flatMap((chunk) => (chunk.type === 'text' ? [chunk.content] : [])).join(''),
 );
 
-const speech = useSpeechSynthesis(text.value, {
+const speech = useSpeechSynthesis(text, {
 	pitch: 1,
 	rate: 1,
 	volume: 1,
