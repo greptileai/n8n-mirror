@@ -41,7 +41,8 @@ export function getEffectiveWorkflow(): SimpleWorkflow {
 	}
 
 	// Apply pending operations to get effective state
-	return applyOperations(state.workflowJSON, pending);
+	// Use structuredClone to avoid mutating the original state
+	return applyOperations(structuredClone(state.workflowJSON), pending);
 }
 
 /**
