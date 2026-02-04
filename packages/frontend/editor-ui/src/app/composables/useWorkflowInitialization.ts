@@ -287,9 +287,10 @@ export function useWorkflowInitialization(workflowState: WorkflowState) {
 
 	async function initializeWorkflow(force = false) {
 		// Handle blank redirect (used by template import to prevent double initialization)
-		// The flag is set by openWorkflowTemplate before navigation and cleared after
-		// importTemplate completes, ensuring WorkflowLayout doesn't interfere.
+		// The flag is set by openWorkflowTemplate before navigation. We clear it here
+		// when detected, ensuring WorkflowLayout doesn't interfere with template import.
 		if (uiStore.isBlankRedirect) {
+			uiStore.isBlankRedirect = false;
 			isLoading.value = false;
 			return;
 		}

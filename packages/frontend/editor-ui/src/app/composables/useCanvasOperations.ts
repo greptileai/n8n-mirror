@@ -2990,9 +2990,6 @@ export function useCanvasOperations() {
 		});
 
 		fitView();
-
-		// Clear the blank redirect flag after template import is complete
-		uiStore.isBlankRedirect = false;
 	}
 
 	async function openWorkflowTemplateFromJSON(workflow: WorkflowDataWithTemplateId) {
@@ -3033,9 +3030,6 @@ export function useCanvasOperations() {
 		canvasStore.stopLoading();
 
 		fitView();
-
-		// Clear the blank redirect flag after template import is complete
-		uiStore.isBlankRedirect = false;
 	}
 
 	return {
