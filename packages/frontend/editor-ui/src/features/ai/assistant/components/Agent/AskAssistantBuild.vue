@@ -171,12 +171,34 @@ const disabledTooltip = computed(() => {
 	return undefined;
 });
 
+// Disable auto-scroll when plan is displayed to let users read it
+const shouldAutoScroll = computed(() => {
+	const messages = builderStore.chatMessages;
+	if (messages.length === 0) return true;
+
+	// If the last message is a plan, don't auto-scroll so user can read it
+	const lastMessage = messages[messages.length - 1];
+	if (isPlanModePlanMessage(lastMessage)) {
+		return false;
+	}
+
+	return true;
+});
+
+// Show "Plan generated" instead of "Workflow generated" when in plan mode
+const completedMessage = computed(() => {
+	if (builderStore.builderMode === 'plan') {
+		return 'Plan generated';
+	}
+	return undefined; // Use default "Workflow generated"
+});
+
 /**
  * Check if a questions message has been answered.
  * A questions message is considered answered if there's a user answers message
  * that appears after it in the conversation.
  */
-function isQuestionsAnswered(questionsMessage: { id: string }): boolean {
+function isQuestionsAnswered(questionsMessage: { id?: string }): boolean {
 	const messages = builderStore.chatMessages;
 	const questionsIndex = messages.findIndex((m) => m.id === questionsMessage.id);
 	if (questionsIndex === -1) return false;
@@ -193,7 +215,7 @@ function isQuestionsAnswered(questionsMessage: { id: string }): boolean {
 /**
  * Check if a message is the last message in the conversation.
  */
-function isLastMessage(message: { id: string }): boolean {
+function isLastMessage(message: { id?: string }): boolean {
 	const messages = builderStore.chatMessages;
 	return messages.length > 0 && messages[messages.length - 1].id === message.id;
 }
@@ -476,9 +498,10 @@ defineExpose({
 			:messages="builderStore.chatMessages"
 			:streaming="builderStore.streaming"
 			:loading-message="loadingMessage"
+			:completed-message="completedMessage"
 			:mode="i18n.baseText('aiAssistant.builder.mode')"
 			:show-stop="true"
-			:scroll-on-new-message="true"
+			:scroll-on-new-message="shouldAutoScroll"
 			:credits-quota="creditsQuota"
 			:credits-remaining="creditsRemaining"
 			:show-ask-owner-tooltip="showAskOwnerTooltip"

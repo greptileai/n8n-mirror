@@ -30,7 +30,12 @@ const answers = ref<Map<string, PlanMode.QuestionResponse>>(new Map());
 const currentQuestion = computed(() => props.questions[currentIndex.value]);
 const isFirstQuestion = computed(() => currentIndex.value === 0);
 const isLastQuestion = computed(() => currentIndex.value === props.questions.length - 1);
-const totalQuestions = computed(() => props.questions.length);
+
+// Filter out "Other" from LLM-provided options since we render our own "Other" option
+const filteredOptions = computed(() => {
+	const options = currentQuestion.value.options ?? [];
+	return options.filter((opt) => opt.toLowerCase() !== 'other');
+});
 
 // Get or initialize answer for current question
 const currentAnswer = computed(() => {
@@ -130,7 +135,7 @@ function submitAnswers() {
 				<!-- Single choice (radio-like using checkboxes with exclusive selection) -->
 				<div v-if="currentQuestion.type === 'single'" :class="$style.options">
 					<label
-						v-for="option in currentQuestion.options"
+						v-for="option in filteredOptions"
 						:key="option"
 						:class="[
 							$style.radioOption,
@@ -151,11 +156,7 @@ function submitAnswers() {
 
 				<!-- Multi choice (checkbox) -->
 				<div v-else-if="currentQuestion.type === 'multi'" :class="$style.options">
-					<label
-						v-for="option in currentQuestion.options"
-						:key="option"
-						:class="$style.checkboxOption"
-					>
+					<label v-for="option in filteredOptions" :key="option" :class="$style.checkboxOption">
 						<N8nCheckbox
 							:model-value="currentAnswer.selectedOptions.includes(option)"
 							:disabled="disabled"

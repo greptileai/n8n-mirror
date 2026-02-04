@@ -35,13 +35,13 @@ const modeOptions = computed<ModeOption[]>(() => [
 	{
 		id: 'build',
 		label: 'Build',
-		icon: { type: 'icon', value: 'cube' } as IconOrEmoji,
+		icon: { type: 'icon', value: 'box' } as IconOrEmoji,
 		checked: props.modelValue === 'build',
 	},
 	{
 		id: 'plan',
 		label: 'Plan',
-		icon: { type: 'icon', value: 'list-checks' } as IconOrEmoji,
+		icon: { type: 'icon', value: 'list' } as IconOrEmoji,
 		checked: props.modelValue === 'plan',
 	},
 ]);
@@ -74,7 +74,7 @@ function onModeSelect(modeId: BuilderMode) {
 				data-test-id="plan-mode-selector-trigger"
 			>
 				<N8nIcon
-					:icon="currentMode.icon.type === 'icon' ? currentMode.icon.value : 'cube'"
+					:icon="currentMode.icon.type === 'icon' ? currentMode.icon.value : 'wrench'"
 					size="small"
 				/>
 				<span :class="$style.label">{{ currentMode.label }}</span>
