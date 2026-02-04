@@ -13,7 +13,10 @@ import { v4 as uuidv4 } from 'uuid';
 import { ChatExecutionManager } from '@/chat/chat-execution-manager';
 
 import { ChatHubExecutionService } from './chat-hub-execution.service';
-import { ChatHubExecutionStore, type ChatHubExecutionContext } from './chat-hub-execution.store';
+import {
+	ChatHubExecutionStore,
+	type ChatHubExecutionContext,
+} from './chat-hub-execution-store.service';
 import { ChatHubMessageRepository } from './chat-message.repository';
 import { ChatStreamService } from './chat-stream.service';
 import { getLastNodeExecuted, shouldResumeImmediately } from '../../chat/utils';

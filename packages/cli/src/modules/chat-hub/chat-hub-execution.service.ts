@@ -27,7 +27,7 @@ import { BadRequestError } from '@/errors/response-errors/bad-request.error';
 import { ExecutionService } from '@/executions/execution.service';
 import { WorkflowExecutionService } from '@/workflows/workflow-execution.service';
 
-import { ChatHubExecutionStore } from './chat-hub-execution.store';
+import { ChatHubExecutionStore } from './chat-hub-execution-store.service';
 import { ChatHubWorkflowService } from './chat-hub-workflow.service';
 import {
 	EXECUTION_FINISHED_STATUSES,
