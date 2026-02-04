@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { ValidationError, ToolExecutionError } from '../errors';
 import type { GetExecutionSchemaOutput } from '../types/tools';
 import type { BuilderTool, BuilderToolBase } from '../utils/stream-processor';
+import { truncateJson } from '../utils/truncate-json';
 import { createProgressReporter } from './helpers/progress';
 import { createSuccessResponse, createErrorResponse } from './helpers/response';
 import { getWorkflowState } from './helpers/state';
@@ -34,7 +35,7 @@ function formatExecutionSchema(
 	}
 
 	const parts = ['<execution_schema>'];
-	parts.push(JSON.stringify(filtered, null, 2));
+	parts.push(truncateJson(filtered));
 	parts.push('</execution_schema>');
 
 	return parts.join('\n');
