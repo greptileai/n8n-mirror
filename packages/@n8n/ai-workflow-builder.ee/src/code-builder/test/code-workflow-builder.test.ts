@@ -1,6 +1,6 @@
-import { CodeWorkflowBuilder, createCodeWorkflowBuilder } from './code-workflow-builder';
-import type { CodeWorkflowBuilderConfig } from './code-workflow-builder';
-import type { ChatPayload } from './workflow-builder-agent';
+import { CodeWorkflowBuilder, createCodeWorkflowBuilder } from '../code-workflow-builder';
+import type { CodeWorkflowBuilderConfig } from '../code-workflow-builder';
+import type { ChatPayload } from '../../workflow-builder-agent';
 
 // Create a mock LLM that returns valid planning response
 const createMockLLM = () => {
@@ -197,7 +197,7 @@ describe('CodeWorkflowBuilder', () => {
 			expect(mockLogger.debug).toHaveBeenCalledWith('CodeWorkflowBuilder starting', {
 				userId: 'user-456',
 				messageLength: 5,
-				hasCheckpointer: false,
+				hasSessionHandler: false,
 			});
 		});
 	});
