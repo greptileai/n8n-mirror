@@ -313,7 +313,7 @@ describe('ChatHubExecutionStore', () => {
 	describe('Redis mode (multi-main)', () => {
 		const mockRedisClient = {
 			get: jest.fn(),
-			setex: jest.fn(),
+			set: jest.fn(),
 			del: jest.fn(),
 			disconnect: jest.fn(),
 		};
@@ -374,10 +374,11 @@ describe('ChatHubExecutionStore', () => {
 				const context = createContext();
 				await store.register(context);
 
-				expect(mockRedisClient.setex).toHaveBeenCalledWith(
+				expect(mockRedisClient.set).toHaveBeenCalledWith(
 					`n8n:chat-hub-exec:${EXECUTION_ID}`,
-					3600, // 1 hour TTL
 					expect.stringContaining(`"executionId":"${EXECUTION_ID}"`),
+					'EX',
+					3600, // 1 hour TTL
 				);
 
 				store.shutdown();
@@ -464,10 +465,11 @@ describe('ChatHubExecutionStore', () => {
 
 				await store.update(EXECUTION_ID, { isResuming: true });
 
-				expect(mockRedisClient.setex).toHaveBeenCalledWith(
+				expect(mockRedisClient.set).toHaveBeenCalledWith(
 					`n8n:chat-hub-exec:${EXECUTION_ID}`,
-					3600,
 					expect.stringContaining('"isResuming":true'),
+					'EX',
+					3600,
 				);
 
 				store.shutdown();
@@ -490,7 +492,7 @@ describe('ChatHubExecutionStore', () => {
 				expect(logger.warn).toHaveBeenCalledWith(
 					`Attempted to update non-existent execution context: ${EXECUTION_ID}`,
 				);
-				expect(mockRedisClient.setex).not.toHaveBeenCalled();
+				expect(mockRedisClient.set).not.toHaveBeenCalled();
 
 				store.shutdown();
 			});
@@ -553,10 +555,11 @@ describe('ChatHubExecutionStore', () => {
 
 				await store.markAsResuming(EXECUTION_ID);
 
-				expect(mockRedisClient.setex).toHaveBeenCalledWith(
+				expect(mockRedisClient.set).toHaveBeenCalledWith(
 					`n8n:chat-hub-exec:${EXECUTION_ID}`,
-					3600,
 					expect.stringMatching(/"isResuming":true.*"createMessageOnResume":true/),
+					'EX',
+					3600,
 				);
 
 				store.shutdown();
@@ -581,8 +584,8 @@ describe('ChatHubExecutionStore', () => {
 		});
 
 		describe('error handling', () => {
-			it('should handle setex errors gracefully', async () => {
-				mockRedisClient.setex.mockRejectedValue(new Error('Redis write failed'));
+			it('should handle set errors gracefully', async () => {
+				mockRedisClient.set.mockRejectedValue(new Error('Redis write failed'));
 
 				const store = new ChatHubExecutionStore(
 					logger,

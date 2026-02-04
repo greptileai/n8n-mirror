@@ -184,10 +184,11 @@ export class ChatHubExecutionStore {
 		if (!this.redisClient) return;
 
 		try {
-			await this.redisClient.setex(
+			await this.redisClient.set(
 				this.getContextKey(executionId),
-				this.chatHubConfig.executionContextTtl,
 				JSON.stringify(context),
+				'EX',
+				this.chatHubConfig.executionContextTtl,
 			);
 		} catch (error) {
 			this.logger.error(`Failed to set Redis context for execution ${executionId}`, { error });

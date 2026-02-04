@@ -305,10 +305,11 @@ export class ChatStreamStateService {
 		if (!this.redisClient) return;
 
 		try {
-			await this.redisClient.setex(
+			await this.redisClient.set(
 				this.getStateKey(sessionId),
-				this.chatHubConfig.streamStateTtl,
 				JSON.stringify(state),
+				'EX',
+				this.chatHubConfig.streamStateTtl,
 			);
 		} catch (error) {
 			this.logger.error(`Failed to set Redis state for session ${sessionId}`, { error });
@@ -342,10 +343,11 @@ export class ChatStreamStateService {
 		if (!this.redisClient) return;
 
 		try {
-			await this.redisClient.setex(
+			await this.redisClient.set(
 				this.getChunksKey(sessionId),
-				this.chatHubConfig.streamStateTtl,
 				JSON.stringify(chunks),
+				'EX',
+				this.chatHubConfig.streamStateTtl,
 			);
 		} catch (error) {
 			this.logger.error(`Failed to set Redis chunks for session ${sessionId}`, { error });
