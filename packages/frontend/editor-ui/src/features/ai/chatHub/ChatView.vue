@@ -65,9 +65,8 @@ import { hasRole } from '@/app/utils/rbac/checks';
 import { useFreeAiCredits } from '@/app/composables/useFreeAiCredits';
 import ChatGreetings from './components/ChatGreetings.vue';
 import { useChatPushHandler } from './composables/useChatPushHandler';
-import { useResizablePanel } from '@/app/composables/useResizablePanel';
 import ChatArtifactViewer from './components/ChatArtifactViewer.vue';
-import { collectChatArtifacts } from '@n8n/chat-hub';
+import { useChatArtifacts } from './composables/useChatArtifacts';
 
 const router = useRouter();
 const route = useRoute();
@@ -95,12 +94,11 @@ const headerRef = useTemplateRef('headerRef');
 const inputRef = useTemplateRef('inputRef');
 const scrollableRef = useTemplateRef('scrollable');
 const chatLayoutRef = useTemplateRef('chatLayout');
+const chatLayoutElement = computed(() => chatLayoutRef.value?.$el);
 
 const welcomeScreenDismissed = ref(false);
 const showCreditsClaimedCallout = ref(false);
 const hasAttemptedAutoClaim = ref(false);
-const isArtifactViewerCollapsed = ref(false);
-const selectedArtifactIndex = ref(0);
 
 const { userCanClaimOpenAiCredits, aiCreditsQuota, claimCredits } = useFreeAiCredits();
 const sessionId = computed<string>(() =>
@@ -277,27 +275,10 @@ const { credentialsByProvider, selectCredential } = useChatCredentials(
 );
 
 const chatMessages = computed(() => chatStore.getActiveMessages(sessionId.value));
-const currentArtifacts = computed(() =>
-	collectChatArtifacts(chatMessages.value.flatMap((message) => message.content)),
-);
-const selectedArtifact = computed(() => {
-	const artifacts = currentArtifacts.value;
-	if (artifacts.length === 0) return null;
-	const index = Math.min(selectedArtifactIndex.value, artifacts.length - 1);
-	return artifacts[index];
-});
-const isArtifactVisible = computed(
-	() => currentArtifacts.value.length > 0 && !isArtifactViewerCollapsed.value,
-);
+const artifacts = useChatArtifacts(chatLayoutElement, chatMessages);
+
 const isMainPanelNarrow = computed(() => scrollContainerSize.width.value < 600);
 
-const artifactViewerResizer = useResizablePanel('N8N_CHAT_ARTIFACT_VIEWER_WIDTH', {
-	container: computed(() => chatLayoutRef.value?.$el),
-	defaultSize: (size) => size * 0.6,
-	minSize: 300,
-	maxSize: (size) => size - 300,
-	allowFullSize: true,
-});
 const credentialsForSelectedProvider = computed<ChatHubSendMessageRequest['credentials'] | null>(
 	() => {
 		const provider = selectedModel.value?.model.provider;
@@ -540,15 +521,6 @@ watch(
 	{ immediate: true },
 );
 
-// Reset collapsed state when artifacts change
-watch(currentArtifacts, (newArtifacts, oldArtifacts) => {
-	if (newArtifacts.length > 0 && newArtifacts.length !== oldArtifacts?.length) {
-		isArtifactViewerCollapsed.value = false;
-		// Reset to the latest artifact when new artifacts are added
-		selectedArtifactIndex.value = newArtifacts.length - 1;
-	}
-});
-
 function handleDismissCreditsCallout() {
 	showCreditsClaimedCallout.value = false;
 }
@@ -733,45 +705,6 @@ function onFilesDropped(files: File[]) {
 	const index = chatMessages.value.findIndex((message) => message.id === editingMessageId.value);
 	messageElementsRef.value?.[index]?.addFiles(files);
 }
-
-function handleArtifactViewerResizeEnd() {
-	if (artifactViewerResizer.isFullSize.value) {
-		isArtifactViewerCollapsed.value = true;
-	}
-	artifactViewerResizer.onResizeEnd();
-}
-
-function handleCloseArtifactViewer() {
-	isArtifactViewerCollapsed.value = true;
-}
-
-function handleReopenArtifactViewer() {
-	isArtifactViewerCollapsed.value = false;
-}
-
-function handleSelectArtifact(index: number) {
-	selectedArtifactIndex.value = index;
-}
-
-function handleOpenArtifact(title: string) {
-	selectedArtifactIndex.value = currentArtifacts.value.findIndex((d) => d.title === title);
-	isArtifactViewerCollapsed.value = false;
-}
-
-function handleDownloadArtifact() {
-	const artifact = selectedArtifact.value;
-	if (!artifact) {
-		return;
-	}
-
-	const blob = new Blob([artifact.content], { type: 'text/plain' });
-	const url = URL.createObjectURL(blob);
-	const a = document.createElement('a');
-	a.href = url;
-	a.download = `${artifact.title}.${artifact.type}`;
-	a.click();
-	URL.revokeObjectURL(url);
-}
 </script>
 
 <template>
@@ -784,7 +717,7 @@ function handleDownloadArtifact() {
 			[$style.isExistingSession]: !isNewSession,
 			[$style.isMobileDevice]: isMobileDevice,
 			[$style.isDraggingFile]: fileDrop.isDragging.value,
-			[$style.hasArtifact]: isArtifactVisible,
+			[$style.hasArtifact]: artifacts.isViewerVisible.value,
 			[$style.isMainPanelNarrow]: isMainPanelNarrow,
 		}"
 		@dragenter="fileDrop.handleDragEnter"
@@ -800,12 +733,14 @@ function handleDownloadArtifact() {
 		</div>
 		<N8nResizeWrapper
 			:class="$style.mainContentResizer"
-			:width="artifactViewerResizer.size.value"
-			:style="{ width: isArtifactVisible ? `${artifactViewerResizer.size.value}px` : '100%' }"
+			:width="artifacts.viewerSize.value"
+			:style="{
+				width: artifacts.isViewerVisible.value ? `${artifacts.viewerSize.value}px` : '100%',
+			}"
 			:supported-directions="['right']"
 			:is-resizing-enabled="true"
-			@resize="artifactViewerResizer.onResize"
-			@resizeend="handleArtifactViewerResizeEnd"
+			@resize="artifacts.handleViewerResize"
+			@resizeend="artifacts.handleViewerResizeEnd"
 		>
 			<div :class="$style.mainContent">
 				<ChatConversationHeader
@@ -814,13 +749,15 @@ function handleDownloadArtifact() {
 					:selected-model="selectedModel"
 					:credentials="credentialsByProvider"
 					:ready-to-show-model-selector="isNewSession || !!currentConversation"
-					:show-artifact-icon="currentArtifacts.length > 0 && isArtifactViewerCollapsed"
+					:show-artifact-icon="
+						artifacts.allArtifacts.value.length > 0 && artifacts.isViewerCollapsed.value
+					"
 					@select-model="handleSelectModel"
 					@edit-custom-agent="handleEditAgent"
 					@create-custom-agent="openNewAgentCreator"
 					@select-credential="selectCredential"
 					@open-workflow="handleOpenWorkflow"
-					@reopen-artifact="handleReopenArtifactViewer"
+					@reopen-artifact="artifacts.handleOpenViewer"
 				/>
 
 				<N8nScrollArea
@@ -860,7 +797,7 @@ function handleDownloadArtifact() {
 								@regenerate="handleRegenerateMessage"
 								@update="handleEditMessage"
 								@switch-alternative="handleSwitchAlternative"
-								@open-artifact="handleOpenArtifact"
+								@open-artifact="artifacts.handleOpenViewer"
 							/>
 						</div>
 
@@ -907,14 +844,14 @@ function handleDownloadArtifact() {
 			</div>
 		</N8nResizeWrapper>
 		<ChatArtifactViewer
-			v-if="isArtifactVisible"
+			v-if="artifacts.isViewerVisible.value"
 			:key="sessionId"
 			:class="$style.artifactViewer"
-			:artifacts="currentArtifacts"
-			:selected-index="selectedArtifactIndex"
-			@close="handleCloseArtifactViewer"
-			@select-artifact="handleSelectArtifact"
-			@download="handleDownloadArtifact"
+			:artifacts="artifacts.allArtifacts.value"
+			:selected-index="artifacts.selectedIndex.value"
+			@close="artifacts.handleCloseViewer"
+			@select-artifact="artifacts.handleSelect"
+			@download="artifacts.handleDownload"
 		/>
 	</ChatLayout>
 </template>
