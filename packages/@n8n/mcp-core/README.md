@@ -148,14 +148,31 @@ flowchart TB
 | `instance(logger)` | Get the singleton instance |
 | `handleSetupRequest(req, resp, serverName, postUrl, tools)` | Handle SSE connection setup (GET request) |
 | `handleStreamableHttpSetup(req, resp, serverName, tools)` | Handle Streamable HTTP initialization (POST with `initialize` method) |
-| `handlePostMessage(req, resp, tools, serverName?)` | Handle incoming tool calls or list-tools requests |
+| `handlePostMessage(req, resp, tools, serverName?)` | Handle incoming tool calls or list-tools requests. Returns `HandlePostResult` |
 | `handleDeleteRequest(req, resp)` | Handle session termination |
 | `handleWorkerResponse(sessionId, messageId, result)` | Route worker results back to clients (queue mode) |
 | `storePendingResponse(sessionId, messageId)` | Track a pending response awaiting worker result |
+| `hasPendingResponse(sessionId, messageId)` | Check if a pending response exists |
+| `removePendingResponse(sessionId, messageId)` | Remove a pending response |
+| `pendingResponseCount` | Getter for the number of pending responses |
 | `getMcpMetadata(req)` | Extract session ID and message ID from a request |
 | `getSessionId(req)` | Extract session ID from query string or header |
 | `getTransport(sessionId)` | Get the transport for a session |
 | `getTools(sessionId)` | Get the tools registered for a session |
+
+#### HandlePostResult Type
+
+The `handlePostMessage` method returns a `HandlePostResult` object:
+
+```typescript
+interface HandlePostResult {
+  wasToolCall: boolean;              // Whether the request was a tool call
+  toolCallInfo?: McpToolCallInfo;    // Info about the tool call (if any)
+  messageId?: string;                // The JSONRPC message ID
+  relaySessionId?: string;           // Session ID for relayed requests (queue mode)
+  needsListToolsRelay?: boolean;     // Whether this is a list-tools request needing relay
+}
+```
 
 #### Configuration Methods
 
@@ -602,7 +619,7 @@ This type extends Express's `Response` to include an optional `flush()` method. 
 
 ### 4. Execution Layer
 
-Implements strategy pattern for tool execution.
+Implements strategy pattern for tool execution, allowing different execution modes depending on deployment scenario.
 
 ```mermaid
 flowchart TB
@@ -627,11 +644,75 @@ flowchart TB
     PendingCalls -.->|worker response| Resolve
 ```
 
+#### ExecutionStrategy Interface
+
+```typescript
+interface ExecutionStrategy {
+  executeTool(
+    tool: Tool,
+    args: Record<string, unknown>,
+    context: ExecutionContext,
+  ): Promise<unknown>;
+}
+
+interface ExecutionContext {
+  sessionId: string;
+  messageId?: string;
+}
+```
+
+#### DirectExecutionStrategy
+
+The default strategy that executes tools immediately in the same process:
+
+```typescript
+const strategy = new DirectExecutionStrategy();
+const result = await strategy.executeTool(tool, args, context);
+// Directly calls tool.invoke(args)
+```
+
+#### QueuedExecutionStrategy
+
+For multi-instance deployments where tool execution happens on worker processes:
+
+```typescript
+const strategy = new QueuedExecutionStrategy(
+  pendingCallsManager,
+  timeoutMs  // Optional, defaults to 120000ms (2 minutes)
+);
+
+// Methods for resolving calls from workers:
+strategy.resolveToolCall(callId, result);  // Returns true if call was pending
+strategy.rejectToolCall(callId, error);    // Returns true if call was pending
+strategy.getPendingCallsManager();         // Access the pending calls manager
+```
+
+#### PendingCallsManager
+
+Tracks tool calls waiting for results with automatic timeout handling:
+
+```typescript
+const manager = new PendingCallsManager();
+
+// Wait for a result (with timeout)
+const result = await manager.waitForResult(callId, toolName, args, timeoutMs);
+
+// Resolve/reject from worker
+manager.resolve(callId, result);
+manager.reject(callId, error);
+
+// Query and manage pending calls
+manager.has(callId);                    // Check if call is pending
+manager.get(callId);                    // Get pending call info
+manager.remove(callId);                 // Remove without resolving
+manager.cleanupBySessionId(sessionId);  // Clean up all calls for a session
+```
+
 **Files:**
-- `ExecutionStrategy.ts` - Strategy interface
+- `ExecutionStrategy.ts` - Strategy interface and ExecutionContext type
 - `DirectExecutionStrategy.ts` - Executes tools directly on main instance
-- `QueuedExecutionStrategy.ts` - Delegates to worker, waits for response
-- `PendingCallsManager.ts` - Tracks pending tool calls
+- `QueuedExecutionStrategy.ts` - Delegates to worker, waits for response (default timeout: 120s)
+- `PendingCallsManager.ts` - Tracks pending tool calls with timeout support
 - `ExecutionCoordinator.ts` - Selects and invokes strategy
 
 ## Usage
@@ -724,17 +805,22 @@ sequenceDiagram
 
 ```typescript
 // Main facade
-export { McpServer, MCP_LIST_TOOLS_REQUEST_MARKER } from './McpServer';
+export { McpServer } from './McpServer';
+export type { HandlePostResult } from './McpServer';
 
 // Protocol
-export { MessageParser, MessageFormatter, McpToolCallInfo, McpToolResult } from './protocol';
+export { MessageParser, MessageFormatter, MCP_LIST_TOOLS_REQUEST_MARKER } from './protocol';
+export type { McpToolCallInfo, McpToolResult, JSONRPCMessage } from './protocol';
 
 // Session
-export { SessionStore, InMemorySessionStore, SessionManager } from './session';
+export { InMemorySessionStore, SessionManager } from './session';
+export type { SessionStore } from './session';
 
 // Transport
-export { McpTransport, CompressionResponse, SSETransport, StreamableHttpTransport, TransportFactory } from './transport';
+export { SSETransport, StreamableHttpTransport, TransportFactory } from './transport';
+export type { McpTransport, CompressionResponse, TransportType } from './transport';
 
 // Execution
-export { ExecutionStrategy, DirectExecutionStrategy, QueuedExecutionStrategy, PendingCallsManager, ExecutionCoordinator } from './execution';
+export { DirectExecutionStrategy, QueuedExecutionStrategy, PendingCallsManager, ExecutionCoordinator } from './execution';
+export type { ExecutionStrategy, ExecutionContext } from './execution';
 ```

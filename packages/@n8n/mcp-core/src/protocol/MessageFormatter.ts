@@ -15,7 +15,11 @@ export class MessageFormatter {
 			return { content: [{ type: 'text', text: result.toString() }] };
 		}
 		// Remaining types: symbol, function - convert to string representation
-		return { content: [{ type: 'text', text: String(result as symbol | ((...args: unknown[]) => unknown)) }] };
+		return {
+			content: [
+				{ type: 'text', text: String(result as symbol | ((...args: unknown[]) => unknown)) },
+			],
+		};
 	}
 
 	static formatError(error: Error): McpToolResult {

@@ -475,10 +475,7 @@ test.describe('MCP Trigger - Multi-Main', () => {
 			// where the session might be created on one main but tool calls routed to another
 
 			// Skip if not in multi-main mode (need at least 2 mains)
-			if (mainUrls.length < 2) {
-				test.skip();
-				return;
-			}
+			test.skip(mainUrls.length < 2, 'Requires at least 2 mains for multi-main testing');
 
 			// Create workflow via load balancer (normal flow)
 			const { workflowId, createdWorkflow } = await api.workflows.importWorkflowFromFile(
@@ -512,11 +509,7 @@ test.describe('MCP Trigger - Multi-Main', () => {
 			createApiForMain,
 		}) => {
 			// Test that multiple tool calls can be distributed across mains
-
-			if (mainUrls.length < 2) {
-				test.skip();
-				return;
-			}
+			test.skip(mainUrls.length < 2, 'Requires at least 2 mains for multi-main testing');
 
 			const { workflowId, createdWorkflow } = await api.workflows.importWorkflowFromFile(
 				'mcp-trigger/mcp-trigger-multi-tool.json',
@@ -565,11 +558,7 @@ test.describe('MCP Trigger - Multi-Main', () => {
 			createApiForMain,
 		}) => {
 			// This test verifies that SSE-based MCP sessions work correctly in multi-main setups
-
-			if (mainUrls.length < 2) {
-				test.skip();
-				return;
-			}
+			test.skip(mainUrls.length < 2, 'Requires at least 2 mains for multi-main testing');
 
 			const { workflowId, createdWorkflow } = await api.workflows.importWorkflowFromFile(
 				'mcp-trigger/mcp-trigger-basic.json',
@@ -607,11 +596,7 @@ test.describe('MCP Trigger - Multi-Main', () => {
 			createApiForMain,
 		}) => {
 			// Test that multiple SSE tool calls can be distributed across mains
-
-			if (mainUrls.length < 2) {
-				test.skip();
-				return;
-			}
+			test.skip(mainUrls.length < 2, 'Requires at least 2 mains for multi-main testing');
 
 			const { workflowId, createdWorkflow } = await api.workflows.importWorkflowFromFile(
 				'mcp-trigger/mcp-trigger-multi-tool.json',
@@ -661,11 +646,7 @@ test.describe('MCP Trigger - Multi-Main', () => {
 			createApiForMain,
 		}) => {
 			// Test that tools/list works across mains with SSE transport
-
-			if (mainUrls.length < 2) {
-				test.skip();
-				return;
-			}
+			test.skip(mainUrls.length < 2, 'Requires at least 2 mains for multi-main testing');
 
 			const { workflowId, createdWorkflow } = await api.workflows.importWorkflowFromFile(
 				'mcp-trigger/mcp-trigger-multi-tool.json',
