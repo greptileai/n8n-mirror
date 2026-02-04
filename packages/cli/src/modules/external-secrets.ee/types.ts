@@ -1,3 +1,7 @@
+import type {
+	ReloadSecretProviderConnectionResponse,
+	TestSecretProviderConnectionResponse,
+} from '@n8n/api-types';
 import type { AuthenticatedRequest } from '@n8n/db';
 import type { IDataObject, INodeProperties } from 'n8n-workflow';
 

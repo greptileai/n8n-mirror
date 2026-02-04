@@ -184,4 +184,5 @@ export type {
 	SecretProviderTypeResponse,
 	SecretCompletionsResponse,
 	TestSecretProviderConnectionResponse,
+	ReloadSecretProviderConnectionResponse,
 } from './schemas/secrets-provider.schema';
