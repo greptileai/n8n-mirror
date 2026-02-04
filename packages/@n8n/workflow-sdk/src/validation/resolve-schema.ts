@@ -31,21 +31,21 @@ function formatValue(val: unknown): string {
 			case 'not':
 				return `not ${formatValue(operand)}`;
 			case 'gte':
-				return `>= ${operand}`;
+				return `>= ${String(operand)}`;
 			case 'lte':
-				return `<= ${operand}`;
+				return `<= ${String(operand)}`;
 			case 'gt':
-				return `> ${operand}`;
+				return `> ${String(operand)}`;
 			case 'lt':
-				return `< ${operand}`;
+				return `< ${String(operand)}`;
 			case 'includes':
-				return `includes "${operand}"`;
+				return `includes "${String(operand)}"`;
 			case 'startsWith':
-				return `starts with "${operand}"`;
+				return `starts with "${String(operand)}"`;
 			case 'endsWith':
-				return `ends with "${operand}"`;
+				return `ends with "${String(operand)}"`;
 			case 'regex':
-				return `matches /${operand}/`;
+				return `matches /${String(operand)}/`;
 			case 'between': {
 				const { from, to } = operand as { from: number; to: number };
 				return `between ${from} and ${to}`;

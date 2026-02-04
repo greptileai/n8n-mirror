@@ -405,11 +405,11 @@ function extractUnionErrorSummary(unionErrors: Array<{ issues: ZodIssue[] }>): s
 							? collectAllDiscriminatorValues(unionErrors, path)
 							: [...new Set(literalIssues.map((i) => (i as { expected?: unknown }).expected))];
 
-					const expectedStr = expectedValues.map((v) => `"${v}"`).join(', ');
+					const expectedStr = expectedValues.map((v) => `"${String(v)}"`).join(', ');
 					if (receivedValue === undefined) {
 						return `Missing discriminator "${path}". Expected one of: ${expectedStr}. Make sure "${field}" is inside "parameters".`;
 					}
-					return `Invalid value for "${path}": got "${receivedValue}", expected one of: ${expectedStr}.`;
+					return `Invalid value for "${path}": got "${String(receivedValue)}", expected one of: ${expectedStr}.`;
 				}
 			}
 		}
@@ -461,7 +461,7 @@ function extractUnionErrorSummary(unionErrors: Array<{ issues: ZodIssue[] }>): s
 		const summaries = specificIssues.map((iss: ZodIssue) => {
 			const path = iss.path.join('.') || 'config';
 			if (iss.code === 'invalid_literal') {
-				return `"${path}" must be "${(iss as { expected?: unknown }).expected}"`;
+				return `"${path}" must be "${String((iss as { expected?: unknown }).expected)}"`;
 			}
 			return `"${path}": ${iss.message}`;
 		});
@@ -518,7 +518,7 @@ function formatInvalidUnion(issue: ZodIssue, path: string): string {
 function formatInvalidLiteral(issue: ZodIssue, path: string): string {
 	const expected = (issue as { expected?: unknown }).expected;
 	const received = (issue as { received?: unknown }).received;
-	return `Field "${path}" must be exactly "${expected}", but got "${received}".`;
+	return `Field "${path}" must be exactly "${String(expected)}", but got "${String(received)}".`;
 }
 
 /**

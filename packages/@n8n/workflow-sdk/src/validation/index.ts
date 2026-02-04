@@ -599,7 +599,7 @@ function validateSubnodeParameters(
 						const mismatchDetails = mismatches
 							.map(
 								(m) =>
-									`${m.param}='${m.actual}' (expected: ${m.expected.map((v) => `'${v}'`).join(' or ')})`,
+									`${m.param}='${String(m.actual)}' (expected: ${m.expected.map((v) => `'${String(v)}'`).join(' or ')})`,
 							)
 							.join(', ');
 

@@ -21,7 +21,6 @@ export default defineConfig(
 			'@typescript-eslint/no-unsafe-call': 'warn',
 			'@typescript-eslint/no-unsafe-argument': 'warn',
 			'@typescript-eslint/no-base-to-string': 'warn',
-			'@typescript-eslint/restrict-template-expressions': 'warn',
 			'@typescript-eslint/no-require-imports': 'warn',
 			'@typescript-eslint/consistent-type-imports': 'warn',
 			'@typescript-eslint/no-unnecessary-type-assertion': 'warn',

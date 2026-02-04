@@ -601,7 +601,7 @@ class SDKInterpreter {
 				return left ?? this.evaluate(node.right);
 			default:
 				throw new UnsupportedNodeError(
-					`Logical operator ${node.operator}`,
+					`Logical operator ${String(node.operator)}`,
 					node.loc ?? undefined,
 					this.sourceCode,
 				);
