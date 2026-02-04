@@ -374,7 +374,7 @@ describe('ChatHubExecutionStore', () => {
 				await store.register(context);
 
 				expect(mockRedisClient.set).toHaveBeenCalledWith(
-					`n8n:chat-hub-exec:${EXECUTION_ID}`,
+					`n8n:chat-hub:exec:${EXECUTION_ID}`,
 					expect.stringContaining(`"executionId":"${EXECUTION_ID}"`),
 					'EX',
 					3600, // 1 hour TTL
@@ -400,7 +400,7 @@ describe('ChatHubExecutionStore', () => {
 
 				const result = await store.get(EXECUTION_ID);
 
-				expect(mockRedisClient.get).toHaveBeenCalledWith(`n8n:chat-hub-exec:${EXECUTION_ID}`);
+				expect(mockRedisClient.get).toHaveBeenCalledWith(`n8n:chat-hub:exec:${EXECUTION_ID}`);
 				expect(result).toEqual(context);
 
 				store.shutdown();
@@ -465,7 +465,7 @@ describe('ChatHubExecutionStore', () => {
 				await store.update(EXECUTION_ID, { isResuming: true });
 
 				expect(mockRedisClient.set).toHaveBeenCalledWith(
-					`n8n:chat-hub-exec:${EXECUTION_ID}`,
+					`n8n:chat-hub:exec:${EXECUTION_ID}`,
 					expect.stringContaining('"isResuming":true'),
 					'EX',
 					3600,
@@ -510,7 +510,7 @@ describe('ChatHubExecutionStore', () => {
 
 				await store.remove(EXECUTION_ID);
 
-				expect(mockRedisClient.del).toHaveBeenCalledWith(`n8n:chat-hub-exec:${EXECUTION_ID}`);
+				expect(mockRedisClient.del).toHaveBeenCalledWith(`n8n:chat-hub:exec:${EXECUTION_ID}`);
 
 				store.shutdown();
 			});
@@ -555,7 +555,7 @@ describe('ChatHubExecutionStore', () => {
 				await store.markAsResuming(EXECUTION_ID);
 
 				expect(mockRedisClient.set).toHaveBeenCalledWith(
-					`n8n:chat-hub-exec:${EXECUTION_ID}`,
+					`n8n:chat-hub:exec:${EXECUTION_ID}`,
 					expect.stringMatching(/"isResuming":true.*"createMessageOnResume":true/),
 					'EX',
 					3600,

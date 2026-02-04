@@ -405,14 +405,14 @@ describe('ChatStreamStateService', () => {
 				await service.startExecution({ sessionId: 'session-1', userId: 'user-1' });
 
 				expect(mockRedisClient.set).toHaveBeenCalledWith(
-					'n8n:chat-stream:state:session-1',
+					'n8n:chat-hub:stream:state:session-1',
 					expect.stringContaining('"sessionId":"session-1"'),
 					'EX',
 					300,
 				);
 
 				expect(mockRedisClient.set).toHaveBeenCalledWith(
-					'n8n:chat-stream:chunks:session-1',
+					'n8n:chat-hub:stream:chunks:session-1',
 					'[]',
 					'EX',
 					300,
@@ -435,8 +435,8 @@ describe('ChatStreamStateService', () => {
 
 				await service.endExecution('session-1');
 
-				expect(mockRedisClient.del).toHaveBeenCalledWith('n8n:chat-stream:state:session-1');
-				expect(mockRedisClient.del).toHaveBeenCalledWith('n8n:chat-stream:chunks:session-1');
+				expect(mockRedisClient.del).toHaveBeenCalledWith('n8n:chat-hub:stream:state:session-1');
+				expect(mockRedisClient.del).toHaveBeenCalledWith('n8n:chat-hub:stream:chunks:session-1');
 
 				service.shutdown();
 			});
@@ -464,7 +464,7 @@ describe('ChatStreamStateService', () => {
 
 				const state = await service.getStreamState('session-1');
 
-				expect(mockRedisClient.get).toHaveBeenCalledWith('n8n:chat-stream:state:session-1');
+				expect(mockRedisClient.get).toHaveBeenCalledWith('n8n:chat-hub:stream:state:session-1');
 				expect(state).toEqual(mockState);
 
 				service.shutdown();
@@ -536,7 +536,7 @@ describe('ChatStreamStateService', () => {
 
 				expect(seq).toBe(6);
 				expect(mockRedisClient.set).toHaveBeenCalledWith(
-					'n8n:chat-stream:state:session-1',
+					'n8n:chat-hub:stream:state:session-1',
 					expect.stringContaining('"sequenceNumber":6'),
 					'EX',
 					300,
@@ -582,7 +582,7 @@ describe('ChatStreamStateService', () => {
 				await service.bufferChunk('session-1', { sequenceNumber: 2, content: 'b' });
 
 				expect(mockRedisClient.set).toHaveBeenCalledWith(
-					'n8n:chat-stream:chunks:session-1',
+					'n8n:chat-hub:stream:chunks:session-1',
 					JSON.stringify([
 						{ sequenceNumber: 1, content: 'a' },
 						{ sequenceNumber: 2, content: 'b' },
@@ -613,7 +613,7 @@ describe('ChatStreamStateService', () => {
 				await service.bufferChunk('session-1', { sequenceNumber: 1001, content: 'new' });
 
 				const setCall = mockRedisClient.set.mock.calls.find(
-					(call) => call[0] === 'n8n:chat-stream:chunks:session-1',
+					(call) => call[0] === 'n8n:chat-hub:stream:chunks:session-1',
 				);
 				const savedChunks = JSON.parse(setCall![1]);
 				expect(savedChunks.length).toBe(1000);

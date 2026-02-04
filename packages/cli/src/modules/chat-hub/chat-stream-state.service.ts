@@ -75,7 +75,7 @@ export class ChatStreamStateService {
 	) {
 		this.logger = this.logger.scoped('chat-hub');
 		this.useRedis = this.instanceSettings.isMultiMain || this.executionsConfig.mode === 'queue';
-		this.redisPrefix = `${this.globalConfig.redis.prefix}:chat-stream:`;
+		this.redisPrefix = `${this.globalConfig.redis.prefix}:chat-hub:stream:`;
 		this.cleanupDelayMs = this.chatHubConfig.streamStateTtl * Time.seconds.toMilliseconds;
 
 		if (this.useRedis) {

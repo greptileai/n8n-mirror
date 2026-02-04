@@ -65,7 +65,7 @@ export class ChatHubExecutionStore {
 	) {
 		this.logger = this.logger.scoped('chat-hub');
 		this.useRedis = this.instanceSettings.isMultiMain || this.executionsConfig.mode === 'queue';
-		this.redisPrefix = `${this.globalConfig.redis.prefix}:chat-hub-exec:`;
+		this.redisPrefix = `${this.globalConfig.redis.prefix}:chat-hub:exec:`;
 		this.cleanupDelayMs = this.chatHubConfig.executionContextTtl * Time.seconds.toMilliseconds;
 
 		if (this.useRedis) {
