@@ -345,6 +345,7 @@ describe('Form Node', () => {
 				if (paramName === 'options') {
 					return {
 						customCss: '.form-container { background-color: #f5f5f5; }',
+						formDescription: '',
 					};
 				}
 				return undefined;
