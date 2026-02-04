@@ -570,14 +570,16 @@ export function splitMarkdownIntoChunks(content: string): string[] {
 	return chunks;
 }
 
-export function parseChatHubMessageContent(content: string): ChatHubMessageWithButtons | string {
-	if (!content.startsWith('{')) return content;
-
-	try {
-		const parsed: unknown = JSON.parse(content);
-		const result = chatHubMessageWithButtonsSchema.safeParse(parsed);
-		return result.success ? result.data : content;
-	} catch {
-		return content;
+/**
+ * Checks if a message represents a waiting-for-approval state.
+ * This occurs when the message has 'waiting' status and contains
+ * a with-buttons chunk that blocks user input.
+ */
+export function isWaitingForApproval(message: ChatMessage | null | undefined): boolean {
+	if (!message || message.status !== 'waiting') {
+		return false;
 	}
+
+	const buttonChunk = message.content.find((c) => c.type === 'with-buttons');
+	return buttonChunk?.type === 'with-buttons' && buttonChunk.blockUserInput;
 }

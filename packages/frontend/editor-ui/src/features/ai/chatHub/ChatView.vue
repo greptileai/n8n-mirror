@@ -11,6 +11,7 @@ import {
 	isLlmProvider,
 	unflattenModel,
 	createMimeTypes,
+	isWaitingForApproval,
 } from '@/features/ai/chatHub/chat.utils';
 import ChatConversationHeader from '@/features/ai/chatHub/components/ChatConversationHeader.vue';
 import ChatMessage from '@/features/ai/chatHub/components/ChatMessage.vue';
@@ -312,12 +313,8 @@ const messagingState = computed<MessagingState>(() => {
 	}
 
 	// Check if waiting for approval (button click)
-	const lastMsg = chatStore.lastMessage(sessionId.value);
-	if (lastMsg?.status === 'waiting') {
-		const buttonChunk = lastMsg.content.find((c) => c.type === 'with-buttons');
-		if (buttonChunk?.type === 'with-buttons' && buttonChunk.blockUserInput) {
-			return 'waitingForApproval';
-		}
+	if (isWaitingForApproval(chatStore.lastMessage(sessionId.value))) {
+		return 'waitingForApproval';
 	}
 
 	if (chatStore.agentsReady && !selectedModel.value) {
