@@ -8,25 +8,28 @@
  * Usage (with args): node scripts/os-normalize.mjs --dir packages/cli/bin -- n8n --help
  * */
 
-import { $, argv, cd, chalk, echo, fs, usePowerShell } from 'zx';
+import { $, argv, cd, chalk, echo, usePowerShell, fs } from 'zx';
+
+const isWindows = process.platform === 'win32';
 
 /**
- * @type { string } baseName
+ * @param { string } baseName
  * */
 function normalizeCommand(baseName) {
-	const isWindows = process.platform === 'win32';
 	if (!isWindows) {
-		// On mac/linux, run local executable
 		return `./${baseName}`;
 	}
 
-	// Set $.shell to refer to powershell
-	usePowerShell();
-
-	// On Windows, prefer .cmd then .exe, then bare name
 	const candidates = [`${baseName}.cmd`, `${baseName}.exe`, baseName];
 	const found = candidates.find((c) => fs.existsSync(c));
-	return found ?? `${baseName}.cmd`; // last resort: try .cmd anyway
+	return found ? `./${found}` : `./${baseName}.cmd`; // last resort: try .cmd anyway
+}
+
+function determineShell() {
+	if (!isWindows) {
+		return;
+	}
+	usePowerShell();
 }
 
 function printUsage() {
@@ -44,15 +47,11 @@ if (!dir || !run) {
 	process.exit(2);
 }
 
-cd(dir ?? '.');
+determineShell();
+$.verbose = true;
 
+cd(dir);
 const cmd = normalizeCommand(run);
 
-if (run) {
-	echo(chalk.cyan(`$ Running (dir: ${dir}) ${cmd} ${args.join(' ')}`));
-	await $({ stdio: 'inherit' })`${cmd} ${args}`;
-} else {
-	echo(chalk.red('No runnable command provided.'));
-	echo('\n');
-	printUsage();
-}
+echo(chalk.cyan(`$ Running (dir: ${dir}) ${cmd} ${args.join(' ')}`));
+await $({ stdio: 'inherit' })`${cmd} ${args}`;
