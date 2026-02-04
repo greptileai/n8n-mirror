@@ -388,7 +388,6 @@ describe('SecretsProviderConnectionModal', () => {
 			await nextTick();
 
 			expect(mockProjectsStore.fetchProject).toHaveBeenCalledWith(missingProjectId);
-			expect(mockProjectsStore.getAvailableProjects).toHaveBeenCalled();
 		});
 
 		it('should update scope state when sharing with project', async () => {
@@ -396,13 +395,14 @@ describe('SecretsProviderConnectionModal', () => {
 			mockConnectionModal.projectIds.value = [];
 			mockConnectionModal.isSharedGlobally.value = false;
 			mockConnectionModal.canUpdate.value = true;
-			mockProjectsStore.getAvailableProjects.mockReturnValue(mockProjects);
+			mockConnectionModal.isEditMode.value = true;
+			mockProjectsStore.projects = mockProjects;
 
 			const { queryByTestId } = renderComponent({
 				props: {
 					modalName: SECRETS_PROVIDER_CONNECTION_MODAL_KEY,
 					data: {
-						activeTab: 'scope',
+						activeTab: 'sharing',
 						providerKey: 'test-123',
 						providerTypes: mockProviderTypes,
 					},
@@ -434,13 +434,13 @@ describe('SecretsProviderConnectionModal', () => {
 			mockConnectionModal.projectIds.value = [];
 			mockConnectionModal.isSharedGlobally.value = false;
 			mockConnectionModal.canUpdate.value = true;
-			mockProjectsStore.getAvailableProjects.mockReturnValue(mockProjects);
+			mockProjectsStore.projects = mockProjects;
 
 			const { queryByTestId } = renderComponent({
 				props: {
 					modalName: SECRETS_PROVIDER_CONNECTION_MODAL_KEY,
 					data: {
-						activeTab: 'scope',
+						activeTab: 'sharing',
 						providerKey: 'test-123',
 						providerTypes: mockProviderTypes,
 					},

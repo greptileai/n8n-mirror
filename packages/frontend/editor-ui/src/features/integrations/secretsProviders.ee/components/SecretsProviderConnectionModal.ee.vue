@@ -85,7 +85,7 @@ const sidebarItems = computed(() => {
 			position: 'top',
 		},
 		{
-			id: 'scope',
+			id: 'sharing',
 			label: i18n.baseText('settings.secretsProviderConnections.modal.items.scope'),
 			position: 'top',
 		},
@@ -117,7 +117,6 @@ watch(
 		// Fetch project if not in store
 		if (!projectsStore.projects.find((p: ProjectSharingData) => p.id === project.id)) {
 			await projectsStore.fetchProject(project.id);
-			await projectsStore.getAvailableProjects();
 		}
 
 		sharedWithProjects.value = projectsStore.projects.filter(
@@ -402,7 +401,7 @@ const { width } = useElementSize(nameRef);
 						</div>
 
 						<!-- Scope Tab Content (edit mode only) -->
-						<div v-if="ACTIVE_TAB === 'scope' && modal.isEditMode" :class="$style.mainContent">
+						<div v-if="ACTIVE_TAB === 'sharing' && modal.isEditMode" :class="$style.mainContent">
 							<div>
 								<N8nInfoTip :bold="false" class="mb-s">
 									{{ i18n.baseText('settings.secretsProviderConnections.modal.scope.info') }}

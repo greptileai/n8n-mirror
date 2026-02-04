@@ -35,7 +35,7 @@ function getProviderTypeInfo(providerType: string) {
 
 function openConnectionModal(
 	providerKey?: string,
-	activeTab: 'connection' | 'scope' = 'connection',
+	activeTab: 'connection' | 'sharing' = 'connection',
 ) {
 	const existingNames = secretsProviders.activeProviders.value.map((provider) => provider.name);
 
@@ -60,7 +60,7 @@ function handleEdit(providerKey: string) {
 }
 
 function handleShare(providerKey: string) {
-	openConnectionModal(providerKey, 'scope');
+	openConnectionModal(providerKey, 'sharing');
 }
 
 onMounted(async () => {

@@ -49,12 +49,8 @@ const actionDropdownOptions = computed(() => {
 });
 
 function onAction(action: string) {
-	if (action === 'edit') {
-		emit('edit', provider.value.name);
-	}
-	if (action === 'share') {
-		emit('share', provider.value.name);
-	}
+	if (action !== 'edit' && action !== 'share') return;
+	emit(action as keyof typeof emit, provider.value.name);
 }
 </script>
 
