@@ -209,7 +209,10 @@ export function useWorkflowInitialization(workflowState: WorkflowState) {
 		}
 
 		// Handle blank redirect (used by template import to prevent double initialization)
-		if (uiStore.isBlankRedirect) {
+		// Also check for templateId in query - this indicates a template import in progress
+		// where NodeView's openWorkflowTemplate handles the initialization
+		const isTemplateImportInProgress = uiStore.isBlankRedirect || route.query.templateId;
+		if (isTemplateImportInProgress) {
 			isLoading.value = false;
 			return;
 		}
