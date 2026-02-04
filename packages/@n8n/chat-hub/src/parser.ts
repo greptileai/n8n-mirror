@@ -124,7 +124,7 @@ function splitPotentialCommandPrefix(text: string): {
 	const commandTags = ['<command:artifact-create>', '<command:artifact-edit>'];
 
 	// Check if the end of text matches any prefix of a command tag
-	for (let len = 1; len < Math.min(text.length, 30); len++) {
+	for (let len = 1; len <= Math.min(text.length, 30); len++) {
 		const suffix = text.slice(-len);
 
 		// Check if this suffix is a prefix of any command tag
@@ -214,7 +214,18 @@ function extractTagContent(xml: string, tagName: string): string | null {
 
 	// If closing tag not found, return content from open tag to end of string
 	if (endIndex === -1) {
-		const content = xml.slice(contentStart);
+		let content = xml.slice(contentStart);
+
+		// Check if content ends with a partial closing tag and exclude it
+		// A partial closing tag looks like: </, </t, </ti, </tit, etc.
+		for (let len = 1; len < closeTag.length; len++) {
+			const partialCloseTag = closeTag.slice(0, len);
+			if (content.endsWith(partialCloseTag)) {
+				content = content.slice(0, -len);
+				break;
+			}
+		}
+
 		// Only return if there's actual content after the opening tag
 		return content.length > 0 ? content : null;
 	}

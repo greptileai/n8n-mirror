@@ -102,11 +102,10 @@ describe(appendChunkToParsedMessageItems, () => {
 	});
 
 	it('should handle artifact-create command divided into multiple chunks', () => {
-		const result = appendChunkToParsedMessageItems(
-			[{ type: 'hidden', content: '<com' }],
-			'mand:artifact-create>\n<title>Test',
-		);
-		expect(result).toEqual([
+		const result1 = appendChunkToParsedMessageItems([], '<comman');
+		const result2 = appendChunkToParsedMessageItems(result1, 'd:artifact-create>\n<title>Test');
+
+		expect(result2).toEqual([
 			{
 				type: 'artifact-create',
 				content: '<command:artifact-create>\n<title>Test',
@@ -122,6 +121,18 @@ describe(appendChunkToParsedMessageItems, () => {
 			{
 				type: 'artifact-create',
 				content: '<command:artifact-create>\n<title>Test',
+				command: { title: 'Test', type: '', content: '' },
+				isIncomplete: true,
+			},
+		]);
+	});
+
+	it('should handle incomplete artifact-create command with incomplete closing tag', () => {
+		const result = appendChunkToParsedMessageItems([], '<command:artifact-create>\n<title>Test</t');
+		expect(result).toEqual([
+			{
+				type: 'artifact-create',
+				content: '<command:artifact-create>\n<title>Test</t',
 				command: { title: 'Test', type: '', content: '' },
 				isIncomplete: true,
 			},
