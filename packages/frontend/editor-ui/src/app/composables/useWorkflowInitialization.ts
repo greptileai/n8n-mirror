@@ -20,6 +20,8 @@ import { useBuilderStore } from '@/features/ai/assistant/builder.store';
 import { useAITemplatesStarterCollectionStore } from '@/experiments/aiTemplatesStarterCollection/stores/aiTemplatesStarterCollection.store';
 import { useReadyToRunWorkflowsStore } from '@/experiments/readyToRunWorkflows/stores/readyToRunWorkflows.store';
 import { useTelemetry } from '@/app/composables/useTelemetry';
+import { useExecutionDebugging } from '@/features/execution/executions/composables/useExecutionDebugging';
+import { getSampleWorkflowByTemplateId } from '@/features/workflows/templates/utils/workflowSamples';
 import { EnterpriseEditionFeature, VIEWS } from '@/app/constants';
 import type { WorkflowState } from '@/app/composables/useWorkflowState';
 import type { IWorkflowDb } from '@/Interface';
@@ -47,8 +49,15 @@ export function useWorkflowInitialization(workflowState: WorkflowState) {
 	const readyToRunWorkflowsStore = useReadyToRunWorkflowsStore();
 	const telemetry = useTelemetry();
 
-	const { resetWorkspace, initializeWorkspace, fitView } = useCanvasOperations();
+	const {
+		resetWorkspace,
+		initializeWorkspace,
+		fitView,
+		openWorkflowTemplate,
+		openWorkflowTemplateFromJSON,
+	} = useCanvasOperations();
 	const { fetchAndSetParentFolder } = useParentFolder();
+	const { applyExecutionData } = useExecutionDebugging();
 
 	const isLoading = ref(true);
 	const initializedWorkflowId = ref<string | undefined>();
@@ -62,6 +71,7 @@ export function useWorkflowInitialization(workflowState: WorkflowState) {
 	const isDemoRoute = computed(() => route.name === VIEWS.DEMO);
 	const isTemplateRoute = computed(() => route.name === VIEWS.TEMPLATE_IMPORT);
 	const isOnboardingRoute = computed(() => route.name === VIEWS.WORKFLOW_ONBOARDING);
+	const isDebugRoute = computed(() => route.name === VIEWS.EXECUTION_DEBUG);
 
 	async function loadCredentials() {
 		let options: { workflowId: string } | { projectId: string };
@@ -82,6 +92,55 @@ export function useWorkflowInitialization(workflowState: WorkflowState) {
 		}
 
 		await credentialsStore.fetchAllCredentialsForWorkflow(options);
+	}
+
+	/**
+	 * Handle template import route (VIEWS.TEMPLATE_IMPORT)
+	 * Returns true if template was handled, false otherwise
+	 */
+	async function handleTemplateImportRoute(): Promise<boolean> {
+		if (!isTemplateRoute.value) return false;
+
+		const templateId = route.params.id;
+		if (!templateId) return false;
+
+		const loadWorkflowFromJSON = route.query.fromJson === 'true';
+
+		if (loadWorkflowFromJSON) {
+			const workflow = getSampleWorkflowByTemplateId(templateId.toString());
+			if (!workflow) {
+				toast.showError(
+					new Error(i18n.baseText('nodeView.couldntLoadWorkflow.invalidWorkflowObject')),
+					i18n.baseText('nodeView.couldntImportWorkflow'),
+				);
+				await router.replace({ name: VIEWS.NEW_WORKFLOW });
+				return true;
+			}
+
+			await openWorkflowTemplateFromJSON(workflow);
+		} else {
+			await openWorkflowTemplate(templateId.toString());
+		}
+
+		return true;
+	}
+
+	/**
+	 * Handle debug mode route (VIEWS.EXECUTION_DEBUG)
+	 * Loads execution data for debugging
+	 */
+	async function handleDebugModeRoute() {
+		if (!isDebugRoute.value) return;
+
+		documentTitle.setDocumentTitle(workflowsStore.workflowName, 'DEBUG');
+
+		if (!workflowsStore.isInDebugMode) {
+			const executionId = route.params.executionId;
+			if (typeof executionId === 'string') {
+				await applyExecutionData(executionId);
+				workflowsStore.isInDebugMode = true;
+			}
+		}
 	}
 
 	async function initializeData() {
@@ -227,16 +286,24 @@ export function useWorkflowInitialization(workflowState: WorkflowState) {
 	}
 
 	async function initializeWorkflow(force = false) {
-		// Skip if no workflowId (shouldn't happen in WorkflowLayout)
-		if (!workflowId.value) {
-			isLoading.value = false;
-			return;
-		}
-
 		// Handle blank redirect (used by template import to prevent double initialization)
 		// The flag is set by openWorkflowTemplate before navigation and cleared after
 		// importTemplate completes, ensuring WorkflowLayout doesn't interfere.
 		if (uiStore.isBlankRedirect) {
+			isLoading.value = false;
+			return;
+		}
+
+		// Handle template import route first - this has its own navigation flow
+		// Must be checked before workflowId since template routes use route.params.id, not name
+		const handledTemplate = await handleTemplateImportRoute();
+		if (handledTemplate) {
+			isLoading.value = false;
+			return;
+		}
+
+		// Skip if no workflowId (shouldn't happen for non-template routes in WorkflowLayout)
+		if (!workflowId.value) {
 			isLoading.value = false;
 			return;
 		}
@@ -276,6 +343,9 @@ export function useWorkflowInitialization(workflowState: WorkflowState) {
 			}
 
 			await initializeWorkspaceForExistingWorkflow(workflowId.value);
+
+			// Handle debug mode after workflow is loaded
+			await handleDebugModeRoute();
 		} finally {
 			isLoading.value = false;
 		}
@@ -294,11 +364,14 @@ export function useWorkflowInitialization(workflowState: WorkflowState) {
 		isDemoRoute,
 		isTemplateRoute,
 		isOnboardingRoute,
+		isDebugRoute,
 		loadCredentials,
 		initializeData,
 		openWorkflow,
 		initializeWorkspaceForNewWorkflow,
 		initializeWorkspaceForExistingWorkflow,
+		handleTemplateImportRoute,
+		handleDebugModeRoute,
 		initializeWorkflow,
 		cleanup,
 	};

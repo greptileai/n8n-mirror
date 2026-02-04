@@ -100,7 +100,6 @@ import { useNpsSurveyStore } from '@/app/stores/npsSurvey.store';
 import { useTelemetry } from '@/app/composables/useTelemetry';
 import { useProjectsStore } from '@/features/collaboration/projects/projects.store';
 import { useNodeHelpers } from '@/app/composables/useNodeHelpers';
-import { useExecutionDebugging } from '@/features/execution/executions/composables/useExecutionDebugging';
 import { useUsersStore } from '@/features/settings/users/users.store';
 import { sourceControlEventBus } from '@/features/integrations/sourceControl.ee/sourceControl.eventBus';
 import { useTagsStore } from '@/features/shared/tags/tags.store';
@@ -123,7 +122,6 @@ import {
 	parseCanvasConnectionHandleString,
 	shouldIgnoreCanvasShortcut,
 } from '@/features/workflows/canvas/canvas.utils';
-import { getSampleWorkflowByTemplateId } from '@/features/workflows/templates/utils/workflowSamples';
 import type { CanvasLayoutEvent } from '@/features/workflows/canvas/composables/useCanvasLayout';
 import { useWorkflowSaving } from '@/app/composables/useWorkflowSaving';
 import { useBuilderStore } from '@/features/ai/assistant/builder.store';
@@ -264,11 +262,8 @@ const {
 	startChat,
 	addNodesAndConnections,
 	fitView,
-	openWorkflowTemplate,
-	openWorkflowTemplateFromJSON,
 } = useCanvasOperations();
 const { extractWorkflow } = useWorkflowExtraction();
-const { applyExecutionData } = useExecutionDebugging();
 
 useKeybindings({
 	ctrl_alt_o: () => uiStore.openModal(ABOUT_MODAL_KEY),
@@ -331,7 +326,7 @@ const isLogsPanelOpen = computed(() => logsStore.isOpen);
  * Initialization
  */
 
-async function initializeRoute() {
+function initializeRoute() {
 	// Open node panel if the route has a corresponding action
 	if (route.query.action === 'addEvaluationTrigger') {
 		nodeCreatorStore.openNodeCreatorForTriggerNodes(
@@ -348,42 +343,9 @@ async function initializeRoute() {
 		}
 	}
 
-	// Handle blank redirect - return early but don't clear the flag here.
-	// The flag is cleared by openWorkflowTemplate/openWorkflowTemplateFromJSON
-	// after the template import completes.
-	if (uiStore.isBlankRedirect) {
-		return;
-	}
-
-	// Handle template import route
-	if (route.name === VIEWS.TEMPLATE_IMPORT) {
-		const loadWorkflowFromJSON = route.query.fromJson === 'true';
-		const templateId = route.params.id;
-		if (!templateId) {
-			return;
-		}
-
-		if (loadWorkflowFromJSON) {
-			const workflow = getSampleWorkflowByTemplateId(templateId.toString());
-			if (!workflow) {
-				toast.showError(
-					new Error(i18n.baseText('nodeView.couldntLoadWorkflow.invalidWorkflowObject')),
-					i18n.baseText('nodeView.couldntImportWorkflow'),
-				);
-				await router.replace({ name: VIEWS.NEW_WORKFLOW });
-				return;
-			}
-
-			await openWorkflowTemplateFromJSON(workflow);
-		} else {
-			await openWorkflowTemplate(templateId.toString());
-		}
-		return;
-	}
-
-	// Handle debug mode
+	// Handle debug mode event binding (data loading is handled by WorkflowLayout)
 	if (route.name === VIEWS.EXECUTION_DEBUG) {
-		await initializeDebugMode();
+		canvasEventBus.on('saved:workflow', onSaveFromWithinExecutionDebug);
 	}
 
 	// Update node issues after workflow is loaded
@@ -1526,17 +1488,6 @@ function checkIfRouteIsAllowed() {
  * Debug mode
  */
 
-async function initializeDebugMode() {
-	documentTitle.setDocumentTitle(workflowsStore.workflowName, 'DEBUG');
-
-	if (!workflowsStore.isInDebugMode) {
-		await applyExecutionData(route.params.executionId as string);
-		workflowsStore.isInDebugMode = true;
-	}
-
-	canvasEventBus.on('saved:workflow', onSaveFromWithinExecutionDebug);
-}
-
 async function onSaveFromWithinExecutionDebug() {
 	if (route.name !== VIEWS.EXECUTION_DEBUG) return;
 
@@ -1688,9 +1639,9 @@ function updateNodeRoute(nodeId: string) {
 	}
 }
 
-watch([() => route.name, () => route.params.name], async () => {
-	// Handle route-specific actions (template import, debug mode, etc.)
-	await initializeRoute();
+watch([() => route.name, () => route.params.name], () => {
+	// Handle route-specific actions (query actions, debug mode event binding, node issues)
+	initializeRoute();
 });
 
 watch(
@@ -1857,7 +1808,7 @@ onMounted(async () => {
 	});
 
 	try {
-		await initializeRoute();
+		initializeRoute();
 
 		// Once view is initialized, pick up all toast notifications
 		// waiting in the store and display them

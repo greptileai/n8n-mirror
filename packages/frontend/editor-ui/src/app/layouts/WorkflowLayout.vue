@@ -18,15 +18,8 @@ const assistantStore = useAssistantStore();
 const workflowState = useWorkflowState();
 provide(WorkflowStateKey, workflowState);
 
-const {
-	isLoading,
-	workflowId,
-	isTemplateRoute,
-	isOnboardingRoute,
-	initializeData,
-	initializeWorkflow,
-	cleanup,
-} = useWorkflowInitialization(workflowState);
+const { isLoading, workflowId, initializeData, initializeWorkflow, cleanup } =
+	useWorkflowInitialization(workflowState);
 
 provide(WorkflowIdKey, workflowId);
 
@@ -38,7 +31,6 @@ onMounted(async () => {
 watch(
 	workflowId,
 	async (newId, oldId) => {
-		if (isTemplateRoute.value || isOnboardingRoute.value) return;
 		if (newId !== oldId && newId) {
 			await initializeWorkflow(true);
 		}
