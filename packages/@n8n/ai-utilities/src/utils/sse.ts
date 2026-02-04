@@ -43,9 +43,12 @@ export async function* parseSSEStream(
 			const { done, value } = await reader.read();
 
 			if (done) {
+				// Flush the decoder to get any trailing partial UTF-8 sequence
+				buffer += decoder.decode();
+
 				// Process any remaining buffered content
-				if (buffer.trim()) {
-					const event = processLine(buffer.trim());
+				if (buffer !== '') {
+					const event = processLine(buffer);
 					if (event) {
 						yield event;
 					}

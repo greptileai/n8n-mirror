@@ -3,7 +3,7 @@ import { createAgent, HumanMessage, tool } from 'langchain';
 import z from 'zod';
 
 import { OpenAIChatModel } from './models/openai';
-import { createChatModel } from '../../ai-node-sdk/src/creators/create-chat-model';
+import { supplyModel } from '../src/suppliers/supplyModel';
 
 dotenv.config();
 
@@ -116,7 +116,7 @@ async function main() {
 		const openaiChatModel = new OpenAIChatModel('gpt-4o', {
 			apiKey: process.env.OPENAI_API_KEY,
 		});
-		chatModel = createChatModel(openaiChatModel);
+		chatModel = supplyModel(openaiChatModel);
 	} else {
 		throw new Error(`Unsupported model: ${model}`);
 	}
