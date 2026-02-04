@@ -4,9 +4,8 @@
 
 import { ToolMessage } from '@langchain/core/messages';
 import type { BaseMessage } from '@langchain/core/messages';
-import { ValidateToolHandler } from '../handlers/validate-tool-handler';
-import { WarningTracker } from '../state/warning-tracker';
-import type { StreamGenerationError } from '../../types/streaming';
+import { ValidateToolHandler } from '../validate-tool-handler';
+import { WarningTracker } from '../../state/warning-tracker';
 
 describe('ValidateToolHandler', () => {
 	let handler: ValidateToolHandler;
@@ -14,7 +13,6 @@ describe('ValidateToolHandler', () => {
 	let mockGetErrorContext: jest.Mock;
 	let mockDebugLog: jest.Mock;
 	let messages: BaseMessage[];
-	let generationErrors: StreamGenerationError[];
 	let warningTracker: WarningTracker;
 
 	beforeEach(() => {
@@ -22,7 +20,6 @@ describe('ValidateToolHandler', () => {
 		mockGetErrorContext = jest.fn().mockReturnValue('Code context:\n1: const x = 1;');
 		mockDebugLog = jest.fn();
 		messages = [];
-		generationErrors = [];
 		warningTracker = new WarningTracker();
 
 		handler = new ValidateToolHandler({
@@ -45,7 +42,6 @@ describe('ValidateToolHandler', () => {
 				...baseParams,
 				code: null,
 				messages,
-				generationErrors,
 				warningTracker,
 			});
 
@@ -78,7 +74,6 @@ describe('ValidateToolHandler', () => {
 			const generator = handler.execute({
 				...baseParams,
 				messages,
-				generationErrors,
 				warningTracker,
 			});
 
@@ -112,7 +107,6 @@ describe('ValidateToolHandler', () => {
 			const generator = handler.execute({
 				...baseParams,
 				messages,
-				generationErrors,
 				warningTracker,
 			});
 
@@ -125,10 +119,6 @@ describe('ValidateToolHandler', () => {
 			expect(messages.length).toBe(1);
 			const toolMessage = messages[0] as ToolMessage;
 			expect(toolMessage.content).toContain('WARN001');
-
-			// Should track generation error
-			expect(generationErrors.length).toBe(1);
-			expect(generationErrors[0].type).toBe('validation');
 		});
 
 		it('should return workflowReady true when all warnings are repeated', async () => {
@@ -150,7 +140,6 @@ describe('ValidateToolHandler', () => {
 			const generator = handler.execute({
 				...baseParams,
 				messages,
-				generationErrors,
 				warningTracker,
 			});
 
@@ -171,7 +160,6 @@ describe('ValidateToolHandler', () => {
 			const generator = handler.execute({
 				...baseParams,
 				messages,
-				generationErrors,
 				warningTracker,
 			});
 
@@ -184,10 +172,6 @@ describe('ValidateToolHandler', () => {
 			expect(messages.length).toBe(1);
 			const toolMessage = messages[0] as ToolMessage;
 			expect(toolMessage.content).toContain('Parse error');
-
-			// Should track generation error
-			expect(generationErrors.length).toBe(1);
-			expect(generationErrors[0].type).toBe('parse');
 		});
 
 		it('should yield workflow update on success', async () => {
@@ -206,7 +190,6 @@ describe('ValidateToolHandler', () => {
 			const generator = handler.execute({
 				...baseParams,
 				messages,
-				generationErrors,
 				warningTracker,
 			});
 
@@ -240,7 +223,6 @@ describe('ValidateToolHandler', () => {
 			const generator = handler.execute({
 				...baseParams,
 				messages,
-				generationErrors,
 				warningTracker,
 			});
 

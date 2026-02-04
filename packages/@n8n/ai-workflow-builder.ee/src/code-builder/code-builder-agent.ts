@@ -45,7 +45,6 @@ import type {
 	AgentMessageChunk,
 	WorkflowUpdateChunk,
 	ToolProgressChunk,
-	StreamGenerationError,
 	SessionMessagesChunk,
 } from '../types/streaming';
 import type { TextEditorCommand } from './handlers/text-editor.types';
@@ -373,8 +372,6 @@ ${'='.repeat(50)}
 			let consecutiveParseErrors = 0;
 			let workflow: WorkflowJSON | null = null;
 			let parseDuration = 0;
-			let sourceCode: string | null = null;
-			const generationErrors: StreamGenerationError[] = [];
 			// Track warnings that have been sent to agent (to avoid repeating)
 			const warningTracker = new WarningTracker();
 
@@ -464,13 +461,9 @@ ${'='.repeat(50)}
 								currentWorkflow,
 								iteration,
 								messages,
-								generationErrors,
 							});
 
 							// Update local state from handler result
-							if (result?.sourceCode) {
-								sourceCode = result.sourceCode;
-							}
 							if (result?.workflow) {
 								workflow = result.workflow;
 							}
@@ -489,16 +482,12 @@ ${'='.repeat(50)}
 								currentWorkflow,
 								iteration,
 								messages,
-								generationErrors,
 								warningTracker,
 							});
 
 							// Update local state from handler result
 							if (result.parseDuration !== undefined) {
 								parseDuration = result.parseDuration;
-							}
-							if (result.sourceCode) {
-								sourceCode = result.sourceCode;
 							}
 							if (result.workflow) {
 								workflow = result.workflow;
@@ -539,14 +528,11 @@ ${'='.repeat(50)}
 					const autoFinalizeResult = yield* this.autoFinalizeHandler.execute({
 						code: textEditorHandler.getWorkflowCode(),
 						currentWorkflow,
-						iteration,
 						messages,
-						generationErrors,
 					});
 
 					if (autoFinalizeResult.success && autoFinalizeResult.workflow) {
 						workflow = autoFinalizeResult.workflow;
-						sourceCode = autoFinalizeResult.sourceCode ?? null;
 						parseDuration = autoFinalizeResult.parseDuration ?? 0;
 						break;
 					}
@@ -558,18 +544,13 @@ ${'='.repeat(50)}
 					const finalResult = await this.finalResponseHandler.process({
 						response: llmResult.response,
 						currentWorkflow,
-						iteration,
 						messages,
-						generationErrors,
 						warningTracker,
 					});
 
 					// Update local state from handler result
 					if (finalResult.parseDuration !== undefined) {
 						parseDuration = finalResult.parseDuration;
-					}
-					if (finalResult.sourceCode) {
-						sourceCode = finalResult.sourceCode;
 					}
 					if (finalResult.isParseError) {
 						consecutiveParseErrors++;
@@ -612,7 +593,7 @@ ${'='.repeat(50)}
 				totalOutputTokens,
 			});
 
-			// Stream workflow update (includes source code for evaluation artifacts)
+			// Stream workflow update
 			this.debugLog('CHAT', 'Streaming workflow update');
 			yield {
 				messages: [
@@ -620,13 +601,7 @@ ${'='.repeat(50)}
 						role: 'assistant',
 						type: 'workflow-updated',
 						codeSnippet: JSON.stringify(workflow, null, 2),
-						sourceCode: sourceCode ?? '',
-						tokenUsage: {
-							inputTokens: totalInputTokens,
-							outputTokens: totalOutputTokens,
-						},
 						iterationCount: iteration,
-						generationErrors: generationErrors.length > 0 ? generationErrors : undefined,
 					} as WorkflowUpdateChunk,
 				],
 			};

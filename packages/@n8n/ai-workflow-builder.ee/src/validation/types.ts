@@ -31,7 +31,7 @@ export const PROGRAMMATIC_VIOLATION_NAMES = [
 	'workflow-similarity-evaluation-failed',
 	'http-request-hardcoded-credentials',
 	'set-node-credential-field',
-// Graph validation violations (from workflow-sdk validate())
+	// Graph validation violations (from workflow-sdk validate())
 	'graph-no-nodes',
 	'graph-disconnected-node',
 	'graph-merge-single-input',
@@ -99,8 +99,6 @@ export interface ProgrammaticEvaluationInput {
 	userPrompt?: string;
 	referenceWorkflows?: SimpleWorkflow[];
 	preset?: 'strict' | 'standard' | 'lenient';
-	/** Generated TypeScript SDK code for graph validation */
-	generatedCode?: string;
 }
 
 export interface NodeResolvedConnectionTypesInfo {

@@ -9,7 +9,7 @@ import type { BaseMessage } from '@langchain/core/messages';
 import { ToolMessage, HumanMessage } from '@langchain/core/messages';
 import type { WorkflowJSON } from '@n8n/workflow-sdk';
 
-import type { StreamOutput, ToolProgressChunk, StreamGenerationError } from '../../types/streaming';
+import type { StreamOutput, ToolProgressChunk } from '../../types/streaming';
 import type { ParseAndValidateResult } from '../types';
 import { FIX_AND_FINALIZE_INSTRUCTION } from '../constants';
 
@@ -61,7 +61,6 @@ export interface TextEditorToolParams {
 	currentWorkflow: WorkflowJSON | undefined;
 	iteration: number;
 	messages: BaseMessage[];
-	generationErrors: StreamGenerationError[];
 }
 
 /**
@@ -70,7 +69,6 @@ export interface TextEditorToolParams {
 export interface TextEditorToolResult {
 	workflowReady?: boolean;
 	workflow?: WorkflowJSON;
-	sourceCode?: string;
 }
 
 /**
@@ -107,7 +105,7 @@ export class TextEditorToolHandler {
 	async *execute(
 		params: TextEditorToolParams,
 	): AsyncGenerator<StreamOutput, TextEditorToolResult | undefined, unknown> {
-		const { toolCallId, args, currentWorkflow, iteration, messages, generationErrors } = params;
+		const { toolCallId, args, currentWorkflow, iteration, messages } = params;
 
 		const command = args.command as string;
 		this.debugLog('TEXT_EDITOR_TOOL', `Executing command: ${command}`, {
@@ -141,7 +139,6 @@ export class TextEditorToolHandler {
 					currentWorkflow,
 					iteration,
 					messages,
-					generationErrors,
 				);
 
 				yield this.createToolProgressChunk('completed', command);
@@ -175,9 +172,8 @@ export class TextEditorToolHandler {
 	 */
 	private async autoValidateAfterCreate(
 		currentWorkflow: WorkflowJSON | undefined,
-		iteration: number,
+		_iteration: number,
 		messages: BaseMessage[],
-		generationErrors: StreamGenerationError[],
 	): Promise<TextEditorToolResult> {
 		const code = this.textEditorGetCode();
 
@@ -203,14 +199,6 @@ export class TextEditorToolHandler {
 				const warningText = result.warnings.map((w) => `- [${w.code}] ${w.message}`).join('\n');
 				const errorContext = this.getErrorContext(code, result.warnings[0].message);
 
-				// Track as generation error
-				generationErrors.push({
-					message: `Validation warnings:\n${warningText}`,
-					code,
-					iteration,
-					type: 'validation',
-				});
-
 				// Add human message with warning feedback
 				messages.push(
 					new HumanMessage({
@@ -221,7 +209,6 @@ export class TextEditorToolHandler {
 				return {
 					workflowReady: false,
 					workflow: result.workflow,
-					sourceCode: code,
 				};
 			}
 
@@ -229,7 +216,6 @@ export class TextEditorToolHandler {
 			return {
 				workflowReady: true,
 				workflow: result.workflow,
-				sourceCode: code,
 			};
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
@@ -237,14 +223,6 @@ export class TextEditorToolHandler {
 
 			this.debugLog('TEXT_EDITOR_TOOL', 'Auto-validate parse error', {
 				errorMessage,
-			});
-
-			// Track the generation error
-			generationErrors.push({
-				message: errorMessage,
-				code,
-				iteration,
-				type: 'parse',
 			});
 
 			// Add human message with error feedback

@@ -3,7 +3,7 @@
  */
 
 import { HumanMessage, AIMessage } from '@langchain/core/messages';
-import { ChatState } from '../state/chat-state';
+import { ChatState } from '../chat-state';
 import type { WorkflowJSON } from '@n8n/workflow-sdk';
 
 describe('ChatState', () => {
@@ -29,10 +29,6 @@ describe('ChatState', () => {
 		it('should start with zero tokens', () => {
 			expect(state.totalInputTokens).toBe(0);
 			expect(state.totalOutputTokens).toBe(0);
-		});
-
-		it('should start with null sourceCode', () => {
-			expect(state.sourceCode).toBeNull();
 		});
 
 		it('should start with zero parseDuration', () => {
@@ -83,10 +79,9 @@ describe('ChatState', () => {
 				connections: {},
 			};
 
-			state.setWorkflow(workflow, 'const x = 1;');
+			state.setWorkflow(workflow);
 
 			expect(state.workflow).toEqual(workflow);
-			expect(state.sourceCode).toBe('const x = 1;');
 		});
 
 		it('should clear workflow', () => {
@@ -97,7 +92,7 @@ describe('ChatState', () => {
 				connections: {},
 			};
 
-			state.setWorkflow(workflow, 'code');
+			state.setWorkflow(workflow);
 			state.clearWorkflow();
 
 			expect(state.workflow).toBeNull();
@@ -159,7 +154,7 @@ describe('ChatState', () => {
 				connections: {},
 			};
 
-			state.setWorkflow(workflow, 'code');
+			state.setWorkflow(workflow);
 
 			expect(state.shouldContinue(50)).toBe(false);
 		});
@@ -201,52 +196,6 @@ describe('ChatState', () => {
 			state.resetValidatePassedThisIteration();
 
 			expect(state.validatePassedThisIteration).toBe(false);
-		});
-	});
-
-	describe('generation errors tracking', () => {
-		it('should start with empty generation errors', () => {
-			expect(state.generationErrors).toHaveLength(0);
-		});
-
-		it('should add generation errors', () => {
-			state.addGenerationError({
-				message: 'Parse error',
-				code: 'const x = 1;',
-				iteration: 1,
-				type: 'parse',
-			});
-
-			expect(state.generationErrors).toHaveLength(1);
-			expect(state.generationErrors[0].message).toBe('Parse error');
-			expect(state.generationErrors[0].type).toBe('parse');
-		});
-
-		it('should accumulate multiple generation errors', () => {
-			state.addGenerationError({
-				message: 'Parse error',
-				iteration: 1,
-				type: 'parse',
-			});
-			state.addGenerationError({
-				message: 'Validation warning',
-				iteration: 2,
-				type: 'validation',
-			});
-
-			expect(state.generationErrors).toHaveLength(2);
-		});
-
-		it('should check if there are generation errors', () => {
-			expect(state.hasGenerationErrors()).toBe(false);
-
-			state.addGenerationError({
-				message: 'Error',
-				iteration: 1,
-				type: 'parse',
-			});
-
-			expect(state.hasGenerationErrors()).toBe(true);
 		});
 	});
 });

@@ -6,9 +6,8 @@ import type { BaseMessage } from '@langchain/core/messages';
 import { HumanMessage } from '@langchain/core/messages';
 import type { WorkflowJSON, NodeJSON } from '@n8n/workflow-sdk';
 
-import { AutoFinalizeHandler } from '../handlers/auto-finalize-handler';
-import type { StreamGenerationError } from '../../types/streaming';
-import type { ParseAndValidateResult } from '../types';
+import { AutoFinalizeHandler } from '../auto-finalize-handler';
+import type { ParseAndValidateResult } from '../../types';
 
 describe('AutoFinalizeHandler', () => {
 	const mockDebugLog = jest.fn();
@@ -31,14 +30,11 @@ describe('AutoFinalizeHandler', () => {
 		it('should prompt for code creation when no code exists', async () => {
 			const handler = createHandler();
 			const messages: BaseMessage[] = [];
-			const generationErrors: StreamGenerationError[] = [];
 
 			const gen = handler.execute({
 				code: null,
 				currentWorkflow: undefined,
-				iteration: 1,
 				messages,
-				generationErrors,
 			});
 
 			const result = await consumeGenerator(gen);
@@ -52,7 +48,6 @@ describe('AutoFinalizeHandler', () => {
 		it('should return success with workflow when validation passes', async () => {
 			const handler = createHandler();
 			const messages: BaseMessage[] = [];
-			const generationErrors: StreamGenerationError[] = [];
 
 			const mockNode: NodeJSON = {
 				id: '1',
@@ -76,24 +71,19 @@ describe('AutoFinalizeHandler', () => {
 			const gen = handler.execute({
 				code: 'const workflow = { ... }',
 				currentWorkflow: undefined,
-				iteration: 1,
 				messages,
-				generationErrors,
 			});
 
 			const result = await consumeGenerator(gen);
 
 			expect(result.success).toBe(true);
 			expect(result.workflow).toEqual(mockWorkflow);
-			expect(result.sourceCode).toBe('const workflow = { ... }');
 			expect(result.parseDuration).toBeGreaterThanOrEqual(0);
-			expect(generationErrors).toHaveLength(0);
 		});
 
 		it('should return failure with feedback when validation has warnings', async () => {
 			const handler = createHandler();
 			const messages: BaseMessage[] = [];
-			const generationErrors: StreamGenerationError[] = [];
 
 			const mockWorkflow: WorkflowJSON = {
 				id: 'test',
@@ -110,9 +100,7 @@ describe('AutoFinalizeHandler', () => {
 			const gen = handler.execute({
 				code: 'const workflow = { ... }',
 				currentWorkflow: undefined,
-				iteration: 1,
 				messages,
-				generationErrors,
 			});
 
 			const result = await consumeGenerator(gen);
@@ -121,23 +109,18 @@ describe('AutoFinalizeHandler', () => {
 			expect(result.workflow).toBeUndefined();
 			expect(messages).toHaveLength(1);
 			expect((messages[0] as HumanMessage).content).toContain('Validation warnings');
-			expect(generationErrors).toHaveLength(1);
-			expect(generationErrors[0].type).toBe('validation');
 		});
 
 		it('should return failure with feedback when parsing fails', async () => {
 			const handler = createHandler();
 			const messages: BaseMessage[] = [];
-			const generationErrors: StreamGenerationError[] = [];
 
 			mockParseAndValidate.mockRejectedValue(new Error('Parse failed'));
 
 			const gen = handler.execute({
 				code: 'invalid code',
 				currentWorkflow: undefined,
-				iteration: 1,
 				messages,
-				generationErrors,
 			});
 
 			const result = await consumeGenerator(gen);
@@ -146,14 +129,11 @@ describe('AutoFinalizeHandler', () => {
 			expect(result.workflow).toBeUndefined();
 			expect(messages).toHaveLength(1);
 			expect((messages[0] as HumanMessage).content).toContain('Parse error');
-			expect(generationErrors).toHaveLength(1);
-			expect(generationErrors[0].type).toBe('parse');
 		});
 
 		it('should track parse duration on failure', async () => {
 			const handler = createHandler();
 			const messages: BaseMessage[] = [];
-			const generationErrors: StreamGenerationError[] = [];
 
 			mockParseAndValidate.mockImplementation(async () => {
 				await new Promise((resolve) => setTimeout(resolve, 10));
@@ -163,9 +143,7 @@ describe('AutoFinalizeHandler', () => {
 			const gen = handler.execute({
 				code: 'invalid code',
 				currentWorkflow: undefined,
-				iteration: 1,
 				messages,
-				generationErrors,
 			});
 
 			const result = await consumeGenerator(gen);

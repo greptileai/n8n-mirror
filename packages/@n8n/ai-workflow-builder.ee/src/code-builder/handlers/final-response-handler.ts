@@ -9,7 +9,6 @@ import type { BaseMessage, AIMessage } from '@langchain/core/messages';
 import { HumanMessage } from '@langchain/core/messages';
 import type { WorkflowJSON } from '@n8n/workflow-sdk';
 
-import type { StreamGenerationError } from '../../types/streaming';
 import type { ParseAndValidateResult, WorkflowCodeOutput, ValidationWarning } from '../types';
 import type { WarningTracker } from '../state/warning-tracker';
 import { extractTextContent } from '../utils/content-extractors';
@@ -53,12 +52,8 @@ export interface FinalResponseParams {
 	response: AIMessage;
 	/** Current workflow context for validation */
 	currentWorkflow: WorkflowJSON | undefined;
-	/** Current iteration number */
-	iteration: number;
 	/** Message history to append feedback to */
 	messages: BaseMessage[];
-	/** Generation errors array to track errors */
-	generationErrors: StreamGenerationError[];
 	/** Warning tracker for deduplication */
 	warningTracker: WarningTracker;
 }
@@ -71,8 +66,6 @@ export interface FinalResponseResult {
 	success: boolean;
 	/** The validated workflow (only on success) */
 	workflow?: WorkflowJSON;
-	/** The source code (on success or parse attempt) */
-	sourceCode?: string;
 	/** Parse duration in milliseconds */
 	parseDuration?: number;
 	/** Whether this was a parse error (should increment consecutiveParseErrors) */
@@ -108,8 +101,7 @@ export class FinalResponseHandler {
 	 * @returns FinalResponseResult with success status and optional workflow
 	 */
 	async process(params: FinalResponseParams): Promise<FinalResponseResult> {
-		const { response, currentWorkflow, iteration, messages, generationErrors, warningTracker } =
-			params;
+		const { response, currentWorkflow, messages, warningTracker } = params;
 
 		this.debugLog('FINAL_RESPONSE', 'Processing final response (no tool calls)');
 
@@ -171,14 +163,6 @@ export class FinalResponseHandler {
 					.map((w) => `- [${w.code}] ${w.message}`)
 					.join('\n');
 
-				// Track as generation error
-				generationErrors.push({
-					message: `Validation warnings:\n${warningMessages}`,
-					code: workflowCode,
-					iteration,
-					type: 'validation',
-				});
-
 				// Log warnings
 				this.evalLogger?.logWarnings('CODE-BUILDER:VALIDATION', newWarnings);
 
@@ -191,7 +175,6 @@ export class FinalResponseHandler {
 
 				return {
 					success: false,
-					sourceCode: workflowCode,
 					parseDuration,
 					shouldContinue: true,
 				};
@@ -203,7 +186,6 @@ export class FinalResponseHandler {
 			return {
 				success: true,
 				workflow: result.workflow,
-				sourceCode: workflowCode,
 				parseDuration,
 				shouldContinue: false,
 			};
@@ -217,16 +199,8 @@ export class FinalResponseHandler {
 				errorMessage,
 			});
 
-			// Track generation error
-			generationErrors.push({
-				message: errorMessage,
-				code: workflowCode,
-				iteration,
-				type: 'parse',
-			});
-
 			// Log error
-			this.evalLogger?.logError('CODE-BUILDER:PARSE', errorMessage, workflowCode, errorStack);
+			this.evalLogger?.logError('CODE-BUILDER:PARSE', errorMessage, undefined, errorStack);
 
 			// Send feedback to agent
 			messages.push(
