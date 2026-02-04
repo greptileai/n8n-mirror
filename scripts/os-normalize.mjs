@@ -8,7 +8,7 @@
  * Usage (with args): node scripts/os-normalize.mjs --dir packages/cli/bin -- n8n --help
  * */
 
-import { $, argv, cd, chalk, echo, fs } from 'zx';
+import { $, argv, cd, chalk, echo, fs, usePowerShell } from 'zx';
 
 /**
  * @type { string } baseName
@@ -19,6 +19,9 @@ function normalizeCommand(baseName) {
 		// On mac/linux, run local executable
 		return `./${baseName}`;
 	}
+
+	// Set $.shell to refer to powershell
+	usePowerShell();
 
 	// On Windows, prefer .cmd then .exe, then bare name
 	const candidates = [`${baseName}.cmd`, `${baseName}.exe`, baseName];
