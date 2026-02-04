@@ -112,17 +112,22 @@ const onAddColumn = async (column: DataTableColumnCreatePayload): Promise<AddCol
 	return await dataTableTableRef.value.addColumn(column);
 };
 
+// Handler for source control pull events - stored to ensure proper cleanup
+const handleSourceControlPull = async () => {
+	await initialize();
+};
+
 onMounted(async () => {
 	documentTitle.set(i18n.baseText('dataTable.dataTables'));
 	await initialize();
 
-	sourceControlEventBus.on('pull', async () => {
-		await initialize();
-	});
+	// Listen for source control pull events to refresh data table
+	sourceControlEventBus.on('pull', handleSourceControlPull);
 });
 
 onBeforeUnmount(() => {
-	sourceControlEventBus.off('pull');
+	// Clean up event listener with the same handler reference
+	sourceControlEventBus.off('pull', handleSourceControlPull);
 });
 </script>
 
