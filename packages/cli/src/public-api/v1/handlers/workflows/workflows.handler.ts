@@ -198,13 +198,12 @@ export = {
 					const workflows = await Container.get(WorkflowFinderService).findAllWorkflowsForUser(
 						req.user,
 						['workflow:read'],
+						undefined,
+						projectId,
+						true,
 					);
 
-					const workflowIds = workflows
-						.filter((workflow) => workflow.projectId === projectId)
-						.map((workflow) => workflow.id);
-
-					where.id = In(workflowIds);
+					where.id = In(workflows.map(({ id }) => id));
 				}
 			} else {
 				const options: { workflowIds?: string[] } = {};
@@ -218,15 +217,14 @@ export = {
 				let workflows = await Container.get(WorkflowFinderService).findAllWorkflowsForUser(
 					req.user,
 					['workflow:read'],
+					undefined,
+					projectId,
+					true,
 				);
 
 				if (options.workflowIds) {
 					const workflowIds = options.workflowIds;
 					workflows = workflows.filter((wf) => workflowIds.includes(wf.id));
-				}
-
-				if (projectId) {
-					workflows = workflows.filter((w) => w.projectId === projectId);
 				}
 
 				if (!workflows.length) {
