@@ -224,8 +224,12 @@ export class NodeTypeGeneratorService {
 	 * @param plan Map of relative path -> file content
 	 */
 	private async writePlanToDisk(baseDir: string, plan: Map<string, string>): Promise<void> {
+		const resolvedBase = path.resolve(baseDir);
 		for (const [relativePath, content] of plan) {
-			const fullPath = path.join(baseDir, relativePath);
+			const fullPath = path.resolve(baseDir, relativePath);
+			if (!fullPath.startsWith(resolvedBase + path.sep) && fullPath !== resolvedBase) {
+				throw new Error(`Path traversal detected: ${relativePath}`);
+			}
 			const dir = path.dirname(fullPath);
 			await fs.promises.mkdir(dir, { recursive: true });
 			await fs.promises.writeFile(fullPath, content, 'utf-8');
