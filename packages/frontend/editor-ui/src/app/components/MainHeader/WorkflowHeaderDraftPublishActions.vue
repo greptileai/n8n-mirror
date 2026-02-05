@@ -35,6 +35,8 @@ import { nodeViewEventBus } from '@/app/event-bus';
 import CollaborationPane from '@/features/collaboration/collaboration/components/CollaborationPane.vue';
 import TimeAgo from '../TimeAgo.vue';
 import { useCollaborationStore } from '@/features/collaboration/collaboration/collaboration.store';
+import { ProjectTypes } from '@/features/collaboration/projects/projects.types';
+import { useProjectsStore } from '@/features/collaboration/projects/projects.store';
 import { useWorkflowActivate } from '@/app/composables/useWorkflowActivate';
 import { useToast } from '@/app/composables/useToast';
 import { createEventBus } from '@n8n/utils/event-bus';
@@ -45,7 +47,7 @@ import { useKeybindings } from '@/app/composables/useKeybindings';
 
 const props = defineProps<{
 	id: IWorkflowDb['id'];
-	tags: IWorkflowDb['tags'];
+	tags: readonly string[];
 	name: IWorkflowDb['name'];
 	meta: IWorkflowDb['meta'];
 	currentFolder?: FolderShortInfo;
@@ -59,6 +61,7 @@ const actionsMenuRef = useTemplateRef<InstanceType<typeof ActionsDropdownMenu>>(
 const uiStore = useUIStore();
 const workflowsStore = useWorkflowsStore();
 const collaborationStore = useCollaborationStore();
+const projectStore = useProjectsStore();
 const workflowHistoryStore = useWorkflowHistoryStore();
 const settingsStore = useSettingsStore();
 const i18n = useI18n();
@@ -121,6 +124,8 @@ const collaborationReadOnly = computed(() => collaborationStore.shouldBeReadOnly
 const hasUpdatePermission = computed(() => props.workflowPermissions.update);
 const hasPublishPermission = computed(() => props.workflowPermissions.publish);
 
+const isPersonalSpace = computed(() => projectStore.currentProject?.type === ProjectTypes.Personal);
+
 /**
  * Cancel autosave if scheduled or wait for it to finish if in progress
  * Save immediately if autosave idle or cancelled
@@ -174,7 +179,9 @@ const publishButtonConfig = computed(() => {
 			enabled: false,
 			showIndicator: false,
 			indicatorClass: '',
-			tooltip: i18n.baseText('workflows.publish.permissionDenied'),
+			tooltip: isPersonalSpace.value
+				? i18n.baseText('workflows.publish.personalSpaceRestricted')
+				: i18n.baseText('workflows.publish.permissionDenied'),
 			showVersionInfo: false,
 		};
 		const isWorkflowPublished = !!workflowsStore.workflow.activeVersion;
