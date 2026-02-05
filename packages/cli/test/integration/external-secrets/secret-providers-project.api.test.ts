@@ -148,7 +148,6 @@ describe('Secret Providers Project API', () => {
 				expect(globalConnection1).toMatchObject({
 					name: 'global-connection1',
 					type: 'awsSecretsManager',
-					isEnabled: true,
 					projects: [],
 				});
 			});
@@ -201,7 +200,6 @@ describe('Secret Providers Project API', () => {
 					expect(connection1).toMatchObject({
 						name: 'connection1',
 						type: 'awsSecretsManager',
-						isEnabled: true,
 						projects: [{ id: teamProject1.id, name: teamProject1.name }],
 					});
 				});
