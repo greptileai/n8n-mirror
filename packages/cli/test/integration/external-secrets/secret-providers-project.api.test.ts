@@ -92,37 +92,29 @@ describe('Secret Providers Project API', () => {
 
 	describe('GET /secret-providers/projects/:projectId/connections', () => {
 		describe('Authorization', () => {
-			beforeAll(async () => {
-				await Promise.all([
-					createProviderConnection('global-connection', []),
-					createProviderConnection('test-connection', [teamProject1.id]),
-				]);
+			const FORBIDDEN_MESSAGE = 'User is missing a scope required to perform this action';
+			let agents: Record<string, SuperAgentTest>;
+
+			beforeAll(() => {
+				agents = {
+					owner: ownerAgent,
+					admin: adminAgent,
+					member: memberAgent,
+				};
 			});
 
-			test('should allow owner to list connections for any project', async () => {
-				const response = await ownerAgent
+			test.each([
+				{ role: 'owner', allowed: true },
+				{ role: 'admin', allowed: true },
+				{ role: 'member', allowed: false },
+			])('should allow=$allowed for $role to list global secrets', async ({ role, allowed }) => {
+				const response = await agents[role]
 					.get(`/secret-providers/projects/${teamProject1.id}/connections`)
-					.expect(200);
+					.expect(allowed ? 200 : 403);
 
-				expect(Array.isArray(response.body.data)).toBe(true);
-			});
-
-			test('should allow admin to list connections for any project', async () => {
-				const response = await adminAgent
-					.get(`/secret-providers/projects/${teamProject1.id}/connections`)
-					.expect(200);
-
-				expect(Array.isArray(response.body.data)).toBe(true);
-			});
-
-			test('should deny member from listing connections', async () => {
-				const response = await memberAgent
-					.get(`/secret-providers/projects/${teamProject1.id}/connections`)
-					.expect(403);
-
-				expect(response.body.message).toBe(
-					'User is missing a scope required to perform this action',
-				);
+				if (!allowed) {
+					expect(response.body.message).toBe(FORBIDDEN_MESSAGE);
+				}
 			});
 		});
 
