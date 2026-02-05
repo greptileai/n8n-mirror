@@ -285,7 +285,7 @@ function formatModeForDisplay(mode: ModeInfo, showSdkMapping: boolean): string {
 
 	// Add builder hint if available
 	if (mode.builderHint) {
-		lines.push(`        @builderHint ${mode.builderHint}`);
+		lines.push(`        @builderHint ${mode.builderHint.message}`);
 	}
 
 	return lines.join('\n');
@@ -359,7 +359,7 @@ function formatDiscriminatorInfo(info: DiscriminatorInfo, nodeId: string): strin
 				lines.push(`          ${resource.description}`);
 			}
 			if (resource.builderHint) {
-				lines.push(`          @builderHint ${resource.builderHint}`);
+				lines.push(`          @builderHint ${resource.builderHint.message}`);
 			}
 
 			// Format operations
@@ -370,7 +370,7 @@ function formatDiscriminatorInfo(info: DiscriminatorInfo, nodeId: string): strin
 					lines.push(`              ${op.description}`);
 				}
 				if (op.builderHint) {
-					lines.push(`              @builderHint ${op.builderHint}`);
+					lines.push(`              @builderHint ${op.builderHint.message}`);
 				}
 			}
 		}
