@@ -20,7 +20,7 @@ export class LangchainAdapter<
 > extends BaseChatModel<CallOptions> {
 	constructor(
 		private chatModel: ChatModel,
-		ctx?: ISupplyDataFunctions,
+		private ctx?: ISupplyDataFunctions,
 	) {
 		const params = {
 			...(ctx
@@ -217,7 +217,7 @@ export class LangchainAdapter<
 	): Runnable<BaseLanguageModelInput, AIMessageChunk, CallOptions> {
 		const genericTools = tools.map(fromLcTool);
 		const newModel = this.chatModel.withTools(genericTools);
-		const newAdapter = new LangchainAdapter(newModel);
+		const newAdapter = new LangchainAdapter(newModel, this.ctx);
 
 		return newAdapter as any;
 	}
