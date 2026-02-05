@@ -22,11 +22,11 @@ export class SecretProvidersTypesController {
 	}
 
 	@Middleware()
-	checkFeatureFlag(_req: Request, _res: Response, next: NextFunction) {
+	checkFeatureFlag(_req: Request, res: Response, next: NextFunction) {
 		if (!this.config.externalSecretsForProjects) {
 			this.logger.warn('External secrets for projects feature is not enabled');
 			sendErrorResponse(
-				_res,
+				res,
 				new ForbiddenError('External secrets for projects feature is not enabled'),
 			);
 			return;
