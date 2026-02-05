@@ -28,6 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.pull_request.merged == true
     timeout-minutes: 20
+    environment: npm
     permissions:
       id-token: write
     env:
