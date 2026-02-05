@@ -52,7 +52,7 @@ export const VALIDATE_TOOL = {
  */
 export const CODE_BUILDER_TEXT_EDITOR_TOOL: BuilderToolBase = {
 	toolName: 'str_replace_based_edit_tool',
-	displayTitle: 'Editing workflow',
+	displayTitle: 'Editing Workflow',
 };
 
 export const CODE_BUILDER_VALIDATE_TOOL: BuilderToolBase = {

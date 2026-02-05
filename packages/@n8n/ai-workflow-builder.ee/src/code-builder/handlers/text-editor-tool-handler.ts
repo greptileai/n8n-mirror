@@ -244,12 +244,13 @@ export class TextEditorToolHandler {
 	 * Create a tool progress chunk
 	 */
 	private createToolProgressChunk(status: 'running' | 'completed', command: string): StreamOutput {
+		const displayTitle = command === 'view' ? 'Viewing Workflow' : 'Editing Workflow';
 		return {
 			messages: [
 				{
 					type: 'tool',
 					toolName: 'str_replace_based_edit_tool',
-					displayTitle: `Editing workflow (${command})`,
+					displayTitle,
 					status,
 				} as ToolProgressChunk,
 			],
