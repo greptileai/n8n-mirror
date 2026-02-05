@@ -290,6 +290,41 @@ export function useBuilderTodos() {
 	const workflowTodos = computed(() => [...baseWorkflowIssues.value, ...placeholderIssues.value]);
 
 	/**
+	 * Checks if there are potential todos that are hidden because nodes have pinned data.
+	 * Returns true when workflowTodos is empty but there would be todos without the pin filter.
+	 */
+	const hasTodosHiddenByPinnedData = computed(() => {
+		// If we have visible todos, no need to check
+		if (workflowTodos.value.length > 0) return false;
+
+		// Check if any pinned data exists
+		const pinData = workflowsStore.workflow.pinData;
+		if (!pinData || Object.keys(pinData).length === 0) return false;
+
+		// Check base workflow issues that would show if not for pinned data
+		const wouldHaveBaseIssues = workflowsStore.workflowValidationIssues.some(
+			(issue) =>
+				['credentials', 'parameters'].includes(issue.type) &&
+				nodeHasPinnedData(issue.node) &&
+				!nodeIsDisabled(issue.node),
+		);
+
+		if (wouldHaveBaseIssues) return true;
+
+		// Check placeholder issues that would show if not for pinned data
+		for (const node of workflowsStore.workflow.nodes) {
+			if (!node?.parameters) continue;
+			if (!nodeHasPinnedData(node.name)) continue;
+			if (nodeIsDisabled(node.name)) continue;
+
+			const placeholders = findPlaceholderDetails(node.parameters);
+			if (placeholders.length > 0) return true;
+		}
+
+		return false;
+	});
+
+	/**
 	 * Returns todos data formatted for telemetry tracking.
 	 */
 	function getTodosToTrack(): TodosTrackingPayload {
@@ -312,5 +347,6 @@ export function useBuilderTodos() {
 		workflowTodos,
 		placeholderIssues,
 		getTodosToTrack,
+		hasTodosHiddenByPinnedData,
 	};
 }

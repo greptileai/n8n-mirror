@@ -158,7 +158,7 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 		getRunningTools,
 	} = useBuilderMessages();
 
-	const { workflowTodos, getTodosToTrack } = useBuilderTodos();
+	const { workflowTodos, getTodosToTrack, hasTodosHiddenByPinnedData } = useBuilderTodos();
 
 	const trackingSessionId = computed(() => rootStore.pushRef);
 
@@ -933,6 +933,7 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 		hasNoCreditsRemaining,
 		hasMessages,
 		workflowTodos,
+		hasTodosHiddenByPinnedData,
 		lastUserMessageId,
 
 		// Methods

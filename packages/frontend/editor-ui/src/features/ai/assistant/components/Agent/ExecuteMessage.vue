@@ -266,7 +266,11 @@ onBeforeUnmount(() => {
 		<!-- No Issues Section -->
 		<template v-else-if="triggerNodes.length > 0">
 			<p :class="$style.noIssuesMessage">
-				{{ i18n.baseText('aiAssistant.builder.executeMessage.noIssues') }}
+				{{
+					builderStore.hasTodosHiddenByPinnedData
+						? i18n.baseText('aiAssistant.builder.executeMessage.noIssuesWithPinData')
+						: i18n.baseText('aiAssistant.builder.executeMessage.noIssues')
+				}}
 			</p>
 		</template>
 

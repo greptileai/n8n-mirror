@@ -782,6 +782,218 @@ describe('useBuilderTodos', () => {
 			expect(workflowTodos.value[0].node).toBe('Enabled Node');
 		});
 
+		describe('hasTodosHiddenByPinnedData', () => {
+			it('returns false when there are visible todos', () => {
+				const workflowsStore = useWorkflowsStore();
+
+				// Setup a node with placeholder in parameters (no pinned data)
+				const nodeWithPlaceholder = createMockNode({
+					name: 'HTTP Request',
+					parameters: {
+						url: '<__PLACEHOLDER_VALUE__Enter URL__>',
+					},
+				});
+
+				workflowsStore.workflow.nodes = [nodeWithPlaceholder];
+				workflowsStore.workflow.pinData = {};
+
+				const { workflowTodos, hasTodosHiddenByPinnedData } = useBuilderTodos();
+
+				// There are visible todos, so hasTodosHiddenByPinnedData should be false
+				expect(workflowTodos.value).toHaveLength(1);
+				expect(hasTodosHiddenByPinnedData.value).toBe(false);
+			});
+
+			it('returns false when there are no todos and no pinned data', () => {
+				const workflowsStore = useWorkflowsStore();
+
+				// Setup a node without any issues
+				const cleanNode = createMockNode({
+					name: 'HTTP Request',
+					parameters: {
+						url: 'https://example.com',
+					},
+				});
+
+				workflowsStore.workflow.nodes = [cleanNode];
+				workflowsStore.workflow.pinData = {};
+
+				const { workflowTodos, hasTodosHiddenByPinnedData } = useBuilderTodos();
+
+				expect(workflowTodos.value).toHaveLength(0);
+				expect(hasTodosHiddenByPinnedData.value).toBe(false);
+			});
+
+			it('returns true when placeholder todos are hidden by pinned data', () => {
+				const workflowsStore = useWorkflowsStore();
+
+				// Setup a node with placeholder that would show as todo
+				const nodeWithPlaceholder = createMockNode({
+					name: 'HTTP Request',
+					parameters: {
+						url: '<__PLACEHOLDER_VALUE__Enter URL__>',
+					},
+				});
+
+				workflowsStore.workflow.nodes = [nodeWithPlaceholder];
+				// Pin data hides the todo
+				workflowsStore.workflow.pinData = {
+					'HTTP Request': [{ json: { data: 'pinned result' } }],
+				};
+
+				const { workflowTodos, hasTodosHiddenByPinnedData } = useBuilderTodos();
+
+				// No visible todos, but they are hidden by pinned data
+				expect(workflowTodos.value).toHaveLength(0);
+				expect(hasTodosHiddenByPinnedData.value).toBe(true);
+			});
+
+			it('returns true when credential todos are hidden by pinned data', () => {
+				const workflowsStore = useWorkflowsStore();
+
+				// Setup a connected node with credential issues
+				const nodeWithIssues = createMockNode({
+					name: 'HTTP Request',
+					issues: {
+						credentials: {
+							httpBasicAuth: ['Credentials not set'],
+						},
+					},
+				});
+
+				workflowsStore.workflow.nodes = [nodeWithIssues];
+				workflowsStore.workflow.connections = {
+					'HTTP Request': {
+						main: [[{ node: 'Other Node', type: 'main' as const, index: 0 }]],
+					},
+				};
+				// Pin data hides the credential issue
+				workflowsStore.workflow.pinData = {
+					'HTTP Request': [{ json: { data: 'pinned result' } }],
+				};
+
+				const { workflowTodos, hasTodosHiddenByPinnedData } = useBuilderTodos();
+
+				// No visible todos, but they are hidden by pinned data
+				expect(workflowTodos.value).toHaveLength(0);
+				expect(hasTodosHiddenByPinnedData.value).toBe(true);
+			});
+
+			it('returns false when todos are hidden by disabled nodes (not pinned)', () => {
+				const workflowsStore = useWorkflowsStore();
+
+				// Setup a disabled node with placeholder
+				const disabledNode = createMockNode({
+					name: 'HTTP Request',
+					disabled: true,
+					parameters: {
+						url: '<__PLACEHOLDER_VALUE__Enter URL__>',
+					},
+				});
+
+				workflowsStore.workflow.nodes = [disabledNode];
+				workflowsStore.workflow.pinData = {};
+
+				const { workflowTodos, hasTodosHiddenByPinnedData } = useBuilderTodos();
+
+				// No visible todos, but they are hidden by disabled status, not pinned data
+				expect(workflowTodos.value).toHaveLength(0);
+				expect(hasTodosHiddenByPinnedData.value).toBe(false);
+			});
+
+			it('returns true when sub-node todos are hidden by parent pinned data', () => {
+				const workflowsStore = useWorkflowsStore();
+
+				// Setup: AI model sub-node with placeholder
+				const aiModelSubNode = createMockNode({
+					name: 'OpenAI GPT-4.1-mini',
+					type: '@n8n/n8n-nodes-langchain.lmChatOpenAi',
+					parameters: {
+						prompt: '<__PLACEHOLDER_VALUE__Enter prompt__>',
+					},
+				});
+
+				const parentNode = createMockNode({
+					id: 'parent-1',
+					name: 'AI Agent',
+					type: '@n8n/n8n-nodes-langchain.agent',
+				});
+
+				workflowsStore.workflow.nodes = [aiModelSubNode, parentNode];
+				workflowsStore.workflow.connections = {
+					'OpenAI GPT-4.1-mini': {
+						ai_languageModel: [[{ node: 'AI Agent', type: 'ai_languageModel' as const, index: 0 }]],
+					},
+				};
+				// Parent node has pinned data
+				workflowsStore.workflow.pinData = {
+					'AI Agent': [{ json: { response: 'pinned response' } }],
+				};
+
+				const { workflowTodos, hasTodosHiddenByPinnedData } = useBuilderTodos();
+
+				// No visible todos because parent is pinned
+				expect(workflowTodos.value).toHaveLength(0);
+				expect(hasTodosHiddenByPinnedData.value).toBe(true);
+			});
+
+			it('returns false when node is both pinned AND disabled', () => {
+				const workflowsStore = useWorkflowsStore();
+
+				// Setup a node that is both pinned and disabled
+				const pinnedDisabledNode = createMockNode({
+					name: 'HTTP Request',
+					disabled: true,
+					parameters: {
+						url: '<__PLACEHOLDER_VALUE__Enter URL__>',
+					},
+				});
+
+				workflowsStore.workflow.nodes = [pinnedDisabledNode];
+				workflowsStore.workflow.pinData = {
+					'HTTP Request': [{ json: { data: 'pinned result' } }],
+				};
+
+				const { workflowTodos, hasTodosHiddenByPinnedData } = useBuilderTodos();
+
+				// Node is disabled, so even though it has pinned data, the disabled status takes precedence
+				expect(workflowTodos.value).toHaveLength(0);
+				expect(hasTodosHiddenByPinnedData.value).toBe(false);
+			});
+
+			it('handles mixed scenarios: some todos visible, some hidden by pin', () => {
+				const workflowsStore = useWorkflowsStore();
+
+				// One node pinned (hiding its todo), another unpinned (showing its todo)
+				const pinnedNode = createMockNode({
+					name: 'Pinned Node',
+					parameters: {
+						url: '<__PLACEHOLDER_VALUE__Enter URL__>',
+					},
+				});
+
+				const unpinnedNode = createMockNode({
+					name: 'Unpinned Node',
+					parameters: {
+						apiKey: '<__PLACEHOLDER_VALUE__Enter API Key__>',
+					},
+				});
+
+				workflowsStore.workflow.nodes = [pinnedNode, unpinnedNode];
+				workflowsStore.workflow.pinData = {
+					'Pinned Node': [{ json: { data: 'pinned result' } }],
+				};
+
+				const { workflowTodos, hasTodosHiddenByPinnedData } = useBuilderTodos();
+
+				// There's still a visible todo from the unpinned node
+				expect(workflowTodos.value).toHaveLength(1);
+				expect(workflowTodos.value[0].node).toBe('Unpinned Node');
+				// Since there are visible todos, hasTodosHiddenByPinnedData should be false
+				expect(hasTodosHiddenByPinnedData.value).toBe(false);
+			});
+		});
+
 		describe('reactivity for subnode todos', () => {
 			it('shows subnode todos when parent node is unpinned', async () => {
 				const workflowsStore = useWorkflowsStore();
