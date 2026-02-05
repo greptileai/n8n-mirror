@@ -74,10 +74,7 @@ const hideMenuBar = computed(() =>
 const workflow = computed(() => workflowsStore.workflow);
 const workflowId = injectStrict(WorkflowIdKey);
 const workflowDocumentStore = inject(WorkflowDocumentStoreKey, null);
-const workflowTags = computed(() => {
-	const tags = workflowDocumentStore?.value?.tags;
-	return tags ? [...tags] : []; // Create mutable copy from readonly ref
-});
+const workflowTags = computed(() => workflowDocumentStore?.value?.tags ?? []);
 const onWorkflowPage = computed(() => !!(route.meta.nodeView || route.meta.keepWorkflowAlive));
 
 const isEnterprise = computed(
