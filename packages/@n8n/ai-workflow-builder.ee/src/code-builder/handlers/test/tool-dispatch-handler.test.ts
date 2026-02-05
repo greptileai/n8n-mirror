@@ -1,9 +1,9 @@
 import type { StructuredToolInterface } from '@langchain/core/tools';
 
-import { ToolDispatchHandler } from '../tool-dispatch-handler';
-import type { ValidateToolHandler } from '../validate-tool-handler';
 import type { StreamOutput, ToolProgressChunk } from '../../../types/streaming';
 import { WarningTracker } from '../../state/warning-tracker';
+import { ToolDispatchHandler } from '../tool-dispatch-handler';
+import type { ValidateToolHandler } from '../validate-tool-handler';
 
 /** Type guard for ToolProgressChunk */
 function isToolProgressChunk(chunk: unknown): chunk is ToolProgressChunk {

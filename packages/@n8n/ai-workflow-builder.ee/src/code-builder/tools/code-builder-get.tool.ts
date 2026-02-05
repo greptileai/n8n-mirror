@@ -302,7 +302,7 @@ function resolveResourceOperationPath(
 	// Security: Final path validation - ensure we're still within nodeDir
 	if (!validatePathWithinBase(filePath, nodeDir)) {
 		return {
-			error: `Error: Invalid path - path traversal detected`,
+			error: 'Error: Invalid path - path traversal detected',
 		};
 	}
 
@@ -357,7 +357,7 @@ function resolveModePath(
 	// Security: Final path validation - ensure we're still within nodeDir
 	if (!validatePathWithinBase(filePath, nodeDir)) {
 		return {
-			error: `Error: Invalid path - path traversal detected`,
+			error: 'Error: Invalid path - path traversal detected',
 		};
 	}
 
@@ -404,7 +404,7 @@ function tryGetNodeFilePath(
 
 	// Security: Final path validation - ensure we're still within nodesPath
 	if (!validatePathWithinBase(nodeDir, nodesPath)) {
-		return { error: `Error: Invalid path - path traversal detected` };
+		return { error: 'Error: Invalid path - path traversal detected' };
 	}
 
 	if (!existsSync(nodeDir)) {
