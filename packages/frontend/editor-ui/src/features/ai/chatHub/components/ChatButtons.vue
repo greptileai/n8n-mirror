@@ -30,7 +30,7 @@ async function onClick(link: string, index: number) {
 
 <template>
 	<div :class="$style.buttons">
-		<template v-for="(button, index) in buttons" :key="button.text">
+		<template v-for="(button, index) in buttons" :key="button.link">
 			<N8nButton
 				v-if="clickedButtonIndex === null || index === clickedButtonIndex"
 				:type="button.type"
