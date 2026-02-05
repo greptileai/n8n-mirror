@@ -416,6 +416,7 @@ describe('GlobalConfig', () => {
 		// @ts-expect-error structuredClone ignores properties defined as a getter
 		ai: {
 			enabled: false,
+			persistBuilderSessions: false,
 			timeout: 3600000,
 			allowSendingParameterValues: true,
 		},

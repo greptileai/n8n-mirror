@@ -17,6 +17,7 @@ import type {
 import { N8N_VERSION } from '@/constants';
 import { License } from '@/license';
 import { LoadNodesAndCredentials } from '@/load-nodes-and-credentials';
+import { WorkflowBuilderSessionRepository } from '@/modules/workflow-builder';
 import { Push } from '@/push';
 import { DynamicNodeParametersService } from '@/services/dynamic-node-parameters.service';
 import { UrlService } from '@/services/url.service';
@@ -45,6 +46,7 @@ export class WorkflowBuilderService {
 		private readonly telemetry: Telemetry,
 		private readonly instanceSettings: InstanceSettings,
 		private readonly dynamicNodeParametersService: DynamicNodeParametersService,
+		private readonly sessionRepository: WorkflowBuilderSessionRepository,
 	) {
 		// Register a post-processor to update node types when they change.
 		// This ensures newly installed/updated/uninstalled community packages are recognized
@@ -145,8 +147,14 @@ export class WorkflowBuilderService {
 		const { nodes: nodeTypeDescriptions } = this.loadNodesAndCredentials.types;
 		this.loadNodesAndCredentials.releaseTypes();
 
+		// Use persistent session storage if feature flag is enabled
+		const sessionStorage = this.config.ai.persistBuilderSessions
+			? this.sessionRepository
+			: undefined;
+
 		this.service = new AiWorkflowBuilderService(
 			nodeTypeDescriptions,
+			sessionStorage,
 			this.client,
 			this.logger,
 			this.instanceSettings.instanceId,

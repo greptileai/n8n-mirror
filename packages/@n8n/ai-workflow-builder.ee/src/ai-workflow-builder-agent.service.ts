@@ -13,6 +13,7 @@ import { LLMServiceError } from '@/errors';
 import { anthropicClaudeSonnet45 } from '@/llm-config';
 import { SessionManagerService } from '@/session-manager.service';
 import { ResourceLocatorCallbackFactory } from '@/types/callbacks';
+import { ISessionStorage } from '@/types/session-storage';
 import {
 	BuilderFeatureFlags,
 	WorkflowBuilderAgent,
@@ -31,6 +32,7 @@ export class AiWorkflowBuilderService {
 
 	constructor(
 		parsedNodeTypes: INodeTypeDescription[],
+		sessionStorage?: ISessionStorage,
 		private readonly client?: AiAssistantClient,
 		private readonly logger?: Logger,
 		private readonly instanceId?: string,
@@ -41,7 +43,7 @@ export class AiWorkflowBuilderService {
 		private readonly resourceLocatorCallbackFactory?: ResourceLocatorCallbackFactory,
 	) {
 		this.nodeTypes = this.filterNodeTypes(parsedNodeTypes);
-		this.sessionManager = new SessionManagerService(this.nodeTypes, logger);
+		this.sessionManager = new SessionManagerService(this.nodeTypes, sessionStorage, logger);
 	}
 
 	/**
@@ -237,15 +239,31 @@ export class AiWorkflowBuilderService {
 		const { agent } = await this.getAgent(user, payload.id, payload.featureFlags);
 		const userId = user?.id?.toString();
 		const workflowId = payload.workflowContext?.currentWorkflow?.id;
+		const threadId = SessionManagerService.generateThreadId(workflowId, userId);
 
-		for await (const output of agent.chat(payload, userId, abortSignal)) {
+		// Load historical messages from persistent storage to include in initial state
+		const historicalMessages = await this.sessionManager.loadSessionMessages(threadId);
+
+		for await (const output of agent.chat(
+			payload,
+			userId,
+			abortSignal,
+			undefined,
+			historicalMessages,
+		)) {
 			yield output;
 		}
+
+		// Save session to persistent storage after chat completes
+		// Get previousSummary from state if available (set during compaction)
+		const state = await agent.getState(workflowId, userId);
+		const previousSummary = state?.values?.previousSummary;
+		await this.sessionManager.saveSessionFromCheckpointer(threadId, previousSummary);
 
 		// Track telemetry after stream completes (onGenerationSuccess is called by the agent)
 		if (this.onTelemetryEvent && userId) {
 			try {
-				await this.trackBuilderReplyTelemetry(agent, workflowId, userId, payload.id);
+				await this.trackBuilderReplyTelemetry(agent, workflowId, userId, payload.id, threadId);
 			} catch (error) {
 				this.logger?.error('Failed to track builder reply telemetry', { error });
 			}
@@ -257,11 +275,11 @@ export class AiWorkflowBuilderService {
 		workflowId: string | undefined,
 		userId: string,
 		userMessageId: string,
+		threadId: string,
 	): Promise<void> {
 		if (!this.onTelemetryEvent) return;
 
 		const state = await agent.getState(workflowId, userId);
-		const threadId = SessionManagerService.generateThreadId(workflowId, userId);
 
 		// extract the last message that was sent to the user for telemetry
 		const lastAiMessage = state.values.messages.findLast(

@@ -6,6 +6,7 @@ import type { INodeTypeDescription } from 'n8n-workflow';
 
 import { SessionManagerService } from '@/session-manager.service';
 import { getBuilderToolsForDisplay } from '@/tools/builder-tools';
+import type { ISessionStorage, StoredSession } from '@/types/session-storage';
 import * as streamProcessor from '@/utils/stream-processor';
 
 jest.mock('@langchain/langgraph', () => ({
@@ -50,7 +51,7 @@ describe('SessionManagerService', () => {
 			{ role: 'assistant', content: 'Hi there!' },
 		]);
 
-		service = new SessionManagerService(mockParsedNodeTypes, mockLogger);
+		service = new SessionManagerService(mockParsedNodeTypes, undefined, mockLogger);
 	});
 
 	afterEach(() => {
@@ -344,7 +345,7 @@ describe('SessionManagerService', () => {
 				},
 			];
 
-			const customService = new SessionManagerService(customNodeTypes, mockLogger);
+			const customService = new SessionManagerService(customNodeTypes, undefined, mockLogger);
 			const workflowId = 'test-workflow';
 			const userId = 'test-user';
 			const mockCheckpoint = {
@@ -685,6 +686,372 @@ describe('SessionManagerService', () => {
 					},
 				}),
 			);
+		});
+	});
+
+	describe('with persistent storage', () => {
+		let mockStorage: jest.Mocked<ISessionStorage>;
+		let serviceWithStorage: SessionManagerService;
+
+		beforeEach(() => {
+			mockStorage = {
+				getSession: jest.fn(),
+				saveSession: jest.fn(),
+				deleteSession: jest.fn(),
+			};
+			serviceWithStorage = new SessionManagerService(mockParsedNodeTypes, mockStorage, mockLogger);
+		});
+
+		describe('loadSessionMessages', () => {
+			it('should return empty array when no storage configured', async () => {
+				const result = await service.loadSessionMessages('thread-123');
+				expect(result).toEqual([]);
+			});
+
+			it('should return empty array when no session exists in storage', async () => {
+				mockStorage.getSession.mockResolvedValue(null);
+
+				const result = await serviceWithStorage.loadSessionMessages('thread-123');
+
+				expect(result).toEqual([]);
+				expect(mockStorage.getSession).toHaveBeenCalledWith('thread-123');
+			});
+
+			it('should return empty array when session has no messages', async () => {
+				mockStorage.getSession.mockResolvedValue({
+					messages: [],
+					updatedAt: new Date(),
+				});
+
+				const result = await serviceWithStorage.loadSessionMessages('thread-123');
+
+				expect(result).toEqual([]);
+			});
+
+			it('should return messages from storage', async () => {
+				const storedMessages = [new HumanMessage('Hello'), new AIMessage('Hi there!')];
+				mockStorage.getSession.mockResolvedValue({
+					messages: storedMessages,
+					updatedAt: new Date(),
+				});
+
+				const result = await serviceWithStorage.loadSessionMessages('thread-123');
+
+				expect(result).toEqual(storedMessages);
+				expect(mockLogger.debug).toHaveBeenCalledWith('Loaded session messages from storage', {
+					threadId: 'thread-123',
+					messageCount: 2,
+				});
+			});
+
+			it('should strip cache_control markers from loaded messages', async () => {
+				const messageWithCache = new HumanMessage('Hello');
+				messageWithCache.content = [
+					{
+						type: 'text' as const,
+						text: 'Hello',
+						cache_control: { type: 'ephemeral' as const },
+					},
+				];
+				mockStorage.getSession.mockResolvedValue({
+					messages: [messageWithCache],
+					updatedAt: new Date(),
+				});
+
+				const result = await serviceWithStorage.loadSessionMessages('thread-123');
+
+				// Verify cache_control was stripped
+				const content = result[0].content as Array<{ cache_control?: unknown }>;
+				expect(content[0].cache_control).toBeUndefined();
+			});
+		});
+
+		describe('saveSessionFromCheckpointer', () => {
+			it('should do nothing when no storage configured', async () => {
+				await service.saveSessionFromCheckpointer('thread-123');
+
+				// Verify no storage operations were attempted
+				expect(mockStorage.saveSession).not.toHaveBeenCalled();
+				// Verify checkpointer was not accessed (no storage = no need to read checkpoint)
+				expect(mockMemorySaver.getTuple).not.toHaveBeenCalled();
+			});
+
+			it('should do nothing when no checkpoint exists', async () => {
+				(mockMemorySaver.getTuple as jest.Mock).mockResolvedValue(null);
+
+				await serviceWithStorage.saveSessionFromCheckpointer('thread-123');
+
+				expect(mockStorage.saveSession).not.toHaveBeenCalled();
+			});
+
+			it('should save messages from checkpointer to storage', async () => {
+				const messages = [new HumanMessage('Hello'), new AIMessage('Hi there!')];
+				(mockMemorySaver.getTuple as jest.Mock).mockResolvedValue({
+					checkpoint: {
+						channel_values: { messages },
+					},
+				});
+
+				await serviceWithStorage.saveSessionFromCheckpointer('thread-123');
+
+				expect(mockStorage.saveSession).toHaveBeenCalledWith('thread-123', {
+					messages,
+					previousSummary: undefined,
+					updatedAt: expect.any(Date),
+				});
+				expect(mockLogger.debug).toHaveBeenCalledWith('Saved session from checkpointer', {
+					threadId: 'thread-123',
+					messageCount: 2,
+				});
+			});
+
+			it('should include previousSummary when provided', async () => {
+				const messages = [new HumanMessage('Hello')];
+				(mockMemorySaver.getTuple as jest.Mock).mockResolvedValue({
+					checkpoint: {
+						channel_values: { messages },
+					},
+				});
+
+				await serviceWithStorage.saveSessionFromCheckpointer('thread-123', 'Previous summary text');
+
+				expect(mockStorage.saveSession).toHaveBeenCalledWith('thread-123', {
+					messages,
+					previousSummary: 'Previous summary text',
+					updatedAt: expect.any(Date),
+				});
+			});
+
+			it('should handle empty messages array', async () => {
+				(mockMemorySaver.getTuple as jest.Mock).mockResolvedValue({
+					checkpoint: {
+						channel_values: { messages: [] },
+					},
+				});
+
+				await serviceWithStorage.saveSessionFromCheckpointer('thread-123');
+
+				expect(mockStorage.saveSession).toHaveBeenCalledWith('thread-123', {
+					messages: [],
+					previousSummary: undefined,
+					updatedAt: expect.any(Date),
+				});
+			});
+
+			it('should handle invalid messages by saving empty array', async () => {
+				(mockMemorySaver.getTuple as jest.Mock).mockResolvedValue({
+					checkpoint: {
+						channel_values: { messages: [{ invalid: 'object' }] },
+					},
+				});
+
+				await serviceWithStorage.saveSessionFromCheckpointer('thread-123');
+
+				expect(mockStorage.saveSession).toHaveBeenCalledWith('thread-123', {
+					messages: [],
+					previousSummary: undefined,
+					updatedAt: expect.any(Date),
+				});
+			});
+		});
+
+		describe('getSessions with storage', () => {
+			it('should prefer storage over checkpointer when storage has data', async () => {
+				const storedMessages = [new HumanMessage('Stored message')];
+				const storedSession: StoredSession = {
+					messages: storedMessages,
+					updatedAt: new Date('2023-12-01T12:00:00Z'),
+				};
+				mockStorage.getSession.mockResolvedValue(storedSession);
+
+				const result = await serviceWithStorage.getSessions('test-workflow', 'test-user');
+
+				expect(result.sessions).toHaveLength(1);
+				expect(mockStorage.getSession).toHaveBeenCalled();
+				// Should not fall back to checkpointer
+				expect(mockMemorySaver.getTuple).not.toHaveBeenCalled();
+			});
+
+			it('should fall back to checkpointer when storage is empty', async () => {
+				mockStorage.getSession.mockResolvedValue(null);
+				(mockMemorySaver.getTuple as jest.Mock).mockResolvedValue({
+					checkpoint: {
+						channel_values: { messages: [new HumanMessage('Checkpoint message')] },
+						ts: '2023-12-01T12:00:00Z',
+					},
+				});
+
+				const result = await serviceWithStorage.getSessions('test-workflow', 'test-user');
+
+				expect(result.sessions).toHaveLength(1);
+				expect(mockStorage.getSession).toHaveBeenCalled();
+				expect(mockMemorySaver.getTuple).toHaveBeenCalled();
+			});
+		});
+
+		describe('clearSession', () => {
+			it('should delete from storage and clear in-memory checkpointer when configured', async () => {
+				const existingCheckpoint = {
+					checkpoint: {
+						channel_values: { messages: [new HumanMessage('Old message')] },
+						ts: '2023-12-01T12:00:00Z',
+					},
+					metadata: { source: 'input' as const, step: 1, parents: {} },
+				};
+				(mockMemorySaver.getTuple as jest.Mock).mockResolvedValue(existingCheckpoint);
+				(mockMemorySaver.put as jest.Mock).mockResolvedValue(undefined);
+
+				await serviceWithStorage.clearSession('thread-123');
+
+				// Verify storage was cleared
+				expect(mockStorage.deleteSession).toHaveBeenCalledWith('thread-123');
+
+				// Verify in-memory checkpointer was cleared with empty messages
+				expect(mockMemorySaver.put).toHaveBeenCalledWith(
+					{ configurable: { thread_id: 'thread-123' } },
+					expect.objectContaining({
+						channel_values: expect.objectContaining({ messages: [] }),
+					}),
+					existingCheckpoint.metadata,
+				);
+
+				expect(mockLogger.debug).toHaveBeenCalledWith('Session cleared', {
+					threadId: 'thread-123',
+				});
+			});
+
+			it('should clear in-memory checkpointer even when no storage configured', async () => {
+				const existingCheckpoint = {
+					checkpoint: {
+						channel_values: { messages: [new HumanMessage('Old message')] },
+						ts: '2023-12-01T12:00:00Z',
+					},
+					metadata: { source: 'input' as const, step: 1, parents: {} },
+				};
+				(mockMemorySaver.getTuple as jest.Mock).mockResolvedValue(existingCheckpoint);
+				(mockMemorySaver.put as jest.Mock).mockResolvedValue(undefined);
+
+				await service.clearSession('thread-123');
+
+				// Verify in-memory checkpointer was cleared
+				expect(mockMemorySaver.put).toHaveBeenCalledWith(
+					{ configurable: { thread_id: 'thread-123' } },
+					expect.objectContaining({
+						channel_values: expect.objectContaining({ messages: [] }),
+					}),
+					existingCheckpoint.metadata,
+				);
+
+				expect(mockLogger.debug).toHaveBeenCalledWith('Session cleared', {
+					threadId: 'thread-123',
+				});
+			});
+
+			it('should handle non-existent checkpointer state gracefully', async () => {
+				(mockMemorySaver.getTuple as jest.Mock).mockResolvedValue(null);
+
+				await service.clearSession('thread-123');
+
+				// Should not attempt to put when no existing checkpoint
+				expect(mockMemorySaver.put).not.toHaveBeenCalled();
+				expect(mockLogger.debug).toHaveBeenCalledWith('Session cleared', {
+					threadId: 'thread-123',
+				});
+			});
+
+			it('should continue even if checkpointer clear fails', async () => {
+				(mockMemorySaver.getTuple as jest.Mock).mockRejectedValue(new Error('Checkpointer error'));
+
+				await serviceWithStorage.clearSession('thread-123');
+
+				// Storage should still be cleared
+				expect(mockStorage.deleteSession).toHaveBeenCalledWith('thread-123');
+				// Should log the error but not fail
+				expect(mockLogger.debug).toHaveBeenCalledWith(
+					'Failed to clear in-memory checkpointer state',
+					expect.objectContaining({ threadId: 'thread-123' }),
+				);
+				expect(mockLogger.debug).toHaveBeenCalledWith('Session cleared', {
+					threadId: 'thread-123',
+				});
+			});
+		});
+
+		describe('getPreviousSummary', () => {
+			it('should return undefined when no storage configured', async () => {
+				const result = await service.getPreviousSummary('thread-123');
+				expect(result).toBeUndefined();
+			});
+
+			it('should return undefined when no session exists', async () => {
+				mockStorage.getSession.mockResolvedValue(null);
+
+				const result = await serviceWithStorage.getPreviousSummary('thread-123');
+
+				expect(result).toBeUndefined();
+			});
+
+			it('should return previousSummary from stored session', async () => {
+				mockStorage.getSession.mockResolvedValue({
+					messages: [],
+					previousSummary: 'Summary from previous conversation',
+					updatedAt: new Date(),
+				});
+
+				const result = await serviceWithStorage.getPreviousSummary('thread-123');
+
+				expect(result).toBe('Summary from previous conversation');
+			});
+		});
+
+		describe('truncateMessagesAfter with storage', () => {
+			it('should truncate from storage when available', async () => {
+				const msg1 = new HumanMessage('First');
+				msg1.additional_kwargs = { messageId: 'msg-1' };
+				const msg2 = new AIMessage('Second');
+				msg2.additional_kwargs = { messageId: 'msg-2' };
+
+				mockStorage.getSession.mockResolvedValue({
+					messages: [msg1, msg2],
+					previousSummary: 'Summary',
+					updatedAt: new Date(),
+				});
+				(mockMemorySaver.getTuple as jest.Mock).mockResolvedValue({
+					checkpoint: { channel_values: {} },
+				});
+				(mockMemorySaver.put as jest.Mock).mockResolvedValue(undefined);
+
+				const result = await serviceWithStorage.truncateMessagesAfter(
+					'test-workflow',
+					'test-user',
+					'msg-2',
+				);
+
+				expect(result).toBe(true);
+				expect(mockStorage.saveSession).toHaveBeenCalledWith(
+					expect.any(String),
+					expect.objectContaining({
+						messages: [msg1],
+						previousSummary: 'Summary',
+					}),
+				);
+			});
+
+			it('should return false when no stored session found', async () => {
+				mockStorage.getSession.mockResolvedValue(null);
+
+				const result = await serviceWithStorage.truncateMessagesAfter(
+					'test-workflow',
+					'test-user',
+					'msg-1',
+				);
+
+				expect(result).toBe(false);
+				expect(mockLogger.debug).toHaveBeenCalledWith(
+					'No stored session found for truncation',
+					expect.any(Object),
+				);
+			});
 		});
 	});
 });

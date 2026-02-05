@@ -65,6 +65,7 @@ import {
 	executeSubgraphTools,
 	extractUserRequest,
 	createStandardShouldContinue,
+	extractToolMessagesForPersistence,
 } from '../utils/subgraph-helpers';
 
 /**
@@ -484,12 +485,17 @@ export class BuilderSubgraph extends BaseSubgraph<
 			}),
 		};
 
+		// Extract tool-related messages for persistence (skip the first context message).
+		// This allows the frontend to restore UI state (execute button, tool history)
+		// after page refresh.
+		const toolMessages = extractToolMessagesForPersistence(subgraphOutput.messages);
+
 		return {
 			workflowJSON,
 			workflowOperations: subgraphOutput.workflowOperations ?? [],
 			coordinationLog: [logEntry],
 			cachedTemplates: subgraphOutput.cachedTemplates,
-			// NO messages - clean separation from user-facing conversation
+			messages: toolMessages,
 		};
 	}
 }
