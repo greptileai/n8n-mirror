@@ -70,29 +70,6 @@ export interface Item<T = IDataObject> {
  */
 export type Items<T = IDataObject> = Array<Item<T>>;
 
-export interface WorkflowSettings {
-	/** Timezone for the workflow (e.g., 'America/New_York') */
-	timezone?: string;
-	/** ID of the error handling workflow */
-	errorWorkflow?: string;
-	/** When to save data from error executions */
-	saveDataErrorExecution?: 'all' | 'none';
-	/** When to save data from successful executions */
-	saveDataSuccessExecution?: 'all' | 'none';
-	/** Whether to save manual execution data */
-	saveManualExecutions?: boolean;
-	/** Whether to save execution progress */
-	saveExecutionProgress?: boolean;
-	/** Execution timeout in seconds */
-	executionTimeout?: number;
-	/** Execution order version */
-	executionOrder?: 'v0' | 'v1';
-	/** Who can call this workflow */
-	callerPolicy?: 'any' | 'none' | 'workflowsFromAList' | 'workflowsFromSameOwner';
-	/** Comma-separated list of caller workflow IDs */
-	callerIds?: string;
-}
-
 export interface CredentialReference {
 	/** Display name of the credential */
 	name: string;
@@ -438,7 +415,6 @@ export interface SplitInBatchesBuilder {
  * @example
  * workflow('my-id', 'My Workflow')
  *   .add(trigger({ ... }).to(node({ ... })))
- *   .settings({ timezone: 'UTC' });
  */
 export interface WorkflowBuilder {
 	/** Workflow ID */
@@ -470,11 +446,6 @@ export interface WorkflowBuilder {
 	/** Alias for to() */
 	then<N extends NodeInstance<string, string, unknown>>(node: N): WorkflowBuilder;
 	then(splitInBatches: SplitInBatchesBuilder): WorkflowBuilder;
-
-	/**
-	 * Update workflow settings
-	 */
-	settings(settings: WorkflowSettings): WorkflowBuilder;
 }
 
 /**
@@ -510,13 +481,13 @@ export interface TriggerInput<
 }
 
 /**
- * workflow(id, name, settings?) - Creates a new workflow builder
+ * workflow(id, name) - Creates a new workflow builder
  *
  * @example
  * workflow('my-workflow', 'My Workflow', { timezone: 'UTC' })
  *   .add(trigger({ ... }).to(node({ ... })));
  */
-export type WorkflowFn = (id: string, name: string, settings?: WorkflowSettings) => WorkflowBuilder;
+export type WorkflowFn = (id: string, name: string) => WorkflowBuilder;
 
 /**
  * node(input) - Creates a regular node instance
