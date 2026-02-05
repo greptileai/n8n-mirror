@@ -233,61 +233,69 @@ const restoreWorkflowVersion = async (id: WorkflowVersionId) => {
 
 const publishWorkflowVersion = (id: WorkflowVersionId, data: WorkflowHistoryAction['data']) => {
 	const publishEventBus = createEventBus<WorkflowVersionFormModalEventBusEvents>();
+	const modalData = ref({
+		versionId: id,
+		versionName: data.versionName,
+		description: data.description,
+		modalTitle: i18n.baseText('workflows.publishModal.title'),
+		submitButtonLabel: i18n.baseText('workflows.publish'),
+		submitting: false,
+		eventBus: publishEventBus,
+	});
 
 	publishEventBus.once(
 		'submit',
 		async (submitData: { versionId: string; name: string; description: string }) => {
-			const { success } = await workflowActivate.publishWorkflow(workflowId.value, id, {
-				name: submitData.name,
-				description: submitData.description,
-			});
+			modalData.value.submitting = true;
 
-			if (success) {
-				// Refresh the active workflow to get the updated activeVersion with workflowPublishHistory
-				activeWorkflow.value = workflowsListStore.getWorkflowById(workflowId.value);
+			try {
+				const { success } = await workflowActivate.publishWorkflow(workflowId.value, id, {
+					name: submitData.name,
+					description: submitData.description,
+				});
 
-				// Update the history list with the new name, description, and workflowPublishHistory
-				const historyItem = workflowHistory.value.find(
-					(item) => item.versionId === submitData.versionId,
-				);
-				if (historyItem) {
-					historyItem.name = submitData.name;
-					historyItem.description = submitData.description;
-					// Update workflowPublishHistory from the store's activeVersion
-					if (activeWorkflow.value?.activeVersion?.workflowPublishHistory) {
-						historyItem.workflowPublishHistory =
-							activeWorkflow.value.activeVersion.workflowPublishHistory;
+				if (success) {
+					// Refresh the active workflow to get the updated activeVersion with workflowPublishHistory
+					activeWorkflow.value = workflowsListStore.getWorkflowById(workflowId.value);
+
+					// Update the history list with the new name, description, and workflowPublishHistory
+					const historyItem = workflowHistory.value.find(
+						(item) => item.versionId === submitData.versionId,
+					);
+					if (historyItem) {
+						historyItem.name = submitData.name;
+						historyItem.description = submitData.description;
+						// Update workflowPublishHistory from the store's activeVersion
+						if (activeWorkflow.value?.activeVersion?.workflowPublishHistory) {
+							historyItem.workflowPublishHistory =
+								activeWorkflow.value.activeVersion.workflowPublishHistory;
+						}
 					}
-				}
 
-				// Refresh the selected workflow version if it's the one that was published
-				if (selectedWorkflowVersion.value?.versionId === submitData.versionId) {
-					selectedWorkflowVersion.value = {
-						...selectedWorkflowVersion.value,
-						name: submitData.name,
-						description: submitData.description,
-						workflowPublishHistory:
-							activeWorkflow.value?.activeVersion?.workflowPublishHistory ??
-							selectedWorkflowVersion.value.workflowPublishHistory,
-					};
-				}
+					// Refresh the selected workflow version if it's the one that was published
+					if (selectedWorkflowVersion.value?.versionId === submitData.versionId) {
+						selectedWorkflowVersion.value = {
+							...selectedWorkflowVersion.value,
+							name: submitData.name,
+							description: submitData.description,
+							workflowPublishHistory:
+								activeWorkflow.value?.activeVersion?.workflowPublishHistory ??
+								selectedWorkflowVersion.value.workflowPublishHistory,
+						};
+					}
 
-				sendTelemetry('User published version from history');
-				uiStore.closeModal(WORKFLOW_HISTORY_PUBLISH_MODAL_KEY);
+					sendTelemetry('User published version from history');
+					uiStore.closeModal(WORKFLOW_HISTORY_PUBLISH_MODAL_KEY);
+				}
+			} finally {
+				modalData.value.submitting = false;
 			}
 		},
 	);
 
 	uiStore.openModalWithData({
 		name: WORKFLOW_HISTORY_PUBLISH_MODAL_KEY,
-		data: {
-			versionId: id,
-			versionName: data.versionName,
-			description: data.description,
-			modalTitle: i18n.baseText('workflows.publishModal.title'),
-			submitButtonLabel: i18n.baseText('workflows.publish'),
-			eventBus: publishEventBus,
-		},
+		data: modalData.value,
 	});
 };
 
@@ -327,10 +335,21 @@ const unpublishWorkflowVersion = (id: WorkflowVersionId, data: WorkflowHistoryAc
 
 const nameWorkflowVersion = async (id: WorkflowVersionId, data: WorkflowHistoryAction['data']) => {
 	const nameVersionEventBus = createEventBus<WorkflowVersionFormModalEventBusEvents>();
+	const modalData = ref({
+		versionId: id,
+		versionName: data.versionName,
+		description: data.description,
+		modalTitle: i18n.baseText('workflowHistory.nameVersionModal.title'),
+		submitButtonLabel: i18n.baseText('generic.nameVersion'),
+		submitting: false,
+		eventBus: nameVersionEventBus,
+	});
 
 	nameVersionEventBus.once(
 		'submit',
 		async (submitData: { versionId: string; name: string; description: string }) => {
+			modalData.value.submitting = true;
+
 			try {
 				await workflowHistoryStore.updateWorkflowHistoryVersion(workflowId.value, id, {
 					name: submitData.name,
@@ -363,20 +382,15 @@ const nameWorkflowVersion = async (id: WorkflowVersionId, data: WorkflowHistoryA
 				uiStore.closeModal(WORKFLOW_HISTORY_NAME_VERSION_MODAL_KEY);
 			} catch (error) {
 				toast.showError(error, i18n.baseText('workflowHistory.action.nameVersion.error.title'));
+			} finally {
+				modalData.value.submitting = false;
 			}
 		},
 	);
 
 	uiStore.openModalWithData({
 		name: WORKFLOW_HISTORY_NAME_VERSION_MODAL_KEY,
-		data: {
-			versionId: id,
-			versionName: data.versionName,
-			description: data.description,
-			modalTitle: i18n.baseText('workflowHistory.nameVersionModal.title'),
-			submitButtonLabel: i18n.baseText('generic.nameVersion'),
-			eventBus: nameVersionEventBus,
-		},
+		data: modalData.value,
 	});
 };
 

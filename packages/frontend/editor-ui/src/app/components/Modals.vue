@@ -108,7 +108,9 @@ import WorkflowActivationConflictingWebhookModal from '@/app/components/Workflow
 import WorkflowExtractionNameModal from '@/app/components/WorkflowExtractionNameModal.vue';
 import WorkflowHistoryVersionRestoreModal from '@/features/workflows/workflowHistory/components/WorkflowHistoryVersionRestoreModal.vue';
 import WorkflowHistoryVersionUnpublishModal from '@/features/workflows/workflowHistory/components/WorkflowHistoryVersionUnpublishModal.vue';
-import WorkflowVersionFormModal from '@/features/workflows/workflowHistory/components/WorkflowVersionFormModal.vue';
+import WorkflowVersionFormModal, {
+	type WorkflowVersionFormModalData,
+} from '@/features/workflows/workflowHistory/components/WorkflowVersionFormModal.vue';
 import WorkflowSettings from '@/app/components/WorkflowSettings.vue';
 import WorkflowShareModal from '@/app/components/WorkflowShareModal.ee.vue';
 import WorkflowDiffModal from '@/features/workflows/workflowDiff/WorkflowDiffModal.vue';
@@ -341,9 +343,7 @@ import CredentialResolverEditModal from '@/app/components/CredentialResolverEdit
 				<WorkflowVersionFormModal
 					data-test-id="workflow-history-name-version-modal"
 					:modal-name="modalName"
-					:modal-title="data.modalTitle"
-					:submit-button-label="data.submitButtonLabel"
-					:data="data"
+					:data="data as WorkflowVersionFormModalData"
 				/>
 			</template>
 		</ModalRoot>
@@ -460,9 +460,7 @@ import CredentialResolverEditModal from '@/app/components/CredentialResolverEdit
 			<template #default="{ modalName, data }">
 				<WorkflowVersionFormModal
 					:modal-name="modalName"
-					:modal-title="data.modalTitle"
-					:submit-button-label="data.submitButtonLabel"
-					:data="data"
+					:data="data as WorkflowVersionFormModalData"
 				/>
 			</template>
 		</ModalRoot>

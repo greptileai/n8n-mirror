@@ -58,10 +58,10 @@ describe('WorkflowVersionFormModal', () => {
 		const { getByTestId } = renderComponent({
 			props: {
 				modalName: TEST_MODAL_KEY,
-				modalTitle: 'Test Modal',
-				submitButtonLabel: 'Submit',
 				data: {
 					versionId: '12345678abcd',
+					modalTitle: 'Test Modal',
+					submitButtonLabel: 'Submit',
 					eventBus,
 				},
 			},
@@ -78,11 +78,11 @@ describe('WorkflowVersionFormModal', () => {
 		const { getByTestId } = renderComponent({
 			props: {
 				modalName: TEST_MODAL_KEY,
-				modalTitle: 'Test Modal',
-				submitButtonLabel: 'Submit',
 				data: {
 					versionId: '12345678abcd',
 					versionName: 'Custom Version Name',
+					modalTitle: 'Test Modal',
+					submitButtonLabel: 'Submit',
 					eventBus,
 				},
 			},
@@ -99,11 +99,11 @@ describe('WorkflowVersionFormModal', () => {
 		const { getByTestId } = renderComponent({
 			props: {
 				modalName: TEST_MODAL_KEY,
-				modalTitle: 'Test Modal',
-				submitButtonLabel: 'Submit',
 				data: {
 					versionId: '12345678abcd',
 					description: 'Custom description',
+					modalTitle: 'Test Modal',
+					submitButtonLabel: 'Submit',
 					eventBus,
 				},
 			},
@@ -123,12 +123,12 @@ describe('WorkflowVersionFormModal', () => {
 		const { getByTestId } = renderComponent({
 			props: {
 				modalName: TEST_MODAL_KEY,
-				modalTitle: 'Test Modal',
-				submitButtonLabel: 'Submit',
 				data: {
 					versionId: 'version-123',
 					versionName: 'Test Version',
 					description: 'Test Description',
+					modalTitle: 'Test Modal',
+					submitButtonLabel: 'Submit',
 					eventBus,
 				},
 			},
@@ -154,10 +154,10 @@ describe('WorkflowVersionFormModal', () => {
 		const { getByTestId } = renderComponent({
 			props: {
 				modalName: TEST_MODAL_KEY,
-				modalTitle: 'Test Modal',
-				submitButtonLabel: 'Submit',
 				data: {
 					versionId: 'version-123',
+					modalTitle: 'Test Modal',
+					submitButtonLabel: 'Submit',
 					eventBus,
 				},
 			},
@@ -176,11 +176,11 @@ describe('WorkflowVersionFormModal', () => {
 		const { getByTestId } = renderComponent({
 			props: {
 				modalName: TEST_MODAL_KEY,
-				modalTitle: 'Test Modal',
-				submitButtonLabel: 'Submit',
 				data: {
 					versionId: 'version-123',
 					versionName: '',
+					modalTitle: 'Test Modal',
+					submitButtonLabel: 'Submit',
 					eventBus,
 				},
 			},
@@ -197,11 +197,11 @@ describe('WorkflowVersionFormModal', () => {
 		const { getByTestId } = renderComponent({
 			props: {
 				modalName: TEST_MODAL_KEY,
-				modalTitle: 'Test Modal',
-				submitButtonLabel: 'Submit',
 				data: {
 					versionId: 'version-123',
 					versionName: '   ',
+					modalTitle: 'Test Modal',
+					submitButtonLabel: 'Submit',
 					eventBus,
 				},
 			},
@@ -221,11 +221,11 @@ describe('WorkflowVersionFormModal', () => {
 		const { getByTestId } = renderComponent({
 			props: {
 				modalName: TEST_MODAL_KEY,
-				modalTitle: 'Test Modal',
-				submitButtonLabel: 'Submit',
 				data: {
 					versionId: 'version-123',
 					versionName: '',
+					modalTitle: 'Test Modal',
+					submitButtonLabel: 'Submit',
 					eventBus,
 				},
 			},

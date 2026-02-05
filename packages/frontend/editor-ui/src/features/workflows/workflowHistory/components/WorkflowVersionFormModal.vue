@@ -5,7 +5,7 @@ import WorkflowVersionForm from '@/app/components/WorkflowVersionForm.vue';
 import { useI18n } from '@n8n/i18n';
 import { createEventBus } from '@n8n/utils/event-bus';
 import { useUIStore } from '@/app/stores/ui.store';
-import { ref, onMounted, onBeforeUnmount, useTemplateRef } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, useTemplateRef } from 'vue';
 import { generateVersionName } from '@/features/workflows/workflowHistory/utils';
 import type { EventBus } from '@n8n/utils/event-bus';
 
@@ -14,16 +14,19 @@ export type WorkflowVersionFormModalEventBusEvents = {
 	cancel: undefined;
 };
 
-const props = defineProps<{
-	modalName: string;
+export type WorkflowVersionFormModalData = {
+	versionId: string;
+	versionName?: string;
+	description?: string;
 	modalTitle: string;
 	submitButtonLabel: string;
-	data: {
-		versionId: string;
-		versionName?: string;
-		description?: string;
-		eventBus: EventBus<WorkflowVersionFormModalEventBusEvents>;
-	};
+	submitting?: boolean;
+	eventBus: EventBus<WorkflowVersionFormModalEventBusEvents>;
+};
+
+const props = defineProps<{
+	modalName: string;
+	data: WorkflowVersionFormModalData;
 }>();
 
 const i18n = useI18n();
@@ -34,6 +37,8 @@ const versionForm = useTemplateRef<InstanceType<typeof WorkflowVersionForm>>('ve
 
 const versionName = ref('');
 const description = ref('');
+
+const submitting = computed(() => props.data.submitting ?? false);
 
 function onModalOpened() {
 	versionForm.value?.focusInput();
@@ -66,14 +71,10 @@ const onCancel = () => {
 	closeModal();
 };
 
-const submitting = ref(false);
-
 const handleSubmit = () => {
 	if (versionName.value.trim().length === 0) {
 		return;
 	}
-
-	submitting.value = true;
 
 	props.data.eventBus.emit('submit', {
 		versionId: props.data.versionId,
@@ -93,7 +94,7 @@ const handleSubmit = () => {
 		:before-close="onCancel"
 	>
 		<template #header>
-			<N8nHeading size="xlarge">{{ modalTitle }}</N8nHeading>
+			<N8nHeading size="xlarge">{{ data.modalTitle }}</N8nHeading>
 		</template>
 		<template #content>
 			<div :class="$style.content">
@@ -115,7 +116,7 @@ const handleSubmit = () => {
 					<N8nButton
 						:loading="submitting"
 						:disabled="versionName.trim().length === 0"
-						:label="submitButtonLabel"
+						:label="data.submitButtonLabel"
 						:data-test-id="`${modalName}-submit-button`"
 						@click="handleSubmit"
 					/>

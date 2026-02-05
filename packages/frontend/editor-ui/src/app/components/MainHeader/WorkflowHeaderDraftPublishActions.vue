@@ -360,47 +360,56 @@ const onNameVersion = async () => {
 	}
 
 	const currentVersion = workflowsStore.workflow.versionId;
-	const currentWorkflow = workflowsStore.workflow;
 	const currentVersionData = workflowsStore.currentVersion;
 
 	const nameVersionEventBus = createEventBus<WorkflowVersionFormModalEventBusEvents>();
+	const modalData = ref({
+		versionId: currentVersion,
+		versionName: currentVersionData?.name ?? undefined,
+		description: currentVersionData?.description ?? undefined,
+		modalTitle: i18n.baseText('workflowHistory.nameVersionModal.title'),
+		submitButtonLabel: i18n.baseText('generic.nameVersion'),
+		submitting: false,
+		eventBus: nameVersionEventBus,
+	});
 
 	nameVersionEventBus.once(
 		'submit',
 		async (submitData: { versionId: string; name: string; description: string }) => {
-			await workflowHistoryStore.updateWorkflowHistoryVersion(props.id, currentVersion, {
-				name: submitData.name,
-				description: submitData.description,
-			});
+			modalData.value.submitting = true;
 
-			if (currentVersionData) {
-				const updatedVersion: WorkflowVersionMetadata = {
-					versionId: currentVersionData.versionId,
+			try {
+				await workflowHistoryStore.updateWorkflowHistoryVersion(props.id, currentVersion, {
 					name: submitData.name,
 					description: submitData.description,
-				};
-				workflowsStore.setWorkflowCurrentVersion(updatedVersion);
+				});
+
+				if (currentVersionData) {
+					const updatedVersion: WorkflowVersionMetadata = {
+						versionId: currentVersionData.versionId,
+						name: submitData.name,
+						description: submitData.description,
+					};
+					workflowsStore.setWorkflowCurrentVersion(updatedVersion);
+				}
+
+				toast.showMessage({
+					title: i18n.baseText('workflowHistory.action.nameVersion.success.title'),
+					type: 'success',
+				});
+
+				uiStore.closeModal(WORKFLOW_HISTORY_NAME_VERSION_MODAL_KEY);
+			} catch (error) {
+				toast.showError(error, i18n.baseText('workflowHistory.action.nameVersion.error.title'));
+			} finally {
+				modalData.value.submitting = false;
 			}
-
-			uiStore.closeModal(WORKFLOW_HISTORY_NAME_VERSION_MODAL_KEY);
-
-			toast.showMessage({
-				title: i18n.baseText('workflowHistory.action.nameVersion.success.title'),
-				type: 'success',
-			});
 		},
 	);
 
 	uiStore.openModalWithData({
 		name: WORKFLOW_HISTORY_NAME_VERSION_MODAL_KEY,
-		data: {
-			versionId: currentVersion,
-			versionName: currentVersionData?.name ?? undefined,
-			description: currentVersionData?.description ?? undefined,
-			modalTitle: i18n.baseText('workflowHistory.nameVersionModal.title'),
-			submitButtonLabel: i18n.baseText('generic.nameVersion'),
-			eventBus: nameVersionEventBus,
-		},
+		data: modalData.value,
 	});
 };
 
