@@ -23,7 +23,9 @@ import N8nTooltip from '../N8nTooltip';
 defineOptions({ name: 'N8nIconPicker' });
 
 // Create a searchable mapping of emojis to their metadata
-const emojiMetadataMap = ref<Map<string, { label: string; tags: string[]; hexcode: string }>>();
+const emojiMetadataMap = ref<
+	'loading' | Map<string, { label: string; tags: string[]; hexcode: string }>
+>();
 
 const emojiRanges = [
 	[0x1f600, 0x1f64f], // Emoticons
@@ -89,7 +91,9 @@ const filteredEmojis = computed(() => {
 
 	const query = searchQuery.value.toLowerCase();
 	return emojis.value.filter((emoji) => {
-		const metadata = emojiMetadataMap.value?.get(emoji);
+		const metadata =
+			emojiMetadataMap.value === 'loading' ? undefined : emojiMetadataMap.value?.get(emoji);
+
 		if (!metadata) {
 			return false;
 		}
@@ -102,6 +106,11 @@ const filteredEmojis = computed(() => {
 	});
 });
 
+const searchResults = computed(() => [
+	...filteredIcons.value.map<IconOrEmoji>((value) => ({ type: 'icon', value })),
+	...filteredEmojis.value.map<IconOrEmoji>((value) => ({ type: 'emoji', value })),
+]);
+
 onClickOutside(container, () => {
 	popupVisible.value = false;
 });
@@ -112,17 +121,15 @@ function selectIcon(value: IconOrEmoji) {
 }
 
 function selectRandom() {
-	if (emojis.value.length === 0) {
+	if (searchResults.value.length === 0) {
 		return;
 	}
 
-	model.value = {
-		type: 'emoji',
-		value: emojis.value[Math.floor(Math.random() * emojis.value.length)],
-	};
+	model.value = searchResults.value[Math.floor(Math.random() * searchResults.value.length)];
 }
 
 function togglePopup() {
+	void loadEmojiMetadataMap();
 	popupVisible.value = !popupVisible.value;
 	if (popupVisible.value) {
 		selectedTab.value = tabs[0].value;
@@ -138,6 +145,8 @@ async function loadEmojiMetadataMap() {
 	if (emojiMetadataMap.value) {
 		return;
 	}
+
+	emojiMetadataMap.value = 'loading';
 
 	const emojibaseData = await import('emojibase-data/en/compact.json');
 
@@ -220,25 +229,25 @@ async function loadEmojiMetadataMap() {
 			</div>
 			<div :class="$style.content">
 				<template v-if="searchQuery">
-					<!-- Show both icons and emojis when searching -->
-					<N8nIcon
-						v-for="icon in filteredIcons"
-						:key="`icon-${icon}`"
-						:icon="icon"
-						:class="$style.icon"
-						:size="24"
-						data-test-id="icon-picker-icon"
-						@click="selectIcon({ type: 'icon', value: icon })"
-					/>
-					<span
-						v-for="emoji in filteredEmojis"
-						:key="`emoji-${emoji}`"
-						:class="$style.emoji"
-						data-test-id="icon-picker-emoji"
-						@click="selectIcon({ type: 'emoji', value: emoji })"
-					>
-						{{ emoji }}
-					</span>
+					<template v-for="(iconOrEmoji, index) in searchResults" :key="index">
+						<N8nIcon
+							v-if="iconOrEmoji.type === 'icon'"
+							:icon="iconOrEmoji.value"
+							:class="$style.icon"
+							:size="24"
+							data-test-id="icon-picker-icon"
+							@click="selectIcon(iconOrEmoji)"
+						/>
+						<span
+							v-else
+							:key="iconOrEmoji.value"
+							:class="$style.emoji"
+							data-test-id="icon-picker-emoji"
+							@click="selectIcon(iconOrEmoji)"
+						>
+							{{ iconOrEmoji.value }}
+						</span>
+					</template>
 				</template>
 				<template v-else-if="selectedTab === 'icons'">
 					<N8nIcon
