@@ -24,6 +24,7 @@ import {
 import { ndvEventBus } from '@/features/ndv/shared/ndv.eventBus';
 import { useCredentialsStore } from '../credentials.store';
 import { useQuickConnect } from '../composables/useQuickConnect';
+import { useCredentialOAuth } from '../composables/useCredentialOAuth';
 import { usePostHog } from '@/app/stores/posthog.store';
 import QuickConnectSignInButton from './QuickConnectSignInButton.vue';
 import { useNDVStore } from '@/features/ndv/shared/ndv.store';
@@ -94,13 +95,8 @@ const { check: checkEnvFeatureFlag } = useEnvFeatureFlag();
 const isQuickConnectEnabled = computed(() =>
 	posthogStore.isVariantEnabled(QUICK_CONNECT_EXPERIMENT.name, 'variant'),
 );
-const {
-	shouldShowQuickConnectUI,
-	isGoogleOAuthType,
-	getSignInButtonText,
-	isOAuthCredentialType,
-	getParentTypes,
-} = useQuickConnect();
+const { hasQuickConnect, getSignInButtonText } = useQuickConnect();
+const { isOAuthCredentialType, authorizeOAuth } = useCredentialOAuth();
 
 const canCreateCredentials = computed(
 	() =>
@@ -525,11 +521,15 @@ function hasCredentialsForType(type: INodeCredentialDescription): boolean {
 }
 
 function showQuickConnectEmptyState(type: INodeCredentialDescription): boolean {
-	return !hasCredentialsForType(type) && shouldShowQuickConnectUI(type.name, props.node.type);
+	if (hasCredentialsForType(type)) return false;
+	// Quick connect takes priority, OAuth as fallback
+	return hasQuickConnect(type.name, props.node.type) || isOAuthCredentialType(type.name);
 }
 
 function showStandardEmptyState(type: INodeCredentialDescription): boolean {
-	return !hasCredentialsForType(type) && !shouldShowQuickConnectUI(type.name, props.node.type);
+	if (hasCredentialsForType(type)) return false;
+	// Standard empty state when no quick connect AND not OAuth
+	return !hasQuickConnect(type.name, props.node.type) && !isOAuthCredentialType(type.name);
 }
 
 async function onQuickConnectSignIn(credentialTypeName: string) {
@@ -539,10 +539,6 @@ async function onQuickConnectSignIn(credentialTypeName: string) {
 		return;
 	}
 
-	// For OAuth credentials, start the OAuth flow directly
-	subscribedToCredentialType.value = credentialTypeName;
-
-	// Create credential first
 	const credentialType = credentialsStore.getCredentialTypeByName(credentialTypeName);
 	if (!credentialType) {
 		return;
@@ -561,78 +557,17 @@ async function onQuickConnectSignIn(credentialTypeName: string) {
 		return;
 	}
 
-	// Get OAuth authorization URL
-	let url: string | undefined;
-	const types = getParentTypes(credentialTypeName);
+	subscribedToCredentialType.value = credentialTypeName;
 
-	try {
-		if (credentialTypeName === 'oAuth2Api' || types.includes('oAuth2Api')) {
-			url = await credentialsStore.oAuth2Authorize(credential);
-		} else if (credentialTypeName === 'oAuth1Api' || types.includes('oAuth1Api')) {
-			url = await credentialsStore.oAuth1Authorize(credential);
-		}
-	} catch (error) {
-		toast.showError(
-			error,
-			i18n.baseText('credentialEdit.credentialEdit.showError.generateAuthorizationUrl.title'),
-		);
-		return;
-	}
-
-	if (!url) {
-		toast.showError(
-			new Error(i18n.baseText('credentialEdit.credentialEdit.showError.invalidOAuthUrl.message')),
-			i18n.baseText('credentialEdit.credentialEdit.showError.invalidOAuthUrl.title'),
-		);
-		return;
-	}
-
-	// Validate URL protocol
-	try {
-		const parsedUrl = new URL(url);
-		if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
-			toast.showError(
-				new Error(i18n.baseText('credentialEdit.credentialEdit.showError.invalidOAuthUrl.message')),
-				i18n.baseText('credentialEdit.credentialEdit.showError.invalidOAuthUrl.title'),
-			);
-			return;
-		}
-	} catch {
-		toast.showError(
-			new Error(i18n.baseText('credentialEdit.credentialEdit.showError.invalidOAuthUrl.message')),
-			i18n.baseText('credentialEdit.credentialEdit.showError.invalidOAuthUrl.title'),
-		);
-		return;
-	}
-
-	// Open OAuth popup
-	const params =
-		'scrollbars=no,resizable=yes,status=no,titlebar=no,location=no,toolbar=no,menubar=no,width=500,height=700';
-	const oauthPopup = window.open(url, 'OAuth Authorization', params);
-
-	// Listen for OAuth callback
-	const oauthChannel = new BroadcastChannel('oauth-callback');
-	const receiveMessage = (event: MessageEvent) => {
-		const successfullyConnected = event.data === 'success';
-
-		if (successfullyConnected) {
-			oauthChannel.removeEventListener('message', receiveMessage);
-			oauthChannel.close();
-
-			if (oauthPopup) {
-				oauthPopup.close();
-			}
-
-			// Select the newly created credential for this node
+	await authorizeOAuth(credential, {
+		onSuccess: () => {
 			onCredentialSelected(credentialTypeName, credential.id);
-
 			toast.showMessage({
 				title: i18n.baseText('credentialEdit.credentialEdit.showMessage.title'),
 				type: 'success',
 			});
-		}
-	};
-	oauthChannel.addEventListener('message', receiveMessage);
+		},
+	});
 }
 </script>
 
@@ -666,7 +601,6 @@ async function onQuickConnectSignIn(credentialTypeName: string) {
 						<QuickConnectSignInButton
 							:credential-type-name="type.name"
 							:button-text="getSignInButtonText(type.name, node.type)"
-							:is-google="isGoogleOAuthType(type.name)"
 							@click="onQuickConnectSignIn(type.name)"
 						/>
 						<N8nLink
