@@ -5,9 +5,7 @@ export interface ZodClass<T = unknown, Shape extends z.ZodRawShape = z.ZodRawSha
 	schema: z.ZodObject<Shape>;
 	safeParse(data: unknown): z.SafeParseReturnType<unknown, T>;
 	parse(data: unknown): T;
-	extend<U extends z.ZodRawShape>(
-		shape: U,
-	): ZodClass<T & z.objectOutputType<U, z.ZodTypeAny>, Shape & U>;
+	extend<U extends z.ZodRawShape>(shape: U): ZodClass<T & z.infer<z.ZodObject<U>>, Shape & U>;
 }
 
 /**
@@ -31,9 +29,9 @@ export interface ZodClass<T = unknown, Shape extends z.ZodRawShape = z.ZodRawSha
  * ```
  */
 export const Z = {
-	class: <T extends z.ZodRawShape>(shape: T): ZodClass<z.objectOutputType<T, z.ZodTypeAny>, T> => {
+	class: <T extends z.ZodRawShape>(shape: T): ZodClass<z.infer<z.ZodObject<T>>, T> => {
 		const schema = z.object(shape);
-		type Output = z.objectOutputType<T, z.ZodTypeAny>;
+		type Output = z.infer<typeof schema>;
 
 		const DtoClass = class {
 			static schema = schema;
