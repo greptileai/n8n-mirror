@@ -24,7 +24,7 @@ const onTestNode = (_nodeName: string) => {
 </script>
 
 <template>
-	<div :class="$style.container">
+	<div :class="$style.container" data-test-id="setup-panel-cards-container">
 		<div
 			v-if="nodeSetupStates.length === 0"
 			:class="$style['empty-state']"
@@ -40,7 +40,7 @@ const onTestNode = (_nodeName: string) => {
 				</N8nText>
 			</div>
 		</div>
-		<div v-else data-test-id="setup-cards-list">
+		<div v-else :class="$style['card-list']" data-test-id="setup-cards-list">
 			<NodeSetupCard
 				v-for="state in nodeSetupStates"
 				:key="state.node.id"
@@ -59,9 +59,12 @@ const onTestNode = (_nodeName: string) => {
 </template>
 
 <style module lang="scss">
-.container {
+.container,
+.card-list {
 	display: flex;
+	flex: 1;
 	flex-direction: column;
+	width: 100%;
 	gap: var(--spacing--sm);
 }
 

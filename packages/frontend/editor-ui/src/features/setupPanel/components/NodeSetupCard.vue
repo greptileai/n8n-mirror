@@ -64,7 +64,7 @@ onMounted(() => {
 	<div
 		:class="[$style.card, { [$style.collapsed]: !expanded, [$style.completed]: state.isComplete }]"
 	>
-		<div :class="$style.header" @click="onHeaderClick">
+		<header :class="$style.header" @click="onHeaderClick">
 			<N8nIcon
 				v-if="!expanded && state.isComplete"
 				icon="check"
@@ -78,7 +78,7 @@ onMounted(() => {
 				:icon="expanded ? 'chevron-up' : 'chevron-down'"
 				size="small"
 			/>
-		</div>
+		</header>
 
 		<template v-if="expanded">
 			<div :class="$style.content">
@@ -121,7 +121,7 @@ onMounted(() => {
 				</div>
 			</div>
 
-			<div :class="$style.footer">
+			<footer :class="$style.footer">
 				<div v-if="state.isComplete" :class="$style['footer-complete-check']">
 					<N8nIcon icon="check" :class="$style['complete-icon']" size="large" />
 					<N8nText size="medium" color="success">
@@ -135,29 +135,28 @@ onMounted(() => {
 					size="small"
 					@click="onTestClick"
 				/>
-			</div>
+			</footer>
 		</template>
 	</div>
 </template>
 
 <style module lang="scss">
 .card {
-	min-width: 400px;
+	width: 100%;
 	display: flex;
 	flex-direction: column;
 	gap: var(--spacing--sm);
 	background-color: var(--color--background--light-2);
 	border: var(--border);
 	border-radius: var(--radius);
-	padding: var(--spacing--sm);
 }
 
 .header {
 	display: flex;
-	align-items: center;
 	gap: var(--spacing--xs);
 	cursor: pointer;
 	user-select: none;
+	padding: var(--spacing--sm) var(--spacing--sm) 0;
 
 	.card:not(.collapsed) & {
 		margin-bottom: var(--spacing--sm);
@@ -183,6 +182,7 @@ onMounted(() => {
 	display: flex;
 	flex-direction: column;
 	gap: var(--spacing--xs);
+	padding: 0 var(--spacing--sm);
 }
 
 .credential-container {
@@ -214,7 +214,8 @@ onMounted(() => {
 
 .footer {
 	display: flex;
-	justify-content: space-between;
+	justify-content: flex-end;
+	padding: 0 var(--spacing--sm) var(--spacing--sm);
 }
 
 .footer-complete-check {
@@ -224,12 +225,23 @@ onMounted(() => {
 }
 
 .card.collapsed {
+	.header {
+		padding: var(--spacing--sm);
+	}
+
 	.node-name {
 		color: var(--color--text--tint-1);
+		overflow: hidden;
+		white-space: nowrap;
+		text-overflow: ellipsis;
 	}
 }
 
 .card.completed {
 	border-color: var(--color--success);
+
+	.footer {
+		justify-content: space-between;
+	}
 }
 </style>
