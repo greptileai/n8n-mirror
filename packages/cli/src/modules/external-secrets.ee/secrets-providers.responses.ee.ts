@@ -10,7 +10,7 @@ export declare namespace SecretsProvidersResponses {
 	// Full type for detail responses (includes redacted settings)
 	type Connection = Omit<SecretProviderConnection, 'secretsCount' | 'state' | 'isEnabled'>;
 
-	// Deprecated: Alias to ConnectionListItem for backward compatibility
+	/** @deprecated: use ConnectionListItem instead **/
 	type StrippedConnection = ConnectionListItem;
 
 	type PublicConnection = Promise<Connection>;
