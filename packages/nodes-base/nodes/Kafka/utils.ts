@@ -395,7 +395,7 @@ export function configureDataEmitter(
 }
 
 /**
- * Determines auto-commit settings based on node version and offset resolution configuration
+ * Determines auto-commit settings based on node's optons
  * @param options - Kafka trigger options
  * @returns Object with auto-commit configuration
  */
