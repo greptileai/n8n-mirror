@@ -77,24 +77,25 @@ export class DynamicNodeParametersService {
 			payload.projectId = undefined;
 		}
 
-		if (payload.workflowId) {
-			if (
-				!(await userHasScopes(user, ['workflow:read'], false, {
-					workflowId: payload.workflowId,
-				}))
-			) {
-				this.logger.warn(
-					`Scrubbed inaccessible workflowId ${payload.workflowId} from DynamicNodeParameters request`,
-				);
-				payload.workflowId = undefined;
-			} else if (payload.projectId === undefined) {
-				const project = await this.sharedWorkflowRepository.getWorkflowOwningProject(
-					payload.workflowId,
-				);
-				if (project) {
-					payload.projectId = project.id;
-				}
-			}
+		if (!payload.workflowId) return;
+
+		const hasAccess = await userHasScopes(user, ['workflow:read'], false, {
+			workflowId: payload.workflowId,
+		});
+
+		if (!hasAccess) {
+			this.logger.warn(
+				`Scrubbed inaccessible workflowId ${payload.workflowId} from DynamicNodeParameters request`,
+			);
+			payload.workflowId = undefined;
+			return;
+		}
+
+		if (payload.projectId === undefined) {
+			const project = await this.sharedWorkflowRepository.getWorkflowOwningProject(
+				payload.workflowId,
+			);
+			payload.projectId = project?.id;
 		}
 	}
 
