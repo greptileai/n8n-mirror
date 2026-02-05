@@ -23,6 +23,8 @@ export namespace ChatRequest {
 		expression: string;
 		resolvedValue?: unknown;
 		nodeType: string;
+		/** Parameter path where the expression is located (e.g., 'url', 'headers.authorization') */
+		parameterPath?: string;
 	}
 
 	export interface WorkflowContext {

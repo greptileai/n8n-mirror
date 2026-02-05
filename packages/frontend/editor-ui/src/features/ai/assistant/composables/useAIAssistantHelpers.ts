@@ -488,6 +488,7 @@ export const useAIAssistantHelpers = () => {
 			// Uses a WeakSet to track visited objects and prevent infinite recursion on cycles
 			const extractExpressions = async (
 				params: unknown,
+				path: string = '',
 				visited = new WeakSet<object>(),
 			): Promise<void> => {
 				if (typeof params === 'string' && params.startsWith('=')) {
@@ -517,6 +518,7 @@ export const useAIAssistantHelpers = () => {
 						expression: trimmedExpression,
 						resolvedValue: trimValue(resolved),
 						nodeType: node.type,
+						parameterPath: path,
 					});
 				} else if (Array.isArray(params)) {
 					// Check if we've already visited this array to prevent cycles
@@ -524,8 +526,8 @@ export const useAIAssistantHelpers = () => {
 						return;
 					}
 					visited.add(params);
-					for (const item of params) {
-						await extractExpressions(item, visited);
+					for (let i = 0; i < params.length; i++) {
+						await extractExpressions(params[i], `${path}[${i}]`, visited);
 					}
 				} else if (typeof params === 'object' && params !== null) {
 					// Check if we've already visited this object to prevent cycles
@@ -533,13 +535,14 @@ export const useAIAssistantHelpers = () => {
 						return;
 					}
 					visited.add(params);
-					for (const value of Object.values(params)) {
-						await extractExpressions(value, visited);
+					for (const [key, value] of Object.entries(params)) {
+						const newPath = path ? `${path}.${key}` : key;
+						await extractExpressions(value, newPath, visited);
 					}
 				}
 			};
 
-			await extractExpressions(node.parameters);
+			await extractExpressions(node.parameters, '');
 
 			// Only add to map if node has expressions
 			if (nodeExpressions.length > 0) {

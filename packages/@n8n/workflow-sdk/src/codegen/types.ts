@@ -109,4 +109,6 @@ export interface ExpressionValue {
 	resolvedValue: unknown;
 	/** Optional node type context */
 	nodeType?: string;
+	/** Parameter path where the expression is located (e.g., 'url', 'parameters.body') */
+	parameterPath?: string;
 }
