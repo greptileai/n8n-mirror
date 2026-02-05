@@ -127,6 +127,7 @@ export function useWorkflowState() {
 
 	function setWorkflowSettings(workflowSettings: IWorkflowSettings) {
 		ws.private.setWorkflowSettings(workflowSettings);
+		uiStore.markStateDirty();
 	}
 
 	function setWorkflowTagIds(tags: string[]) {
