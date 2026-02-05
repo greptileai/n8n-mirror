@@ -7,6 +7,7 @@ import { MessageEventBus } from '@/eventbus/message-event-bus/message-event-bus'
 import { EventService } from '@/events/event.service';
 import type { RelayEventMap, UserLike } from '@/events/maps/relay.event-map';
 import { EventRelay } from '@/events/relays/event-relay';
+import { assertNever } from '@/utils';
 
 type WorkflowExecutedEvent = RelayEventMap['workflow-executed'];
 type WorkflowExecutedEventWithUser = WorkflowExecutedEvent & { user: UserLike };
@@ -843,10 +844,8 @@ export class LogStreamingEventRelay extends EventRelay {
 					payload: user,
 				});
 				break;
-			default: {
-				const _exhaustive: never = settingName;
-				throw new Error(`Unhandled settingName: ${_exhaustive as string}`);
-			}
+			default:
+				assertNever(settingName);
 		}
 	}
 
