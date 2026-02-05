@@ -1,18 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, fireEvent, waitFor } from '@testing-library/vue';
-import ChatMessageWithButtons from './ChatMessageWithButtons.vue';
+import ChatButtons from './ChatButtons.vue';
 import type { ChatHubMessageButton } from '@n8n/api-types';
 
-// Mock ChatMarkdownChunk component
-vi.mock('./ChatMarkdownChunk.vue', () => ({
-	default: {
-		name: 'ChatMarkdownChunk',
-		props: ['source'],
-		template: '<div data-test-id="markdown-chunk">{{ source.content }}</div>',
-	},
-}));
-
-describe('ChatMessageWithButtons', () => {
+describe('ChatButtons', () => {
 	const mockButtons: ChatHubMessageButton[] = [
 		{ text: 'Approve', link: 'https://example.com/approve', type: 'primary' },
 		{ text: 'Reject', link: 'https://example.com/reject', type: 'secondary' },
@@ -30,22 +21,9 @@ describe('ChatMessageWithButtons', () => {
 		global.fetch = originalFetch;
 	});
 
-	it('should render text content', () => {
-		const { getByTestId } = render(ChatMessageWithButtons, {
-			props: {
-				text: 'Please approve this action',
-				buttons: mockButtons,
-				isWaiting: true,
-			},
-		});
-
-		expect(getByTestId('markdown-chunk').textContent).toBe('Please approve this action');
-	});
-
 	it('should render all buttons when isWaiting is true', () => {
-		const { getByText } = render(ChatMessageWithButtons, {
+		const { getByText } = render(ChatButtons, {
 			props: {
-				text: 'Choose an option',
 				buttons: mockButtons,
 				isWaiting: true,
 			},
@@ -56,9 +34,8 @@ describe('ChatMessageWithButtons', () => {
 	});
 
 	it('should have enabled buttons when isWaiting is true', () => {
-		const { getByText } = render(ChatMessageWithButtons, {
+		const { getByText } = render(ChatButtons, {
 			props: {
-				text: 'Choose an option',
 				buttons: mockButtons,
 				isWaiting: true,
 			},
@@ -72,9 +49,8 @@ describe('ChatMessageWithButtons', () => {
 	});
 
 	it('should have disabled buttons when isWaiting is false', () => {
-		const { getByText } = render(ChatMessageWithButtons, {
+		const { getByText } = render(ChatButtons, {
 			props: {
-				text: 'Choose an option',
 				buttons: mockButtons,
 				isWaiting: false,
 			},
@@ -88,9 +64,8 @@ describe('ChatMessageWithButtons', () => {
 	});
 
 	it('should make fetch request when button is clicked', async () => {
-		const { getByText } = render(ChatMessageWithButtons, {
+		const { getByText } = render(ChatButtons, {
 			props: {
-				text: 'Choose an option',
 				buttons: mockButtons,
 				isWaiting: true,
 			},
@@ -102,9 +77,8 @@ describe('ChatMessageWithButtons', () => {
 	});
 
 	it('should show only clicked button after successful click', async () => {
-		const { getByText, queryByText } = render(ChatMessageWithButtons, {
+		const { getByText, queryByText } = render(ChatButtons, {
 			props: {
-				text: 'Choose an option',
 				buttons: mockButtons,
 				isWaiting: true,
 			},
@@ -119,9 +93,8 @@ describe('ChatMessageWithButtons', () => {
 	});
 
 	it('should disable clicked button after successful click', async () => {
-		const { getByText } = render(ChatMessageWithButtons, {
+		const { getByText } = render(ChatButtons, {
 			props: {
-				text: 'Choose an option',
 				buttons: mockButtons,
 				isWaiting: true,
 			},
@@ -136,9 +109,8 @@ describe('ChatMessageWithButtons', () => {
 	});
 
 	it('should not make fetch request when button is already clicked', async () => {
-		const { getByText } = render(ChatMessageWithButtons, {
+		const { getByText } = render(ChatButtons, {
 			props: {
-				text: 'Choose an option',
 				buttons: mockButtons,
 				isWaiting: true,
 			},
@@ -154,9 +126,8 @@ describe('ChatMessageWithButtons', () => {
 	});
 
 	it('should not make fetch request when isWaiting is false', async () => {
-		const { getByText } = render(ChatMessageWithButtons, {
+		const { getByText } = render(ChatButtons, {
 			props: {
-				text: 'Choose an option',
 				buttons: mockButtons,
 				isWaiting: false,
 			},
@@ -171,9 +142,8 @@ describe('ChatMessageWithButtons', () => {
 	it('should not hide buttons when fetch fails', async () => {
 		fetchMock.mockResolvedValue({ ok: false });
 
-		const { getByText } = render(ChatMessageWithButtons, {
+		const { getByText } = render(ChatButtons, {
 			props: {
-				text: 'Choose an option',
 				buttons: mockButtons,
 				isWaiting: true,
 			},
@@ -193,9 +163,8 @@ describe('ChatMessageWithButtons', () => {
 			{ text: 'Continue', link: 'https://example.com/continue', type: 'primary' },
 		];
 
-		const { getByText } = render(ChatMessageWithButtons, {
+		const { getByText } = render(ChatButtons, {
 			props: {
-				text: 'Click to continue',
 				buttons: singleButton,
 				isWaiting: true,
 			},
@@ -212,9 +181,8 @@ describe('ChatMessageWithButtons', () => {
 		});
 		fetchMock.mockReturnValueOnce(firstFetchPromise);
 
-		const { getByText } = render(ChatMessageWithButtons, {
+		const { getByText } = render(ChatButtons, {
 			props: {
-				text: 'Choose an option',
 				buttons: mockButtons,
 				isWaiting: true,
 			},
@@ -249,9 +217,8 @@ describe('ChatMessageWithButtons', () => {
 		});
 		fetchMock.mockReturnValueOnce(firstFetchPromise);
 
-		const { getByText } = render(ChatMessageWithButtons, {
+		const { getByText } = render(ChatButtons, {
 			props: {
-				text: 'Choose an option',
 				buttons: mockButtons,
 				isWaiting: true,
 			},

@@ -7,7 +7,6 @@ import type {
 	ChatMessageId,
 	ChatModelDto,
 } from '@n8n/api-types';
-import ChatMessageWithButtons from '@/features/ai/chatHub/components/ChatMessageWithButtons.vue';
 import { N8nButton, N8nIcon, N8nIconButton, N8nInput } from '@n8n/design-system';
 import { useSpeechSynthesis } from '@vueuse/core';
 import {
@@ -79,10 +78,6 @@ const newFiles = ref<File[]>([]);
 const removedExistingIndices = ref<Set<number>>(new Set());
 const fileInputRef = useTemplateRef<HTMLInputElement>('fileInputRef');
 const textareaRef = useTemplateRef<InstanceType<typeof N8nInput>>('textarea');
-const buttonMessage = computed(() => {
-	const chunk = message.content.find((c) => c.type === 'with-buttons');
-	return chunk?.type === 'with-buttons' ? chunk : null;
-});
 const markdownChunkRefs = useTemplateRef<
 	Array<ComponentPublicInstance<{
 		hoveredCodeBlockActions: HTMLElement | null;
@@ -117,7 +112,7 @@ const messageChunks = computed(() =>
 		}
 
 		if (chunk.type === 'with-buttons') {
-			return [];
+			return [chunk];
 		}
 
 		if (chunk.type === 'artifact-create' || chunk.type === 'artifact-edit') {
@@ -130,8 +125,8 @@ const messageChunks = computed(() =>
 			return [{ type: 'text', content: i18n.baseText('chatHub.message.error.unknown') }];
 		}
 
-		return splitMarkdownIntoChunks(chunk.content).flatMap((chunk) =>
-			chunk.trim() === '' ? [] : [{ type: 'text', content: chunk }],
+		return splitMarkdownIntoChunks(chunk.content).flatMap((content) =>
+			content.trim() === '' ? [] : [{ type: 'text', content }],
 		);
 	}),
 );
@@ -175,7 +170,11 @@ const mergedAttachments = computed(() => [
 ]);
 
 const hideMessage = computed(() => {
-	return message.status === 'success' && text.value === '' && !buttonMessage.value;
+	return (
+		message.status === 'success' &&
+		text.value === '' &&
+		!message.content.some((c) => c.type === 'with-buttons')
+	);
 });
 
 const shouldShowTypingIndicator = computed(() => message.status === 'running');
@@ -393,18 +392,13 @@ onBeforeMount(() => {
 					<div v-if="message.type === 'human'">
 						{{ text }}
 					</div>
-					<ChatMessageWithButtons
-						v-else-if="buttonMessage"
-						:text="buttonMessage.content"
-						:buttons="buttonMessage.buttons"
-						:is-waiting="message.status === 'waiting'"
-					/>
 					<div v-else :class="$style.markdownContent">
 						<ChatMarkdownChunk
 							v-for="(chunk, index) in messageChunks"
 							ref="markdownChunk"
 							:key="index"
 							:source="chunk"
+							:is-buttons-disabled="message.status !== 'waiting'"
 							@open-artifact="emit('openArtifact', $event)"
 						/>
 						<Teleport v-if="activeCodeBlockTeleport" :to="activeCodeBlockTeleport.target">

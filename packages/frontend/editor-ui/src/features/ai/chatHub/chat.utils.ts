@@ -578,6 +578,5 @@ export function isWaitingForApproval(message: ChatMessage | null | undefined): b
 		return false;
 	}
 
-	const buttonChunk = message.content.find((c) => c.type === 'with-buttons');
-	return buttonChunk?.type === 'with-buttons' && buttonChunk.blockUserInput;
+	return message.content.some((c) => c.type === 'with-buttons' && c.blockUserInput);
 }
