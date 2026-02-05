@@ -485,7 +485,7 @@ describe('deactivateWorkflow()', () => {
 
 describe('getMany()', () => {
 	describe('filtering by personal project', () => {
-		test('[SECURITY] should return empty when regular user queries another users personal project', async () => {
+		test('should return empty when regular user queries another users personal project', async () => {
 			const member1 = await createMember();
 			const member2 = await createMember();
 
@@ -512,7 +512,7 @@ describe('getMany()', () => {
 			expect(result.count).toBe(0);
 		});
 
-		test('[SECURITY] should allow admin with global workflow:read to query another users personal project', async () => {
+		test('should allow admin with global workflow:read to query another users personal project', async () => {
 			const owner = await createOwner(); // Owner has global workflow:read scope
 			const member = await createMember();
 
