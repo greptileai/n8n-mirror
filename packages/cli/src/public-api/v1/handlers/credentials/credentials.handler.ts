@@ -17,6 +17,7 @@ import {
 	validCredentialsPropertiesForUpdate,
 } from './credentials.middleware';
 import {
+	buildProjectsForCredential,
 	createCredential,
 	CredentialsIsNotUpdatableError,
 	encryptCredential,
@@ -46,7 +47,12 @@ export = {
 			req: CredentialRequest.GetAll,
 			res: express.Response,
 		): Promise<
-			express.Response<{ data: Partial<CredentialsEntity>[]; nextCursor: string | null }>
+			express.Response<{
+				data: Array<
+					Partial<CredentialsEntity> & { projects: ReturnType<typeof buildProjectsForCredential> }
+				>;
+				nextCursor: string | null;
+			}>
 		> => {
 			const offset = Number(req.query.offset) || 0;
 			const limit = Math.min(Number(req.query.limit) || 100, 250);
@@ -56,7 +62,12 @@ export = {
 				skip: offset,
 			});
 
-			const data = sanitizeCredentials(credentials);
+			const data = (sanitizeCredentials(credentials) as Partial<CredentialsEntity>[]).map(
+				(sanitized, index) => ({
+					...sanitized,
+					projects: buildProjectsForCredential(credentials[index] as CredentialsEntity),
+				}),
+			);
 
 			return res.json({
 				data,

@@ -196,6 +196,25 @@ describe('GET /credentials', () => {
 			expect(item).toHaveProperty('type');
 			expect(item).toHaveProperty('createdAt');
 			expect(item).toHaveProperty('updatedAt');
+			expect(item).toHaveProperty('projects');
+			expect(Array.isArray((item as { projects: unknown }).projects)).toBe(true);
+			(
+				item as {
+					projects: {
+						id: string;
+						name: string;
+						role: string;
+						createdAt: string;
+						updatedAt: string;
+					}[];
+				}
+			).projects.forEach((proj) => {
+				expect(proj).toHaveProperty('id');
+				expect(proj).toHaveProperty('name');
+				expect(proj).toHaveProperty('role');
+				expect(proj).toHaveProperty('createdAt');
+				expect(proj).toHaveProperty('updatedAt');
+			});
 			expect(item).not.toHaveProperty('data');
 			expect(item).not.toHaveProperty('shared');
 		});
