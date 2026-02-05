@@ -18,6 +18,7 @@ import {
 	type FindOptionsRelations,
 	type FindOptionsWhere,
 } from '@n8n/typeorm';
+import get from 'lodash/get';
 import { CredentialDataError, Credentials, ErrorReporter } from 'n8n-core';
 import type {
 	ICredentialDataDecryptedObject,
@@ -43,16 +44,23 @@ import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
 import { NotFoundError } from '@/errors/response-errors/not-found.error';
 import { ExternalHooks } from '@/external-hooks';
 import { validateEntity } from '@/generic-helpers';
+import { ExternalSecretsConfig } from '@/modules/external-secrets.ee/external-secrets.config';
+import { SecretsProviderAccessCheckService } from '@/modules/external-secrets.ee/secret-provider-access-check.service.ee';
+import { validateOAuthUrl } from '@/oauth/validate-oauth-url';
 import { userHasScopes } from '@/permissions.ee/check-access';
 import type { CredentialRequest, ListQuery } from '@/requests';
 import { CredentialsTester } from '@/services/credentials-tester.service';
 import { OwnershipService } from '@/services/ownership.service';
 import { ProjectService } from '@/services/project.service.ee';
 import { RoleService } from '@/services/role.service';
-import { validateOAuthUrl } from '@/oauth/validate-oauth-url';
+import { getAllKeyPaths } from '@/utils';
 
 import { CredentialsFinderService } from './credentials-finder.service';
-import { validateExternalSecretsPermissions } from './validation';
+import {
+	containsExternalSecretExpression,
+	extractProviderKey,
+	validateExternalSecretsPermissions,
+} from './validation';
 
 export type CredentialsGetSharedOptions =
 	| { allowGlobalScope: true; globalScope: Scope }
@@ -79,6 +87,8 @@ export class CredentialsService {
 		private readonly userRepository: UserRepository,
 		private readonly credentialsFinderService: CredentialsFinderService,
 		private readonly credentialsHelper: CredentialsHelper,
+		private readonly externalSecretsConfig: ExternalSecretsConfig,
+		private readonly externalSecretsProviderAccessCheckService: SecretsProviderAccessCheckService,
 	) {}
 
 	private async addGlobalCredentials(
@@ -458,6 +468,9 @@ export class CredentialsService {
 		decryptedData: ICredentialDataDecryptedObject,
 	): Promise<CredentialsEntity> {
 		validateExternalSecretsPermissions(user, data.data, decryptedData);
+		if (data.projectId && data.data) {
+			await this.checkAccessToReferencedSecretProviders(data.projectId, data.data);
+		}
 
 		const mergedData = deepCopy(data);
 		if (mergedData.data) {
@@ -901,9 +914,94 @@ export class CredentialsService {
 				}
 			}
 		}
-
 		validateExternalSecretsPermissions(user, data);
 		this.validateOAuthCredentialUrls(type, data);
+	}
+
+	/**
+	 * Validates that the project has access to all external secret providers referenced in credential data.
+	 *
+	 * Call validateExternalSecretsPermissions before this one.
+	 *
+	 * @param projectId - The project ID to check access for
+	 * @param data - The credential data that may contain external secret expressions
+	 * @throws BadRequestError if any providers are inaccessible.
+	 */
+	async checkAccessToReferencedSecretProviders(
+		projectId: string,
+		data: ICredentialDataDecryptedObject,
+	) {
+		// Skip validation if project-scoped external secrets feature is disabled
+		if (!this.externalSecretsConfig.externalSecretsForProjects) {
+			return;
+		}
+
+		const secretPaths = getAllKeyPaths(data, '', [], containsExternalSecretExpression);
+		if (secretPaths.length === 0) {
+			return; // No external secrets referenced, nothing to check
+		}
+
+		// Track which credential fields use which providers
+		const providerToFieldsMap = new Map<string, string[]>();
+
+		for (const path of secretPaths) {
+			const value = get(data, path);
+			if (typeof value === 'string') {
+				const providerKey = extractProviderKey(value);
+				if (providerKey) {
+					if (!providerToFieldsMap.has(providerKey)) {
+						providerToFieldsMap.set(providerKey, []);
+					}
+					const fields = providerToFieldsMap.get(providerKey);
+					if (fields) {
+						fields.push(path);
+					}
+				}
+			}
+		}
+
+		// Validate access for all providers in batch
+		const inaccessibleProviders = new Map<string, string[]>();
+
+		if (providerToFieldsMap.size > 0) {
+			const providerKeys = Array.from(providerToFieldsMap.keys());
+
+			// Check all providers in parallel
+			await Promise.all(
+				providerKeys.map(async (providerKey) => {
+					const hasAccess =
+						await this.externalSecretsProviderAccessCheckService.canAccessProviderFromProject(
+							providerKey,
+							projectId,
+						);
+
+					if (!hasAccess) {
+						const fields = providerToFieldsMap.get(providerKey);
+						if (fields) {
+							inaccessibleProviders.set(providerKey, fields);
+						}
+					}
+				}),
+			);
+		}
+
+		// Throw error if any providers are inaccessible
+		if (inaccessibleProviders.size > 0) {
+			if (inaccessibleProviders.size === 1) {
+				const [providerKey, fields] = Array.from(inaccessibleProviders.entries())[0];
+				const credentialDataKey = fields[0];
+				throw new BadRequestError(
+					`The secret provider "${providerKey}" used in "${credentialDataKey}" does not exist in this project`,
+				);
+			} else {
+				const providerList = Array.from(inaccessibleProviders.keys())
+					.map((p) => `"${p}"`)
+					.join(', ');
+				throw new BadRequestError(
+					`The secret providers ${providerList} do not exist in this project`,
+				);
+			}
+		}
 	}
 
 	/**
@@ -944,6 +1042,12 @@ export class CredentialsService {
 
 	private async createCredential(opts: CreateCredentialOptions, user: User) {
 		this.checkCredentialData(opts.type, opts.data as ICredentialDataDecryptedObject, user);
+		if (opts.projectId) {
+			await this.checkAccessToReferencedSecretProviders(
+				opts.projectId,
+				opts.data as ICredentialDataDecryptedObject,
+			);
+		}
 		const encryptedCredential = this.createEncryptedData({
 			id: null,
 			name: opts.name,

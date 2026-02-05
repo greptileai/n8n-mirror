@@ -12,8 +12,35 @@ import { getAllKeyPaths } from '@/utils';
  * Checks if a string value contains an external secret expression.
  * Detects both dot notation ($secrets.vault.key) and bracket notation ($secrets['vault']['key']).
  */
-function containsExternalSecretExpression(value: string): boolean {
+export function containsExternalSecretExpression(value: string): boolean {
 	return value.includes('$secrets.') || value.includes('$secrets[');
+}
+
+/**
+ * Extracts the provider key from an external secret expression.
+ * Supports both dot notation ($secrets.vault.key) and bracket notation ($secrets['vault']['key']).
+ *
+ * @param expression - The expression string containing $secrets reference
+ * @returns The provider key, or null if extraction fails
+ *
+ * @example
+ * extractProviderKey("={{ $secrets.vault.myKey }}") // returns "vault"
+ * extractProviderKey("={{ $secrets['aws']['secret'] }}") // returns "aws"
+ */
+export function extractProviderKey(expression: string): string | null {
+	// Handle dot notation: $secrets.providerKey.secretName
+	const dotMatch = expression.match(/\$secrets\.([a-zA-Z0-9_-]+)/);
+	if (dotMatch) {
+		return dotMatch[1];
+	}
+
+	// Handle bracket notation: $secrets['providerKey'] or $secrets["providerKey"]
+	const bracketMatch = expression.match(/\$secrets\[['"]([a-zA-Z0-9_-]+)['"]\]/);
+	if (bracketMatch) {
+		return bracketMatch[1];
+	}
+
+	return null;
 }
 
 /**
