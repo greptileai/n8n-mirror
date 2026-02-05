@@ -10,15 +10,17 @@ describe('WorkflowVersionForm', () => {
 	});
 
 	it('should render version name and description inputs', () => {
-		const { container } = renderComponent({
+		const { getByTestId } = renderComponent({
 			props: {
 				versionName: '',
 				description: '',
+				versionNameTestId: 'version-name-input',
+				descriptionTestId: 'description-input',
 			},
 		});
 
-		expect(container.querySelector('#workflow-version-name')).toBeInTheDocument();
-		expect(container.querySelector('#workflow-version-description')).toBeInTheDocument();
+		expect(getByTestId('version-name-input')).toBeInTheDocument();
+		expect(getByTestId('description-input')).toBeInTheDocument();
 	});
 
 	it('should update versionName model when input changes', async () => {
@@ -101,14 +103,15 @@ describe('WorkflowVersionForm', () => {
 	});
 
 	it('should expose focusInput method', () => {
-		const { container } = renderComponent({
+		const { getByTestId } = renderComponent({
 			props: {
 				versionName: 'Initial name',
 				description: '',
+				versionNameTestId: 'version-name-input',
 			},
 		});
 
-		const component = container.querySelector('[id="workflow-version-name"]');
+		const component = getByTestId('version-name-input');
 		expect(component).toBeInTheDocument();
 	});
 });

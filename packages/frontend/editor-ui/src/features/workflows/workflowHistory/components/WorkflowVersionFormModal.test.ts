@@ -3,14 +3,14 @@ import { createComponentRenderer } from '@/__tests__/render';
 import { cleanup, waitFor } from '@testing-library/vue';
 import userEvent from '@testing-library/user-event';
 import { createEventBus } from '@n8n/utils/event-bus';
-import WorkflowHistoryVersionFormModal, {
-	type WorkflowHistoryVersionFormModalEventBusEvents,
-} from './WorkflowHistoryVersionFormModal.vue';
+import WorkflowVersionFormModal, {
+	type WorkflowVersionFormModalEventBusEvents,
+} from './WorkflowVersionFormModal.vue';
 import { STORES } from '@n8n/stores';
 
 const TEST_MODAL_KEY = 'test-modal';
 
-const renderComponent = createComponentRenderer(WorkflowHistoryVersionFormModal, {
+const renderComponent = createComponentRenderer(WorkflowVersionFormModal, {
 	pinia: createTestingPinia({
 		initialState: {
 			[STORES.UI]: {
@@ -48,13 +48,13 @@ const renderComponent = createComponentRenderer(WorkflowHistoryVersionFormModal,
 	},
 });
 
-describe('WorkflowHistoryVersionFormModal', () => {
+describe('WorkflowVersionFormModal', () => {
 	afterEach(() => {
 		cleanup();
 	});
 
 	it('should generate version name from versionId if not provided', async () => {
-		const eventBus = createEventBus<WorkflowHistoryVersionFormModalEventBusEvents>();
+		const eventBus = createEventBus<WorkflowVersionFormModalEventBusEvents>();
 		const { getByTestId } = renderComponent({
 			props: {
 				modalName: TEST_MODAL_KEY,
@@ -62,8 +62,6 @@ describe('WorkflowHistoryVersionFormModal', () => {
 				submitButtonLabel: 'Submit',
 				data: {
 					versionId: '12345678abcd',
-					workflowId: 'workflow-1',
-					formattedCreatedAt: '2024-01-01',
 					eventBus,
 				},
 			},
@@ -76,7 +74,7 @@ describe('WorkflowHistoryVersionFormModal', () => {
 	});
 
 	it('should use provided versionName if available', async () => {
-		const eventBus = createEventBus<WorkflowHistoryVersionFormModalEventBusEvents>();
+		const eventBus = createEventBus<WorkflowVersionFormModalEventBusEvents>();
 		const { getByTestId } = renderComponent({
 			props: {
 				modalName: TEST_MODAL_KEY,
@@ -84,8 +82,6 @@ describe('WorkflowHistoryVersionFormModal', () => {
 				submitButtonLabel: 'Submit',
 				data: {
 					versionId: '12345678abcd',
-					workflowId: 'workflow-1',
-					formattedCreatedAt: '2024-01-01',
 					versionName: 'Custom Version Name',
 					eventBus,
 				},
@@ -99,7 +95,7 @@ describe('WorkflowHistoryVersionFormModal', () => {
 	});
 
 	it('should use provided description if available', async () => {
-		const eventBus = createEventBus<WorkflowHistoryVersionFormModalEventBusEvents>();
+		const eventBus = createEventBus<WorkflowVersionFormModalEventBusEvents>();
 		const { getByTestId } = renderComponent({
 			props: {
 				modalName: TEST_MODAL_KEY,
@@ -107,8 +103,6 @@ describe('WorkflowHistoryVersionFormModal', () => {
 				submitButtonLabel: 'Submit',
 				data: {
 					versionId: '12345678abcd',
-					workflowId: 'workflow-1',
-					formattedCreatedAt: '2024-01-01',
 					description: 'Custom description',
 					eventBus,
 				},
@@ -122,7 +116,7 @@ describe('WorkflowHistoryVersionFormModal', () => {
 	});
 
 	it('should emit submit event with correct data when submit button is clicked', async () => {
-		const eventBus = createEventBus<WorkflowHistoryVersionFormModalEventBusEvents>();
+		const eventBus = createEventBus<WorkflowVersionFormModalEventBusEvents>();
 		const submitHandler = vi.fn();
 		eventBus.on('submit', submitHandler);
 
@@ -133,8 +127,6 @@ describe('WorkflowHistoryVersionFormModal', () => {
 				submitButtonLabel: 'Submit',
 				data: {
 					versionId: 'version-123',
-					workflowId: 'workflow-1',
-					formattedCreatedAt: '2024-01-01',
 					versionName: 'Test Version',
 					description: 'Test Description',
 					eventBus,
@@ -155,7 +147,7 @@ describe('WorkflowHistoryVersionFormModal', () => {
 	});
 
 	it('should emit cancel event when cancel button is clicked', async () => {
-		const eventBus = createEventBus<WorkflowHistoryVersionFormModalEventBusEvents>();
+		const eventBus = createEventBus<WorkflowVersionFormModalEventBusEvents>();
 		const cancelHandler = vi.fn();
 		eventBus.on('cancel', cancelHandler);
 
@@ -166,8 +158,6 @@ describe('WorkflowHistoryVersionFormModal', () => {
 				submitButtonLabel: 'Submit',
 				data: {
 					versionId: 'version-123',
-					workflowId: 'workflow-1',
-					formattedCreatedAt: '2024-01-01',
 					eventBus,
 				},
 			},
@@ -182,7 +172,7 @@ describe('WorkflowHistoryVersionFormModal', () => {
 	});
 
 	it('should disable submit button when version name is empty', async () => {
-		const eventBus = createEventBus<WorkflowHistoryVersionFormModalEventBusEvents>();
+		const eventBus = createEventBus<WorkflowVersionFormModalEventBusEvents>();
 		const { getByTestId } = renderComponent({
 			props: {
 				modalName: TEST_MODAL_KEY,
@@ -190,8 +180,6 @@ describe('WorkflowHistoryVersionFormModal', () => {
 				submitButtonLabel: 'Submit',
 				data: {
 					versionId: 'version-123',
-					workflowId: 'workflow-1',
-					formattedCreatedAt: '2024-01-01',
 					versionName: '',
 					eventBus,
 				},
@@ -205,7 +193,7 @@ describe('WorkflowHistoryVersionFormModal', () => {
 	});
 
 	it('should disable submit button when version name is only whitespace', async () => {
-		const eventBus = createEventBus<WorkflowHistoryVersionFormModalEventBusEvents>();
+		const eventBus = createEventBus<WorkflowVersionFormModalEventBusEvents>();
 		const { getByTestId } = renderComponent({
 			props: {
 				modalName: TEST_MODAL_KEY,
@@ -213,8 +201,6 @@ describe('WorkflowHistoryVersionFormModal', () => {
 				submitButtonLabel: 'Submit',
 				data: {
 					versionId: 'version-123',
-					workflowId: 'workflow-1',
-					formattedCreatedAt: '2024-01-01',
 					versionName: '   ',
 					eventBus,
 				},
@@ -228,7 +214,7 @@ describe('WorkflowHistoryVersionFormModal', () => {
 	});
 
 	it('should not submit when version name is empty', async () => {
-		const eventBus = createEventBus<WorkflowHistoryVersionFormModalEventBusEvents>();
+		const eventBus = createEventBus<WorkflowVersionFormModalEventBusEvents>();
 		const submitHandler = vi.fn();
 		eventBus.on('submit', submitHandler);
 
@@ -239,8 +225,6 @@ describe('WorkflowHistoryVersionFormModal', () => {
 				submitButtonLabel: 'Submit',
 				data: {
 					versionId: 'version-123',
-					workflowId: 'workflow-1',
-					formattedCreatedAt: '2024-01-01',
 					versionName: '',
 					eventBus,
 				},

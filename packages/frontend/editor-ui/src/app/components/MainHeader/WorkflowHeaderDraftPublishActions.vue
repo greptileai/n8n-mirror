@@ -38,7 +38,7 @@ import { useCollaborationStore } from '@/features/collaboration/collaboration/co
 import { useWorkflowActivate } from '@/app/composables/useWorkflowActivate';
 import { useToast } from '@/app/composables/useToast';
 import { createEventBus } from '@n8n/utils/event-bus';
-import type { WorkflowHistoryNameVersionModalEventBusEvents } from '@/features/workflows/workflowHistory/components/WorkflowHistoryNameVersionModal.vue';
+import type { WorkflowVersionFormModalEventBusEvents } from '@/features/workflows/workflowHistory/components/WorkflowVersionFormModal.vue';
 import { useWorkflowHistoryStore } from '@/features/workflows/workflowHistory/workflowHistory.store';
 import type { WorkflowVersionMetadata } from '@n8n/rest-api-client/api/workflowHistory';
 import { useKeybindings } from '@/app/composables/useKeybindings';
@@ -312,16 +312,16 @@ const latestPublishDate = computed(() => {
 	return latestPublish?.createdAt;
 });
 
-const enum PUBLISH_ACTIONS {
+const enum VERSION_ACTIONS {
 	PUBLISH = 'publish',
 	NAME_VERSION = 'name-version',
 	UNPUBLISH = 'unpublish',
 }
 
-const dropdownMenuActions = computed<Array<ActionDropdownItem<PUBLISH_ACTIONS>>>(() => {
-	const actions: Array<ActionDropdownItem<PUBLISH_ACTIONS>> = [
+const versionMenuActions = computed<Array<ActionDropdownItem<VERSION_ACTIONS>>>(() => {
+	const actions: Array<ActionDropdownItem<VERSION_ACTIONS>> = [
 		{
-			id: PUBLISH_ACTIONS.PUBLISH,
+			id: VERSION_ACTIONS.PUBLISH,
 			label: i18n.baseText('workflows.publish'),
 			shortcut: { keys: ['P'] },
 			disabled: shouldDisablePublishButton.value,
@@ -330,7 +330,7 @@ const dropdownMenuActions = computed<Array<ActionDropdownItem<PUBLISH_ACTIONS>>>
 
 	if (isNamedVersionsEnabled.value) {
 		actions.push({
-			id: PUBLISH_ACTIONS.NAME_VERSION,
+			id: VERSION_ACTIONS.NAME_VERSION,
 			label: i18n.baseText('generic.nameVersion'),
 			shortcut: { metaKey: true, keys: ['S'] },
 			disabled: !hasUpdatePermission.value || !workflowsStore.workflow.versionId,
@@ -339,7 +339,7 @@ const dropdownMenuActions = computed<Array<ActionDropdownItem<PUBLISH_ACTIONS>>>
 
 	if (activeVersion.value && hasPublishPermission.value && !collaborationReadOnly.value) {
 		actions.push({
-			id: PUBLISH_ACTIONS.UNPUBLISH,
+			id: VERSION_ACTIONS.UNPUBLISH,
 			label: i18n.baseText('workflows.unpublish'),
 			disabled: false,
 			divided: true,
@@ -363,21 +363,21 @@ const onNameVersion = async () => {
 	const currentWorkflow = workflowsStore.workflow;
 	const currentVersionData = workflowsStore.currentVersion;
 
-	const nameVersionEventBus = createEventBus<WorkflowHistoryNameVersionModalEventBusEvents>();
+	const nameVersionEventBus = createEventBus<WorkflowVersionFormModalEventBusEvents>();
 
 	nameVersionEventBus.once(
-		'save',
-		async (saveData: { versionId: string; name: string; description: string }) => {
+		'submit',
+		async (submitData: { versionId: string; name: string; description: string }) => {
 			await workflowHistoryStore.updateWorkflowHistoryVersion(props.id, currentVersion, {
-				name: saveData.name,
-				description: saveData.description,
+				name: submitData.name,
+				description: submitData.description,
 			});
 
 			if (currentVersionData) {
 				const updatedVersion: WorkflowVersionMetadata = {
 					versionId: currentVersionData.versionId,
-					name: saveData.name,
-					description: saveData.description,
+					name: submitData.name,
+					description: submitData.description,
 				};
 				workflowsStore.setWorkflowCurrentVersion(updatedVersion);
 			}
@@ -395,10 +395,10 @@ const onNameVersion = async () => {
 		name: WORKFLOW_HISTORY_NAME_VERSION_MODAL_KEY,
 		data: {
 			versionId: currentVersion,
-			workflowId: props.id,
-			formattedCreatedAt: new Date(currentWorkflow.updatedAt).toISOString(),
 			versionName: currentVersionData?.name ?? undefined,
 			description: currentVersionData?.description ?? undefined,
+			modalTitle: i18n.baseText('workflowHistory.nameVersionModal.title'),
+			submitButtonLabel: i18n.baseText('generic.nameVersion'),
 			eventBus: nameVersionEventBus,
 		},
 	});
@@ -434,15 +434,15 @@ const onUnpublish = () => {
 	});
 };
 
-const onDropdownMenuSelect = async (action: PUBLISH_ACTIONS) => {
+const onDropdownMenuSelect = async (action: VERSION_ACTIONS) => {
 	switch (action) {
-		case PUBLISH_ACTIONS.PUBLISH:
+		case VERSION_ACTIONS.PUBLISH:
 			await onPublishButtonClick();
 			break;
-		case PUBLISH_ACTIONS.NAME_VERSION:
+		case VERSION_ACTIONS.NAME_VERSION:
 			await onNameVersion();
 			break;
-		case PUBLISH_ACTIONS.UNPUBLISH:
+		case VERSION_ACTIONS.UNPUBLISH:
 			onUnpublish();
 			break;
 		default:
@@ -542,9 +542,9 @@ defineExpose({
 					</N8nButton>
 				</N8nTooltip>
 				<N8nActionDropdown
-					:items="dropdownMenuActions"
+					:items="versionMenuActions"
 					placement="bottom-end"
-					data-test-id="workflow-dropdown"
+					data-test-id="version-menu"
 					@select="onDropdownMenuSelect"
 				>
 					<template #activator>
@@ -553,7 +553,7 @@ defineExpose({
 							:disabled="shouldDisableDropdownButton"
 							type="secondary"
 							icon="chevron-down"
-							data-test-id="workflow-dropdown-button"
+							data-test-id="version-menu-button"
 						/>
 					</template>
 				</N8nActionDropdown>

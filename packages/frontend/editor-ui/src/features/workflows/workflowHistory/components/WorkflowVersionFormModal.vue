@@ -9,7 +9,7 @@ import { ref, onMounted, onBeforeUnmount, useTemplateRef } from 'vue';
 import { generateVersionName } from '@/features/workflows/workflowHistory/utils';
 import type { EventBus } from '@n8n/utils/event-bus';
 
-export type WorkflowHistoryVersionFormModalEventBusEvents = {
+export type WorkflowVersionFormModalEventBusEvents = {
 	submit: { versionId: string; name: string; description: string };
 	cancel: undefined;
 };
@@ -20,11 +20,9 @@ const props = defineProps<{
 	submitButtonLabel: string;
 	data: {
 		versionId: string;
-		workflowId: string;
-		formattedCreatedAt: string;
 		versionName?: string;
 		description?: string;
-		eventBus: EventBus<WorkflowHistoryVersionFormModalEventBusEvents>;
+		eventBus: EventBus<WorkflowVersionFormModalEventBusEvents>;
 	};
 }>();
 

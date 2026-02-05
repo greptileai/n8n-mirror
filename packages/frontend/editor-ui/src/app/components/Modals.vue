@@ -108,7 +108,7 @@ import WorkflowActivationConflictingWebhookModal from '@/app/components/Workflow
 import WorkflowExtractionNameModal from '@/app/components/WorkflowExtractionNameModal.vue';
 import WorkflowHistoryVersionRestoreModal from '@/features/workflows/workflowHistory/components/WorkflowHistoryVersionRestoreModal.vue';
 import WorkflowHistoryVersionUnpublishModal from '@/features/workflows/workflowHistory/components/WorkflowHistoryVersionUnpublishModal.vue';
-import WorkflowHistoryNameVersionModal from '@/features/workflows/workflowHistory/components/WorkflowHistoryNameVersionModal.vue';
+import WorkflowVersionFormModal from '@/features/workflows/workflowHistory/components/WorkflowVersionFormModal.vue';
 import WorkflowSettings from '@/app/components/WorkflowSettings.vue';
 import WorkflowShareModal from '@/app/components/WorkflowShareModal.ee.vue';
 import WorkflowDiffModal from '@/features/workflows/workflowDiff/WorkflowDiffModal.vue';
@@ -121,7 +121,6 @@ import VariableModal from '@/features/settings/environments.ee/components/Variab
 import StopManyExecutionsModal from './StopManyExecutionsModal.vue';
 import WorkflowDescriptionModal from '@/app/components/WorkflowDescriptionModal.vue';
 import WorkflowPublishModal from '@/app/components/MainHeader/WorkflowPublishModal.vue';
-import WorkflowHistoryPublishModal from '@/features/workflows/workflowHistory/components/WorkflowHistoryPublishModal.vue';
 import UpdatesPanel from './UpdatesPanel.vue';
 import CredentialResolverEditModal from '@/app/components/CredentialResolverEditModal.vue';
 </script>
@@ -339,9 +338,11 @@ import CredentialResolverEditModal from '@/app/components/CredentialResolverEdit
 
 		<ModalRoot :name="WORKFLOW_HISTORY_NAME_VERSION_MODAL_KEY">
 			<template #default="{ modalName, data }">
-				<WorkflowHistoryNameVersionModal
+				<WorkflowVersionFormModal
 					data-test-id="workflow-history-name-version-modal"
 					:modal-name="modalName"
+					:modal-title="data.modalTitle"
+					:submit-button-label="data.submitButtonLabel"
 					:data="data"
 				/>
 			</template>
@@ -457,7 +458,12 @@ import CredentialResolverEditModal from '@/app/components/CredentialResolverEdit
 
 		<ModalRoot :name="WORKFLOW_HISTORY_PUBLISH_MODAL_KEY">
 			<template #default="{ modalName, data }">
-				<WorkflowHistoryPublishModal :modal-name="modalName" :data="data" />
+				<WorkflowVersionFormModal
+					:modal-name="modalName"
+					:modal-title="data.modalTitle"
+					:submit-button-label="data.submitButtonLabel"
+					:data="data"
+				/>
 			</template>
 		</ModalRoot>
 
