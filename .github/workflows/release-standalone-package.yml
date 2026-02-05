@@ -15,6 +15,7 @@ on:
           - '@n8n/eslint-plugin-community-nodes'
           - '@n8n/node-cli'
           - '@n8n/scan-community-package'
+# All packages listed above require OIDC enabled in NPM. https://docs.npmjs.com/trusted-publishers
 
 concurrency:
   group: release-package-${{ github.event.inputs.package }}
