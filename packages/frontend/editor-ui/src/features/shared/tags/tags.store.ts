@@ -128,10 +128,12 @@ const createTagsStore = (id: typeof STORES.TAGS | typeof STORES.ANNOTATION_TAGS)
 				if (deleted) {
 					deleteTag(id);
 
-					// Update workflowDocumentStore (source of truth)
-					const workflowDocumentId = createWorkflowDocumentId(workflowsStore.workflowId);
-					const workflowDocumentStore = useWorkflowDocumentStore(workflowDocumentId);
-					workflowDocumentStore.removeTag(id);
+					// Update workflowDocumentStore (source of truth) if a workflow is active
+					if (workflowsStore.workflowId) {
+						const workflowDocumentId = createWorkflowDocumentId(workflowsStore.workflowId);
+						const workflowDocumentStore = useWorkflowDocumentStore(workflowDocumentId);
+						workflowDocumentStore.removeTag(id);
+					}
 				}
 
 				return deleted;
