@@ -130,11 +130,11 @@ export class SecretsProvidersConnectionsService {
 	}
 
 	async getGlobalCompletions(): Promise<SecretsProviderConnection[]> {
-		return await this.repository.findGlobalConnections();
+		return await this.repository.findGlobalConnections(false);
 	}
 
 	async getProjectCompletions(projectId: string): Promise<SecretsProviderConnection[]> {
-		return await this.repository.findByProjectId(projectId);
+		return await this.repository.findByProjectId(projectId, false);
 	}
 
 	async listConnectionsForProject(projectId: string): Promise<SecretsProviderConnection[]> {
