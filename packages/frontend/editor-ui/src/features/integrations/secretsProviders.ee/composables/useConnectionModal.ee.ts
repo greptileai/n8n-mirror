@@ -247,8 +247,8 @@ export function useConnectionModal(options: UseConnectionModalOptions) {
 		originalConnectionName.value = connectionName.value.trim();
 
 		// Test connection automatically
-		if (connectionId.value) {
-			await connection.testConnection(connectionId.value);
+		if (providerKey.value) {
+			await connection.testConnection(providerKey.value);
 		}
 
 		return true;
@@ -258,7 +258,7 @@ export function useConnectionModal(options: UseConnectionModalOptions) {
 	 * Updates an existing secrets provider connection
 	 */
 	async function updateExistingConnection(): Promise<boolean> {
-		if (!providerKey.value || !connectionId.value || !selectedProviderType.value) return false;
+		if (!providerKey.value || !selectedProviderType.value) return false;
 
 		const updateData = {
 			isGlobal: true,
@@ -273,7 +273,7 @@ export function useConnectionModal(options: UseConnectionModalOptions) {
 		originalConnectionName.value = connectionName.value.trim();
 
 		// Test connection automatically
-		await connection.testConnection(connectionId.value);
+		await connection.testConnection(providerKey.value);
 
 		return true;
 	}
