@@ -195,15 +195,21 @@ export = {
 				}
 
 				if (projectId) {
-					const workflows = await Container.get(WorkflowFinderService).findAllWorkflowsForUser(
+					const workflowIds = await Container.get(WorkflowFinderService).findAllWorkflowIdsForUser(
 						req.user,
 						['workflow:read'],
 						undefined,
 						projectId,
-						true,
 					);
 
-					where.id = In(workflows.map(({ id }) => id));
+					if (workflowIds.length === 0) {
+						return res.status(200).json({
+							data: [],
+							nextCursor: null,
+						});
+					}
+
+					where.id = In(workflowIds);
 				}
 			} else {
 				const options: { workflowIds?: string[] } = {};
@@ -214,28 +220,25 @@ export = {
 					);
 				}
 
-				let workflows = await Container.get(WorkflowFinderService).findAllWorkflowsForUser(
+				let workflowIds = await Container.get(WorkflowFinderService).findAllWorkflowIdsForUser(
 					req.user,
 					['workflow:read'],
 					undefined,
 					projectId,
-					true,
 				);
 
 				if (options.workflowIds) {
-					const workflowIds = options.workflowIds;
-					workflows = workflows.filter((wf) => workflowIds.includes(wf.id));
+					workflowIds = options.workflowIds.filter((id) => workflowIds.includes(id));
 				}
 
-				if (!workflows.length) {
+				if (!workflowIds.length) {
 					return res.status(200).json({
 						data: [],
 						nextCursor: null,
 					});
 				}
 
-				const workflowsIds = workflows.map((wf) => wf.id);
-				where.id = In(workflowsIds);
+				where.id = In(workflowIds);
 			}
 
 			const selectFields: Array<keyof WorkflowEntity> = [
