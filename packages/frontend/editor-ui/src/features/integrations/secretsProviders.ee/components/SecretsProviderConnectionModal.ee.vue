@@ -108,19 +108,18 @@ const scopeReadonly = computed(() => !modal.canUpdate.value && !modal.canRemoveP
 watch(
 	() => modal.connectionProjects.value,
 	async (projects: ConnectionProjectSummary[]) => {
-		const project = projects?.[0];
-		if (!project) {
+		if (projects.length === 0) {
 			sharedWithProjects.value = [];
 			return;
 		}
 
 		// Fetch project if not in store
-		if (!projectsStore.projects.find((p: ProjectSharingData) => p.id === project.id)) {
-			await projectsStore.fetchProject(project.id);
+		if (!projectsStore.projects.find((p: ProjectSharingData) => p.id === projects[0].id)) {
+			await projectsStore.fetchProject(projects[0].id);
 		}
 
 		sharedWithProjects.value = projectsStore.projects.filter(
-			(p: ProjectSharingData) => p.id === project.id,
+			(p: ProjectSharingData) => p.id === projects[0].id,
 		);
 	},
 	{ immediate: true, deep: true },
@@ -419,7 +418,7 @@ const { width } = useElementSize(nameRef);
 									:all-users-label="
 										i18n.baseText('settings.secretsProviderConnections.modal.scope.global')
 									"
-									:emptyOptionsText="
+									:empty-options-text="
 										i18n.baseText(
 											'settings.secretsProviderConnections.modal.scope.emptyOptionsText',
 										)
