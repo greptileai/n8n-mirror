@@ -80,9 +80,20 @@ function onModalOpened() {
 }
 
 onMounted(() => {
-	if (!versionName.value && !inputsDisabled.value) {
-		versionName.value = generateVersionName(workflowsStore.workflow.versionId);
+	const currentVersion = workflowsStore.currentVersion;
+
+	if (!versionName.value) {
+		if (currentVersion?.name) {
+			versionName.value = currentVersion.name;
+		} else {
+			versionName.value = generateVersionName(workflowsStore.workflow.versionId);
+		}
 	}
+
+	if (!description.value && currentVersion?.description) {
+		description.value = currentVersion.description;
+	}
+
 	modalBus.on('opened', onModalOpened);
 });
 
@@ -171,6 +182,12 @@ async function handlePublish() {
 	);
 
 	if (success) {
+		workflowsStore.setWorkflowCurrentVersion({
+			versionId: workflowsStore.workflow.versionId,
+			name: versionName.value,
+			description: description.value,
+		});
+
 		// Show AI credits warning if applicable
 		if (shouldShowFreeAiCreditsWarning.value) {
 			showMessage({
