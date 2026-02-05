@@ -11,6 +11,8 @@ import { useInstalledCommunityPackage } from '../../composables/useInstalledComm
 
 import { N8nIcon, N8nText, N8nTooltip } from '@n8n/design-system';
 import CommunityNodeUpdateInfo from './CommunityNodeUpdateInfo.vue';
+import { useQuickConnect } from '@/features/integrations/quickConnect/composables/useQuickConnect';
+import QuickConnectBanner from '@/features/integrations/quickConnect/components/QuickConnectBanner.vue';
 
 const { activeViewStack } = useViewStacks();
 
@@ -27,6 +29,7 @@ const official = ref(false);
 const packageName = computed(() => communityNodeDetails?.packageName);
 const { installedPackage, initInstalledPackage, isUpdateCheckAvailable } =
 	useInstalledCommunityPackage(packageName);
+const quickConnect = useQuickConnect({ packageName: packageName.value });
 
 const nodeTypesStore = useNodeTypesStore();
 
@@ -156,6 +159,8 @@ onMounted(async () => {
 				</N8nText>
 			</div>
 		</div>
+
+		<QuickConnectBanner v-if="quickConnect" :text="quickConnect?.text" />
 		<ContactAdministratorToInstall v-if="!isOwner && !communityNodeDetails?.installed" />
 	</div>
 </template>
