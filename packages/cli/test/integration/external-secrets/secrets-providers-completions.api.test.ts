@@ -134,7 +134,6 @@ describe('Secret Providers Completions API', () => {
 					connectionRepository.create({
 						providerKey: 'global-connection-1',
 						type: 'global_provider_1',
-						isEnabled: true,
 						encryptedSettings: JSON.stringify({ mocked: 'mocked-encrypted-settings' }),
 					}),
 				);
@@ -142,27 +141,14 @@ describe('Secret Providers Completions API', () => {
 					connectionRepository.create({
 						providerKey: 'global-connection-2',
 						type: 'global_provider_2',
-						isEnabled: true,
 						encryptedSettings: JSON.stringify({ mocked: 'mocked-encrypted-settings' }),
 					}),
 				);
-
-				// Create disabled global connection (should NOT be returned)
-				await connectionRepository.save(
-					connectionRepository.create({
-						providerKey: 'global-connection-disabled',
-						type: 'global_provider_1',
-						isEnabled: false,
-						encryptedSettings: JSON.stringify({ mocked: 'mocked-encrypted-settings' }),
-					}),
-				);
-
 				// Create project-scoped connection (should NOT be returned)
 				const projectConnection = await connectionRepository.save(
 					connectionRepository.create({
 						providerKey: 'project-connection',
 						type: 'project_provider',
-						isEnabled: true,
 						encryptedSettings: JSON.stringify({ mocked: 'mocked-encrypted-settings' }),
 					}),
 				);
@@ -202,24 +188,14 @@ describe('Secret Providers Completions API', () => {
 					connectionRepository.create({
 						providerKey: 'project-connection',
 						type: 'project_provider',
-						isEnabled: true,
 						encryptedSettings: JSON.stringify({ mocked: 'mocked-encrypted-settings' }),
 					}),
 				);
+
 				await projectAccessRepository.save(
 					projectAccessRepository.create({
 						projectId: projectWithConnections.id,
 						secretsProviderConnectionId: projectConnection.id,
-					}),
-				);
-
-				// Create disabled global connection (should NOT be returned)
-				await connectionRepository.save(
-					connectionRepository.create({
-						providerKey: 'global-connection-disabled',
-						type: 'project_provider',
-						isEnabled: false,
-						encryptedSettings: JSON.stringify({ mocked: 'mocked-encrypted-settings' }),
 					}),
 				);
 
@@ -293,7 +269,6 @@ describe('Secret Providers Completions API', () => {
 					connectionRepository.create({
 						providerKey: 'test-project-secret-connection-1',
 						type: 'project_provider_1',
-						isEnabled: true,
 						encryptedSettings: JSON.stringify({ mocked: 'mocked-encrypted-settings' }),
 					}),
 				);
@@ -301,7 +276,6 @@ describe('Secret Providers Completions API', () => {
 					connectionRepository.create({
 						providerKey: 'test-project-secret-connection-2',
 						type: 'project_provider_2',
-						isEnabled: true,
 						encryptedSettings: JSON.stringify({ mocked: 'mocked-encrypted-settings' }),
 					}),
 				);
@@ -319,28 +293,11 @@ describe('Secret Providers Completions API', () => {
 					}),
 				);
 
-				// Create disabled connection for the same project (should NOT be returned)
-				const disabledConnection = await connectionRepository.save(
-					connectionRepository.create({
-						providerKey: 'test-project-secret-connection-disabled',
-						type: 'project_provider_1',
-						isEnabled: false,
-						encryptedSettings: JSON.stringify({ mocked: 'mocked-encrypted-settings' }),
-					}),
-				);
-				await projectAccessRepository.save(
-					projectAccessRepository.create({
-						projectId: projectWithConnections.id,
-						secretsProviderConnectionId: disabledConnection.id,
-					}),
-				);
-
 				// Create connection for another project (should NOT be returned)
 				const otherProjectConnection = await connectionRepository.save(
 					connectionRepository.create({
 						providerKey: 'other-project-connection',
 						type: 'other_project_provider',
-						isEnabled: true,
 						encryptedSettings: JSON.stringify({ mocked: 'mocked-encrypted-settings' }),
 					}),
 				);
@@ -356,7 +313,6 @@ describe('Secret Providers Completions API', () => {
 					connectionRepository.create({
 						providerKey: 'global-connection',
 						type: 'global_provider',
-						isEnabled: true,
 						encryptedSettings: JSON.stringify({ mocked: 'mocked-encrypted-settings' }),
 					}),
 				);
@@ -395,7 +351,6 @@ describe('Secret Providers Completions API', () => {
 					connectionRepository.create({
 						providerKey: 'other-project-connection',
 						type: 'project_provider',
-						isEnabled: true,
 						encryptedSettings: JSON.stringify({ mocked: 'mocked-encrypted-settings' }),
 					}),
 				);
@@ -411,7 +366,6 @@ describe('Secret Providers Completions API', () => {
 					connectionRepository.create({
 						providerKey: 'global-connection',
 						type: 'global_provider',
-						isEnabled: true,
 						encryptedSettings: JSON.stringify({ mocked: 'mocked-encrypted-settings' }),
 					}),
 				);
@@ -442,7 +396,6 @@ describe('Secret Providers Completions API', () => {
 					connectionRepository.create({
 						providerKey: 'project-connection',
 						type: 'project_provider',
-						isEnabled: true,
 						encryptedSettings: JSON.stringify({ mocked: 'mocked-encrypted-settings' }),
 					}),
 				);

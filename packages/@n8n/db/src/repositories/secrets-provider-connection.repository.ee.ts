@@ -24,7 +24,6 @@ export class SecretsProviderConnectionRepository extends Repository<SecretsProvi
 		return await this.createQueryBuilder('connection')
 			.innerJoin('connection.projectAccess', 'projectAccess')
 			.where('projectAccess.projectId = :projectId', { projectId })
-			.andWhere('connection.isEnabled = :isEnabled', { isEnabled: true })
 			.getMany();
 	}
 
@@ -40,7 +39,6 @@ export class SecretsProviderConnectionRepository extends Repository<SecretsProvi
 			.leftJoinAndSelect('connection.projectAccess', 'projectAccess')
 			.leftJoinAndSelect('projectAccess.project', 'project')
 			.where('projectAccess.projectId = :projectId', { projectId })
-			.andWhere('connection.isEnabled = :isEnabled', { isEnabled: true })
 			.getMany();
 
 		const globalConnections = await this.createQueryBuilder('connection')
