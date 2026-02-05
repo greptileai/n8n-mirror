@@ -28,7 +28,7 @@ export {
 
 // Types
 export type { ChatModel, ChatModelConfig } from './types/chat-model';
-export type { GenerateResult, StreamChunk } from './types/output';
+export type { GenerateResult, StreamChunk, TokenUsage, FinishReason } from './types/output';
 export type { Tool, ToolResult, ToolCall } from './types/tool';
 export type {
 	Message,

@@ -9,6 +9,7 @@ import {
 	type StreamChunk,
 	type Tool,
 	type ToolCall,
+	type TokenUsage,
 } from '../../src';
 import { parseSSEStream } from '../../src/utils/sse';
 
@@ -421,6 +422,31 @@ function parseResponsesOutput(output: unknown[]): {
 	return { text, toolCalls };
 }
 
+/**
+ * Parse OpenAI Responses API usage into TokenUsage.
+ */
+function parseTokenUsage(
+	usage: OpenAIResponsesResponse['usage'] | undefined,
+): TokenUsage | undefined {
+	return usage
+		? {
+				promptTokens: usage.input_tokens ?? 0,
+				completionTokens: usage.output_tokens ?? 0,
+				totalTokens: usage.total_tokens ?? 0,
+				input_token_details: {
+					...(!!usage.input_tokens_details?.cached_tokens && {
+						cache_read: usage.input_tokens_details.cached_tokens,
+					}),
+				},
+				output_token_details: {
+					...(!!usage.output_tokens_details?.reasoning_tokens && {
+						reasoning: usage.output_tokens_details.reasoning_tokens,
+					}),
+				},
+			}
+		: undefined;
+}
+
 // =============================================================================
 // OpenAI Chat Model (Responses API)
 // =============================================================================
@@ -482,23 +508,7 @@ export class OpenAIChatModel extends BaseChatModel<OpenAIChatModelConfig> {
 
 		const { text, toolCalls } = parseResponsesOutput(response.output as unknown[]);
 
-		const usage = response.usage
-			? {
-					promptTokens: response.usage.input_tokens ?? 0,
-					completionTokens: response.usage.output_tokens ?? 0,
-					totalTokens: response.usage.total_tokens ?? 0,
-					input_token_details: {
-						...(!!response.usage.input_tokens_details?.cached_tokens && {
-							cache_read: response.usage.input_tokens_details.cached_tokens,
-						}),
-					},
-					output_token_details: {
-						...(!!response.usage.output_tokens_details?.reasoning_tokens && {
-							reasoning: response.usage.output_tokens_details.reasoning_tokens,
-						}),
-					},
-				}
-			: undefined;
+		const usage = parseTokenUsage(response.usage);
 
 		// Build response metadata
 		const responseMetadata: Record<string, unknown> = {
@@ -641,17 +651,10 @@ export class OpenAIChatModel extends BaseChatModel<OpenAIChatModelConfig> {
 				const responseData =
 					(event.response as unknown as OpenAIResponsesResponse) ??
 					(event as unknown as OpenAIResponsesResponse);
-				const usage = responseData.usage;
 				yield {
 					type: 'finish',
 					finishReason: 'stop',
-					usage: usage
-						? {
-								promptTokens: usage.input_tokens ?? 0,
-								completionTokens: usage.output_tokens ?? 0,
-								totalTokens: usage.total_tokens ?? 0,
-							}
-						: undefined,
+					usage: parseTokenUsage(responseData.usage),
 				};
 			}
 		}
