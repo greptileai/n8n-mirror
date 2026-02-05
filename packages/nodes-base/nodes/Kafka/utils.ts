@@ -345,14 +345,12 @@ export function configureDataEmitter(
  * @returns Object with auto-commit configuration
  */
 export function getAutoCommitSettings(options: KafkaTriggerOptions) {
-	const shouldAutoCommit = true;
-
 	const autoCommitInterval = options.autoCommitInterval ?? undefined;
 	const autoCommitThreshold = options.autoCommitThreshold ?? undefined;
 
 	return {
-		autoCommit: shouldAutoCommit,
-		eachBatchAutoResolve: shouldAutoCommit,
+		autoCommit: true,
+		eachBatchAutoResolve: false,
 		autoCommitInterval,
 		autoCommitThreshold,
 	};
