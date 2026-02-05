@@ -49,7 +49,7 @@ import type { ExportableWorkflow } from './types/exportable-workflow';
 import type { RemoteResourceOwner } from './types/resource-owner';
 import type { SourceControlContext } from './types/source-control-context';
 import { ExportableVariable } from './types/exportable-variable';
-import { chunk } from 'lodash';
+import chunk from 'lodash/chunk';
 
 @Service()
 export class SourceControlExportService {
@@ -130,7 +130,7 @@ export class SourceControlExportService {
 						isArchived: workflow.isArchived,
 					};
 					this.logger.debug(`Writing workflow ${workflow.id} to ${fileName}`);
-					return fsWriteFile(fileName, JSON.stringify(sanitizedWorkflow, null, 2));
+					return await fsWriteFile(fileName, JSON.stringify(sanitizedWorkflow, null, 2));
 				}),
 			);
 		}
