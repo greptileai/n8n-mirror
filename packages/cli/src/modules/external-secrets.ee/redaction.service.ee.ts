@@ -19,12 +19,15 @@ export class RedactionService {
 			.filter((prop) => prop.typeOptions?.password)
 			.map((prop) => prop.name);
 
-		fieldsToRedact.push('oauthTokenData');
-
 		for (const fieldName of fieldsToRedact) {
 			if (fieldName in copiedData && this.shouldRedactValue(copiedData[fieldName])) {
 				copiedData[fieldName] = CREDENTIAL_BLANKING_VALUE;
 			}
+		}
+
+		// Always redact oauthTokenData regardless of type
+		if ('oauthTokenData' in copiedData) {
+			copiedData.oauthTokenData = CREDENTIAL_BLANKING_VALUE;
 		}
 
 		return copiedData;

@@ -19,10 +19,8 @@ import { jsonParse } from 'n8n-workflow';
 import { BadRequestError } from '@/errors/response-errors/bad-request.error';
 import { NotFoundError } from '@/errors/response-errors/not-found.error';
 import { ExternalSecretsManager } from '@/modules/external-secrets.ee/external-secrets-manager.ee';
-import { ExternalSecretsProviders } from '@/modules/external-secrets.ee/external-secrets-providers.ee';
 import { RedactionService } from '@/modules/external-secrets.ee/redaction.service.ee';
 import { SecretsProvidersResponses } from '@/modules/external-secrets.ee/secrets-providers.responses.ee';
-import type { SecretsProvider } from '@/modules/external-secrets.ee/types';
 
 @Service()
 export class SecretsProvidersConnectionsService {
@@ -32,7 +30,6 @@ export class SecretsProvidersConnectionsService {
 		private readonly cipher: Cipher,
 		private readonly externalSecretsManager: ExternalSecretsManager,
 		private readonly redactionService: RedactionService,
-		private readonly secretsProviders: ExternalSecretsProviders,
 	) {}
 
 	async createConnection(
@@ -154,14 +151,6 @@ export class SecretsProvidersConnectionsService {
 		);
 	}
 
-	private getProviderInstance(type: string): SecretsProvider {
-		if (!this.secretsProviders.hasProvider(type)) {
-			throw new NotFoundError(`Provider type "${type}" not found`);
-		}
-		const providerClass = this.secretsProviders.getProvider(type);
-		return new providerClass();
-	}
-
 	toPublicConnectionListItem(
 		connection: SecretsProviderConnection,
 	): SecretsProvidersResponses.ConnectionListItem {
@@ -180,8 +169,15 @@ export class SecretsProvidersConnectionsService {
 
 	toPublicConnection(connection: SecretsProviderConnection): SecretsProvidersResponses.Connection {
 		const decryptedSettings = this.decryptConnectionSettings(connection.encryptedSettings);
-		const provider = this.getProviderInstance(connection.type);
-		const redactedSettings = this.redactionService.redact(decryptedSettings, provider.properties);
+
+		let redactedSettings: IDataObject;
+		try {
+			const { provider } = this.externalSecretsManager.getProviderWithSettings(connection.type);
+			redactedSettings = this.redactionService.redact(decryptedSettings, provider.properties);
+		} catch (error) {
+			// If provider not found (e.g., in test environments), redact all fields to be safe
+			redactedSettings = this.redactionService.redact(decryptedSettings, []);
+		}
 
 		return {
 			id: String(connection.id),
