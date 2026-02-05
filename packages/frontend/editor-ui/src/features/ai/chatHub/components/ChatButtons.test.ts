@@ -21,11 +21,11 @@ describe('ChatButtons', () => {
 		global.fetch = originalFetch;
 	});
 
-	it('should render all buttons when isWaiting is true', () => {
+	it('should render all buttons when isDisabled is false', () => {
 		const { getByText } = render(ChatButtons, {
 			props: {
 				buttons: mockButtons,
-				isWaiting: true,
+				isDisabled: false,
 			},
 		});
 
@@ -33,11 +33,11 @@ describe('ChatButtons', () => {
 		expect(getByText('Reject')).toBeTruthy();
 	});
 
-	it('should have enabled buttons when isWaiting is true', () => {
+	it('should have enabled buttons when isDisabled is false', () => {
 		const { getByText } = render(ChatButtons, {
 			props: {
 				buttons: mockButtons,
-				isWaiting: true,
+				isDisabled: false,
 			},
 		});
 
@@ -48,11 +48,11 @@ describe('ChatButtons', () => {
 		expect(rejectButton?.disabled).toBe(false);
 	});
 
-	it('should have disabled buttons when isWaiting is false', () => {
+	it('should have disabled buttons when isDisabled is true', () => {
 		const { getByText } = render(ChatButtons, {
 			props: {
 				buttons: mockButtons,
-				isWaiting: false,
+				isDisabled: true,
 			},
 		});
 
@@ -67,7 +67,7 @@ describe('ChatButtons', () => {
 		const { getByText } = render(ChatButtons, {
 			props: {
 				buttons: mockButtons,
-				isWaiting: true,
+				isDisabled: false,
 			},
 		});
 
@@ -80,7 +80,7 @@ describe('ChatButtons', () => {
 		const { getByText, queryByText } = render(ChatButtons, {
 			props: {
 				buttons: mockButtons,
-				isWaiting: true,
+				isDisabled: false,
 			},
 		});
 
@@ -96,7 +96,7 @@ describe('ChatButtons', () => {
 		const { getByText } = render(ChatButtons, {
 			props: {
 				buttons: mockButtons,
-				isWaiting: true,
+				isDisabled: false,
 			},
 		});
 
@@ -112,7 +112,7 @@ describe('ChatButtons', () => {
 		const { getByText } = render(ChatButtons, {
 			props: {
 				buttons: mockButtons,
-				isWaiting: true,
+				isDisabled: false,
 			},
 		});
 
@@ -125,11 +125,11 @@ describe('ChatButtons', () => {
 		expect(fetchMock).toHaveBeenCalledTimes(1);
 	});
 
-	it('should not make fetch request when isWaiting is false', async () => {
+	it('should not make fetch request when isDisabled is true', async () => {
 		const { getByText } = render(ChatButtons, {
 			props: {
 				buttons: mockButtons,
-				isWaiting: false,
+				isDisabled: true,
 			},
 		});
 
@@ -145,7 +145,7 @@ describe('ChatButtons', () => {
 		const { getByText } = render(ChatButtons, {
 			props: {
 				buttons: mockButtons,
-				isWaiting: true,
+				isDisabled: false,
 			},
 		});
 
@@ -166,7 +166,7 @@ describe('ChatButtons', () => {
 		const { getByText } = render(ChatButtons, {
 			props: {
 				buttons: singleButton,
-				isWaiting: true,
+				isDisabled: false,
 			},
 		});
 
@@ -184,7 +184,7 @@ describe('ChatButtons', () => {
 		const { getByText } = render(ChatButtons, {
 			props: {
 				buttons: mockButtons,
-				isWaiting: true,
+				isDisabled: false,
 			},
 		});
 
@@ -220,7 +220,7 @@ describe('ChatButtons', () => {
 		const { getByText } = render(ChatButtons, {
 			props: {
 				buttons: mockButtons,
-				isWaiting: true,
+				isDisabled: false,
 			},
 		});
 
