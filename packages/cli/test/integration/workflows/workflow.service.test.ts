@@ -485,6 +485,62 @@ describe('deactivateWorkflow()', () => {
 
 describe('getMany()', () => {
 	describe('filtering by personal project', () => {
+		test('[SECURITY] should return empty when regular user queries another users personal project', async () => {
+			const member1 = await createMember();
+			const member2 = await createMember();
+
+			const projectRepository = Container.get(ProjectRepository);
+			const member2PersonalProject = await projectRepository.getPersonalProjectForUserOrFail(
+				member2.id,
+			);
+
+			// member2 owns some workflows in their personal project
+			await createWorkflow({ name: 'Member2 Private Workflow 1' }, member2);
+			await createWorkflow({ name: 'Member2 Private Workflow 2' }, member2);
+
+			// member1 (who has NO relation to member2's personal project) tries to query member2's personal project
+			const result = await workflowService.getMany(
+				member1,
+				{ filter: { projectId: member2PersonalProject.id } },
+				false,
+				false,
+				false,
+			);
+
+			// SECURITY: member1 should NOT see any of member2's workflows
+			expect(result.workflows).toHaveLength(0);
+			expect(result.count).toBe(0);
+		});
+
+		test('[SECURITY] should allow admin with global workflow:read to query another users personal project', async () => {
+			const owner = await createOwner(); // Owner has global workflow:read scope
+			const member = await createMember();
+
+			const projectRepository = Container.get(ProjectRepository);
+			const memberPersonalProject = await projectRepository.getPersonalProjectForUserOrFail(
+				member.id,
+			);
+
+			// member owns some workflows in their personal project
+			const workflow1 = await createWorkflow({ name: 'Member Private Workflow 1' }, member);
+			const workflow2 = await createWorkflow({ name: 'Member Private Workflow 2' }, member);
+
+			// owner (with global workflow:read) can query member's personal project
+			const result = await workflowService.getMany(
+				owner,
+				{ filter: { projectId: memberPersonalProject.id } },
+				false,
+				false,
+				false,
+			);
+
+			// Admin with global scope CAN see the workflows
+			expect(result.workflows).toHaveLength(2);
+			expect(result.count).toBe(2);
+			const workflowIds = result.workflows.map((w) => w.id).sort();
+			expect(workflowIds).toEqual([workflow1.id, workflow2.id].sort());
+		});
+
 		test('should return only workflows owned by user in their personal project', async () => {
 			const owner = await createOwner();
 			const member = await createMember();

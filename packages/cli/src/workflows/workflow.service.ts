@@ -20,6 +20,7 @@ import {
 } from '@n8n/db';
 import { Container, Service } from '@n8n/di';
 import type { Scope } from '@n8n/permissions';
+import { hasGlobalScope } from '@n8n/permissions';
 // eslint-disable-next-line n8n-local-rules/misplaced-n8n-typeorm-import
 import type { EntityManager } from '@n8n/typeorm';
 // eslint-disable-next-line n8n-local-rules/misplaced-n8n-typeorm-import
@@ -122,6 +123,10 @@ export class WorkflowService {
 		}
 
 		if (isPersonalProject && personalProjectOwnerId) {
+			if (personalProjectOwnerId !== user.id && !hasGlobalScope(user, 'workflow:read')) {
+				return { workflows: [], count: 0 };
+			}
+
 			sharedWorkflowIds =
 				await this.workflowSharingService.getOwnedWorkflowsInPersonalProject(
 					personalProjectOwnerId,
