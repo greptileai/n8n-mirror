@@ -51,7 +51,6 @@ export function useSecretsProviderConnection() {
 				providerKey,
 			);
 
-			await testConnection(connection.name);
 			return connection;
 		} finally {
 			isLoading.value = false;
