@@ -401,6 +401,7 @@ export function configureDataEmitter(
  */
 export function getAutoCommitSettings(options: KafkaTriggerOptions) {
 	const eachBatchAutoResolve = options.eachBatchAutoResolve ?? false;
+
 	const autoCommitInterval = options.autoCommitInterval ?? undefined;
 	const autoCommitThreshold = options.autoCommitThreshold ?? undefined;
 
