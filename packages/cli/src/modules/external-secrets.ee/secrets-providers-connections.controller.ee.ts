@@ -19,10 +19,12 @@ import {
 } from '@n8n/decorators';
 import type { NextFunction, Request, Response } from 'express';
 
-import { SecretsProvidersResponses } from '@/modules/external-secrets.ee/secrets-providers.responses.ee';
-
 import { ExternalSecretsConfig } from './external-secrets.config';
 import { SecretsProvidersConnectionsService } from './secrets-providers-connections.service.ee';
+
+import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
+import { SecretsProvidersResponses } from '@/modules/external-secrets.ee/secrets-providers.responses.ee';
+import { sendErrorResponse } from '@/response-helper';
 
 @RestController('/secret-providers/connections')
 export class SecretProvidersConnectionsController {
@@ -38,7 +40,10 @@ export class SecretProvidersConnectionsController {
 	checkFeatureFlag(_req: Request, _res: Response, next: NextFunction) {
 		if (!this.config.externalSecretsForProjects) {
 			this.logger.warn('External secrets for projects feature is not enabled');
-			_res.status(403).send('External secrets for projects feature is not enabled');
+			sendErrorResponse(
+				_res,
+				new ForbiddenError('External secrets for projects feature is not enabled'),
+			);
 			return;
 		}
 		next();

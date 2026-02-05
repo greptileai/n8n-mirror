@@ -7,6 +7,9 @@ import { ExternalSecretsConfig } from './external-secrets.config';
 import { SecretsProvidersConnectionsService } from './secrets-providers-connections.service.ee';
 import type { SecretsProvidersResponses } from './secrets-providers.responses.ee';
 
+import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
+import { sendErrorResponse } from '@/response-helper';
+
 @RestController('/secret-providers/projects')
 export class SecretProvidersProjectController {
 	constructor(
@@ -21,7 +24,10 @@ export class SecretProvidersProjectController {
 	checkFeatureFlag(_req: Request, _res: Response, next: NextFunction) {
 		if (!this.config.externalSecretsForProjects) {
 			this.logger.warn('External secrets for projects feature is not enabled');
-			_res.status(403).send('External secrets for projects feature is not enabled');
+			sendErrorResponse(
+				_res,
+				new ForbiddenError('External secrets for projects feature is not enabled'),
+			);
 			return;
 		}
 		next();
