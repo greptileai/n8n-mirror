@@ -27,6 +27,10 @@ export const projectRLC: INodeProperties = {
 	],
 };
 
+/** Expression: comma-separated string → array for brackets[] query serialization */
+const COMMA_TO_ARRAY_VALUE =
+	"={{ $value && String($value).trim() ? String($value).split(',').map(v => v.trim()).filter(Boolean) : undefined }}";
+
 export const filterAuthorsOption: INodeProperties = {
 	displayName: 'Git Authors',
 	name: 'authors',
@@ -35,10 +39,11 @@ export const filterAuthorsOption: INodeProperties = {
 	routing: {
 		send: {
 			type: 'query',
-			property: 'authors[]',
+			property: 'authors',
+			value: COMMA_TO_ARRAY_VALUE,
 		},
 	},
-	description: 'Filter by git authors (multiple values supported)',
+	description: 'Filter by git authors (comma-separated for multiple)',
 };
 
 export const filterBranchesOption: INodeProperties = {
@@ -49,10 +54,11 @@ export const filterBranchesOption: INodeProperties = {
 	routing: {
 		send: {
 			type: 'query',
-			property: 'branches[]',
+			property: 'branches',
+			value: COMMA_TO_ARRAY_VALUE,
 		},
 	},
-	description: 'Filter by branches (multiple values supported)',
+	description: 'Filter by branches (comma-separated for multiple)',
 };
 
 export const filterGroupsOption: INodeProperties = {
@@ -63,10 +69,11 @@ export const filterGroupsOption: INodeProperties = {
 	routing: {
 		send: {
 			type: 'query',
-			property: 'groups[]',
+			property: 'groups',
+			value: COMMA_TO_ARRAY_VALUE,
 		},
 	},
-	description: 'Filter by groups (multiple values supported)',
+	description: 'Filter by groups (comma-separated for multiple)',
 };
 
 export const filterTagsOption: INodeProperties = {
@@ -77,8 +84,9 @@ export const filterTagsOption: INodeProperties = {
 	routing: {
 		send: {
 			type: 'query',
-			property: 'tags[]',
+			property: 'tags',
+			value: COMMA_TO_ARRAY_VALUE,
 		},
 	},
-	description: 'Filter by tags (multiple values supported)',
+	description: 'Filter by tags (comma-separated for multiple)',
 };

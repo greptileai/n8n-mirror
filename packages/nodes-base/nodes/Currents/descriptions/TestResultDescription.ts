@@ -158,7 +158,7 @@ export const testResultFields: INodeProperties[] = [
 				routing: {
 					send: {
 						type: 'query',
-						property: 'status[]',
+						property: 'status',
 					},
 				},
 				description: 'Filter by test status',
