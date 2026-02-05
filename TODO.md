@@ -8,6 +8,7 @@
 - [ ] "Use str_replace to fix these issues." or insert. Also update message to be more positive guardrail
 - [ ] skipping validation issues in nodes the builder did not touch
 - [ ] "Please use the text editor tool to create or edit the workflow code" no create. review other validation messages
+- [ ] get nodes should fail if search was not done for the same node type
 
 ## clean up
 - [ ] maybe don't write to .n8n folder? move to /tmp/
