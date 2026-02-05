@@ -68,18 +68,18 @@ export class LmChatOpenAiCustom implements INodeType {
 		const credentials = await this.getCredentials('openAiApi');
 		const modelName = this.getNodeParameter('model', itemIndex) as string;
 		const options = this.getNodeParameter('options', itemIndex, {}) as ModelOptions;
-		const builtInTools: ProviderTool[] = [];
+		const providerTools: ProviderTool[] = [];
 		const builtInToolsParams = formatBuiltInTools(
 			this.getNodeParameter('builtInTools', itemIndex, {}) as IDataObject,
 		);
 		if (builtInToolsParams.length) {
-			builtInTools.push(...builtInToolsParams);
+			providerTools.push(...builtInToolsParams);
 		}
 
 		const model = new OpenAIChatModel(modelName, {
 			baseURL: credentials.url as string,
 			apiKey: credentials.apiKey as string,
-			builtInTools,
+			providerTools,
 			temperature: options.temperature,
 		});
 

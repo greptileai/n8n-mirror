@@ -389,7 +389,7 @@ export interface OpenAIChatModelConfig extends ChatModelConfig {
 	apiKey?: string;
 	baseURL?: string;
 
-	builtInTools?: ProviderTool[];
+	providerTools?: ProviderTool[];
 }
 
 export class OpenAIChatModel extends BaseChatModel<OpenAIChatModelConfig> {
@@ -408,8 +408,8 @@ export class OpenAIChatModel extends BaseChatModel<OpenAIChatModelConfig> {
 
 	private getTools(config?: OpenAIChatModelConfig) {
 		const ownTools = this.tools;
-		const builtInTools = config?.builtInTools ?? [];
-		return [...ownTools, ...builtInTools].map(genericToolToResponsesTool);
+		const providerTools = config?.providerTools ?? [];
+		return [...ownTools, ...providerTools].map(genericToolToResponsesTool);
 	}
 
 	async generate(messages: Message[], config?: OpenAIChatModelConfig): Promise<GenerateResult> {
