@@ -381,10 +381,45 @@ function extractHumanMessageText(content: HumanMessage['content']): string {
 	return '';
 }
 
+/** Check if a value is a valid user_answers payload */
+function isUserAnswersPayload(value: unknown): value is Array<{
+	questionId: string;
+	question: string;
+	selectedOptions: string[];
+	customText?: string;
+	skipped?: boolean;
+}> {
+	if (!Array.isArray(value)) return false;
+	return value.every(
+		(item) =>
+			isRecord(item) &&
+			typeof item.questionId === 'string' &&
+			typeof item.question === 'string' &&
+			Array.isArray(item.selectedOptions),
+	);
+}
+
 /** Format a HumanMessage into the expected output format */
 function formatHumanMessage(msg: HumanMessage): Record<string, unknown> {
 	const rawText = extractHumanMessageText(msg.content);
 	const cleanedText = cleanContextTags(rawText);
+
+	// Check if this is a user_answers message (structured answers from plan mode)
+	const resumeData = msg.additional_kwargs?.resumeData;
+	if (isUserAnswersPayload(resumeData)) {
+		const result: Record<string, unknown> = {
+			role: 'user',
+			type: 'user_answers',
+			answers: resumeData,
+		};
+
+		const messageId = msg.additional_kwargs?.messageId;
+		if (typeof messageId === 'string') {
+			result.id = messageId;
+		}
+
+		return result;
+	}
 
 	const result: Record<string, unknown> = {
 		role: 'user',

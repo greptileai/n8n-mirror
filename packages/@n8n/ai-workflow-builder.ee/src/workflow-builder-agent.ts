@@ -230,12 +230,14 @@ export class WorkflowBuilderAgent {
 		streamConfig: RunnableConfig,
 		agent: ReturnType<typeof this.createWorkflow>,
 	): Promise<AsyncIterable<StreamEvent>> {
+		const additionalKwargs: Record<string, unknown> = {};
+		if (payload.versionId) additionalKwargs.versionId = payload.versionId;
+		if (payload.id) additionalKwargs.messageId = payload.id;
+		if (payload.resumeData !== undefined) additionalKwargs.resumeData = payload.resumeData;
+
 		const humanMessage = new HumanMessage({
 			content: payload.message,
-			additional_kwargs: {
-				...(payload.versionId && { versionId: payload.versionId }),
-				...(payload.id && { messageId: payload.id }),
-			},
+			additional_kwargs: additionalKwargs,
 		});
 
 		const workflowJSON = this.getDefaultWorkflowJSON(payload);
