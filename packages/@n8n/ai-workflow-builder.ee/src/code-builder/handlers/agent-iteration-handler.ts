@@ -11,8 +11,8 @@ import type { BaseMessage, AIMessage } from '@langchain/core/messages';
 import type { Runnable } from '@langchain/core/runnables';
 
 import type { StreamOutput, AgentMessageChunk } from '../../types/streaming';
-import type { TokenUsage } from '../types';
 import { applySubgraphCacheMarkers } from '../../utils/cache-control/helpers';
+import type { TokenUsage } from '../types';
 import { extractTextContent, extractThinkingContent } from '../utils/content-extractors';
 
 /** Type guard for response metadata with usage info */
