@@ -2368,5 +2368,59 @@ describe('LogStreamingEventRelay', () => {
 				},
 			});
 		});
+
+		it('should log `2fa-enforcement.enabled` when 2fa_enforcement is enabled', () => {
+			const event: RelayEventMap['instance-policies-updated'] = {
+				user: {
+					id: 'user202',
+					email: 'admin5@example.com',
+					firstName: 'Fifth',
+					lastName: 'Admin',
+					role: { slug: 'global:admin' },
+				},
+				settingName: '2fa_enforcement',
+				value: true,
+			};
+
+			eventService.emit('instance-policies-updated', event);
+
+			expect(eventBus.sendAuditEvent).toHaveBeenCalledWith({
+				eventName: 'n8n.audit.2fa-enforcement.enabled',
+				payload: {
+					userId: 'user202',
+					_email: 'admin5@example.com',
+					_firstName: 'Fifth',
+					_lastName: 'Admin',
+					globalRole: 'global:admin',
+				},
+			});
+		});
+
+		it('should log `2fa-enforcement.disabled` when 2fa_enforcement is disabled', () => {
+			const event: RelayEventMap['instance-policies-updated'] = {
+				user: {
+					id: 'user303',
+					email: 'admin6@example.com',
+					firstName: 'Sixth',
+					lastName: 'Admin',
+					role: { slug: 'global:admin' },
+				},
+				settingName: '2fa_enforcement',
+				value: false,
+			};
+
+			eventService.emit('instance-policies-updated', event);
+
+			expect(eventBus.sendAuditEvent).toHaveBeenCalledWith({
+				eventName: 'n8n.audit.2fa-enforcement.disabled',
+				payload: {
+					userId: 'user303',
+					_email: 'admin6@example.com',
+					_firstName: 'Sixth',
+					_lastName: 'Admin',
+					globalRole: 'global:admin',
+				},
+			});
+		});
 	});
 });

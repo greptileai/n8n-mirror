@@ -818,20 +818,35 @@ export class LogStreamingEventRelay extends EventRelay {
 		settingName,
 		value,
 	}: RelayEventMap['instance-policies-updated']) {
-		if (settingName === 'workflow_publishing') {
-			void this.eventBus.sendAuditEvent({
-				eventName: value
-					? 'n8n.audit.personal-publishing-restricted.disabled'
-					: 'n8n.audit.personal-publishing-restricted.enabled',
-				payload: user,
-			});
-		} else if (settingName === 'workflow_sharing') {
-			void this.eventBus.sendAuditEvent({
-				eventName: value
-					? 'n8n.audit.personal-sharing-restricted.disabled'
-					: 'n8n.audit.personal-sharing-restricted.enabled',
-				payload: user,
-			});
+		switch (settingName) {
+			case 'workflow_publishing':
+				void this.eventBus.sendAuditEvent({
+					eventName: value
+						? 'n8n.audit.personal-publishing-restricted.disabled'
+						: 'n8n.audit.personal-publishing-restricted.enabled',
+					payload: user,
+				});
+				break;
+			case 'workflow_sharing':
+				void this.eventBus.sendAuditEvent({
+					eventName: value
+						? 'n8n.audit.personal-sharing-restricted.disabled'
+						: 'n8n.audit.personal-sharing-restricted.enabled',
+					payload: user,
+				});
+				break;
+			case '2fa_enforcement':
+				void this.eventBus.sendAuditEvent({
+					eventName: value
+						? 'n8n.audit.2fa-enforcement.enabled'
+						: 'n8n.audit.2fa-enforcement.disabled',
+					payload: user,
+				});
+				break;
+			default: {
+				const _exhaustive: never = settingName;
+				throw new Error(`Unhandled settingName: ${_exhaustive as string}`);
+			}
 		}
 	}
 
