@@ -15,6 +15,7 @@ export function createMockResponse(): jest.Mocked<CompressionResponse> {
 		json: jest.fn().mockReturnThis(),
 		end: jest.fn().mockReturnThis(),
 		write: jest.fn().mockReturnThis(),
+		writeHead: jest.fn().mockReturnThis(),
 		setHeader: jest.fn().mockReturnThis(),
 		getHeader: jest.fn(),
 		flush: jest.fn(),
@@ -39,6 +40,7 @@ export function createMockRequest(
 		headers?: Record<string, string>;
 		query?: Record<string, string>;
 		method?: string;
+		path?: string;
 	} = {},
 ): jest.Mocked<Request> & { rawBody: Buffer } {
 	const {
@@ -48,6 +50,7 @@ export function createMockRequest(
 		headers = {},
 		query = {},
 		method = 'POST',
+		path = '/mcp',
 	} = options;
 
 	const finalQuery: Record<string, string> = { ...query };
@@ -66,8 +69,8 @@ export function createMockRequest(
 		query: finalQuery,
 		method,
 		params: {},
-		url: '/mcp',
-		path: '/mcp',
+		url: path,
+		path,
 		get: jest.fn((name: string) => finalHeaders[name.toLowerCase()]),
 	} as unknown as jest.Mocked<Request> & { rawBody: Buffer };
 }

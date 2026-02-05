@@ -80,10 +80,9 @@ export class ScalingService {
 
 		this.scheduleQueueMetrics();
 
-		const { McpServer, QueuedExecutionStrategy } = await import(
+		const { McpServer, QueuedExecutionStrategy, RedisSessionStore } = await import(
 			'@n8n/n8n-nodes-langchain/mcp/core'
 		);
-		const { RedisSessionStore } = await import('@/scaling/mcp/redis-session-store');
 		const { Publisher } = await import('@/scaling/pubsub/publisher.service');
 
 		const publisher = Container.get(Publisher);
