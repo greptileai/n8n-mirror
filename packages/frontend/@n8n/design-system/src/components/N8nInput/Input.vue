@@ -513,13 +513,13 @@ defineExpose({ focus, blur, select });
 	color: var(--color--text--tint-1);
 }
 
+.input:read-only {
+	cursor: default;
+}
+
 .input:disabled {
 	cursor: not-allowed;
 	color: var(--color--text--tint-1);
-}
-
-.input:read-only {
-	cursor: default;
 }
 
 .textarea {
@@ -538,13 +538,13 @@ defineExpose({ focus, blur, select });
 	color: var(--color--text--tint-1);
 }
 
+.textarea:read-only {
+	cursor: default;
+}
+
 .textarea:disabled {
 	cursor: not-allowed;
 	color: var(--color--text--tint-1);
-}
-
-.textarea:read-only {
-	cursor: default;
 }
 
 .prefix,
