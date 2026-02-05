@@ -1,5 +1,5 @@
 import { GlobalConfig } from '@n8n/config';
-import type { SelectQueryBuilder } from '@n8n/typeorm';
+import { In, type SelectQueryBuilder } from '@n8n/typeorm';
 import { mock } from 'jest-mock-extended';
 
 import { WorkflowEntity } from '../../entities';
@@ -523,11 +523,12 @@ describe('WorkflowRepository', () => {
 		});
 
 		it('should call the database when workflow ids are provided', async () => {
-			const findSpy = jest.spyOn(workflowRepository, 'find');
+			const findSpy = jest.spyOn(workflowRepository, 'find').mockResolvedValue([]);
 			const workflowIds = ['workflow1'];
 			const result = await workflowRepository.findByIds(workflowIds);
-			expect(result).toEqual(undefined);
+			expect(result).toEqual([]);
 			expect(findSpy).toHaveBeenCalledTimes(1);
+			expect(findSpy).toHaveBeenCalledWith({ where: { id: In(workflowIds) } });
 		});
 	});
 });
