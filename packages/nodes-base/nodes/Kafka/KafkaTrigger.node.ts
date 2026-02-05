@@ -32,7 +32,7 @@ export class KafkaTrigger implements INodeType {
 		name: 'kafkaTrigger',
 		icon: { light: 'file:kafka.svg', dark: 'file:kafka.dark.svg' },
 		group: ['trigger'],
-		version: [1, 1.1, 1.2],
+		version: [1, 1.1, 1.2, 1.3],
 		description: 'Consume messages from a Kafka topic',
 		defaults: {
 			name: 'Kafka Trigger',
@@ -63,6 +63,88 @@ export class KafkaTrigger implements INodeType {
 				required: true,
 				placeholder: 'n8n-kafka',
 				description: 'ID of the consumer group',
+			},
+			{
+				displayName: 'Resolve Offset',
+				name: 'resolveOffset',
+				type: 'options',
+				default: 'onCompletion',
+				description:
+					'Select on which condition the offsets should be resolved. In the manual mode, when execution started by clicking on Execute Workflow or Execute Step button, offsets are always resolved immediately after message received.',
+				options: [
+					{
+						name: 'On Execution Completion',
+						value: 'onCompletion',
+						description: 'Resolve offset after execution completion regardless of the status',
+					},
+					{
+						name: 'On Execution Success',
+						value: 'onSuccess',
+						description: 'Resolve offset only if execution status equals success',
+					},
+					{
+						name: 'On Allowed Execution Statuses',
+						value: 'onStatus',
+						description: 'Resolve offset only if execution status in the list of selected statuses',
+					},
+					{
+						name: 'Immediately',
+						value: 'immediately',
+						description:
+							'Resolve offset immediately after message received. This option is not recommended as it can cause messages loss.',
+					},
+				],
+				displayOptions: {
+					show: {
+						'@version': [{ _cnd: { gte: 1.3 } }],
+					},
+				},
+			},
+			{
+				displayName: 'Allowed Statuses',
+				name: 'allowedStatuses',
+				type: 'multiOptions',
+				default: ['success'],
+				options: [
+					{
+						name: 'Canceled',
+						value: 'canceled',
+					},
+					{
+						name: 'Crashed',
+						value: 'crashed',
+					},
+					{
+						name: 'Error',
+						value: 'error',
+					},
+					{
+						name: 'New',
+						value: 'new',
+					},
+					{
+						name: 'Running',
+						value: 'running',
+					},
+					{
+						name: 'Success',
+						value: 'success',
+					},
+					{
+						name: 'Unknown',
+						value: 'unknown',
+					},
+					{
+						name: 'Waiting',
+						value: 'waiting',
+					},
+				],
+				displayOptions: {
+					show: {
+						'@version': [{ _cnd: { gte: 1.3 } }],
+						resolveOffset: ['onStatus'],
+					},
+				},
 			},
 			{
 				displayName: 'Use Schema Registry',
@@ -125,6 +207,18 @@ export class KafkaTrigger implements INodeType {
 							'Number of messages to process in each batch, when set to 1, message-by-message processing is enabled',
 					},
 					{
+						displayName: 'Each Batch Auto Resolve',
+						name: 'eachBatchAutoResolve',
+						type: 'boolean',
+						default: false,
+						description: 'Whether to auto resolve offsets for each batch',
+						displayOptions: {
+							show: {
+								'@version': [{ _cnd: { gte: 1.3 } }],
+							},
+						},
+					},
+					{
 						displayName: 'Fetch Max Bytes',
 						name: 'fetchMaxBytes',
 						type: 'number',
@@ -144,9 +238,28 @@ export class KafkaTrigger implements INodeType {
 						displayName: 'Heartbeat Interval',
 						name: 'heartbeatInterval',
 						type: 'number',
+						default: 10000,
+						description:
+							'Controls how often the consumer sends heartbeats to the broker to indicate it is still alive. Must be lower than Session Timeout. Recommended value is approximately one third of the Session Timeout (for example: 10s heartbeat with 30s session timeout).',
+						hint: 'Value in milliseconds',
+						displayOptions: {
+							show: {
+								'@version': [{ _cnd: { gte: 1.3 } }],
+							},
+						},
+					},
+					{
+						displayName: 'Heartbeat Interval',
+						name: 'heartbeatInterval',
+						type: 'number',
 						default: 3000,
 						description: "Heartbeats are used to ensure that the consumer's session stays active",
 						hint: 'The value must be set lower than Session Timeout',
+						displayOptions: {
+							hide: {
+								'@version': [{ _cnd: { gte: 1.3 } }],
+							},
+						},
 					},
 					{
 						displayName: 'Max Number of Requests',
@@ -232,6 +345,26 @@ export class KafkaTrigger implements INodeType {
 						description: 'The maximum time allowed for a consumer to join the group',
 					},
 					{
+						displayName: 'Retry Delay on Error',
+						name: 'errorRetryDelay',
+						type: 'number',
+						default: 5000,
+						description:
+							'Delay in milliseconds before retrying after a failed offset resolution. This prevents rapid retry loops that could overwhelm the Kafka broker.',
+						hint: 'Value in milliseconds',
+						typeOptions: {
+							minValue: 1000,
+						},
+						displayOptions: {
+							show: {
+								'@version': [{ _cnd: { gte: 1.3 } }],
+							},
+							hide: {
+								'/resolveOffset': ['immediately'],
+							},
+						},
+					},
+					{
 						displayName: 'Session Timeout',
 						name: 'sessionTimeout',
 						type: 'number',
@@ -257,7 +390,7 @@ export class KafkaTrigger implements INodeType {
 			options.keepBinaryData = undefined;
 		}
 
-		const consumerConfig = createConsumerConfig(this, options);
+		const consumerConfig = createConsumerConfig(this, options, nodeVersion);
 		const consumer = kafka.consumer(consumerConfig);
 
 		const processMessage = configureMessageParser(
