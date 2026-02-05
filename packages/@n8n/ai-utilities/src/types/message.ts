@@ -5,12 +5,45 @@ export type MessageContent =
 	| ContentToolCall
 	| ContentToolResult
 	| ContentReasoning
-	| ContentFile;
+	| ContentFile
+	| ContentCitation
+	| ContentProvider;
 
 export interface ContentMetadata {
 	providerMetadata?: Record<string, unknown>;
 }
 
+export type ContentCitation = ContentMetadata & {
+	type: 'citation';
+	/**
+	 * Source type for the citation.
+	 */
+	source?: string;
+	/**
+	 * URL of the document source
+	 */
+	url?: string;
+	/**
+	 * Source document title.
+	 *
+	 * For example, the page title for a web page or the title of a paper.
+	 */
+	title?: string;
+	/**
+	 * Start index of the **response text** for which the annotation applies.
+	 *
+	 */
+	startIndex?: number;
+	/**
+	 * End index of the **response text** for which the annotation applies.
+	 *
+	 */
+	endIndex?: number;
+	/**
+	 * Excerpt of source text being cited.
+	 */
+	text?: string;
+};
 export type ContentText = ContentMetadata & {
 	type: 'text';
 
@@ -32,7 +65,7 @@ export type ContentFile = ContentMetadata & {
 	 *
 	 * @see https://www.iana.org/assignments/media-types/media-types.xhtml
 	 */
-	mediaType: string;
+	mediaType?: string;
 
 	/**
 	 * Generated file data as base64 encoded strings or binary data.
@@ -82,6 +115,11 @@ export type ContentToolResult = ContentMetadata & {
 	 * Optional flag if the result is an error or an error message.
 	 */
 	isError?: boolean;
+};
+
+export type ContentProvider = ContentMetadata & {
+	type: 'provider';
+	value: Record<string, unknown>;
 };
 
 export interface Message {

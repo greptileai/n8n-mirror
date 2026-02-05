@@ -16,6 +16,52 @@ function fromLcRole(role: LangchainMessages.MessageType): N8nMessages.MessageRol
 			return 'human';
 	}
 }
+function isTextBlock(
+	block: LangchainMessages.ContentBlock,
+): block is LangchainMessages.ContentBlock.Text {
+	return block.type === 'text';
+}
+function isReasoningBlock(
+	block: LangchainMessages.ContentBlock,
+): block is LangchainMessages.ContentBlock.Reasoning {
+	return block.type === 'reasoning';
+}
+function isFileBlock(
+	block: LangchainMessages.ContentBlock,
+): block is LangchainMessages.ContentBlock.Multimodal.Standard {
+	return (
+		block.type === 'file' ||
+		block.type === 'audio' ||
+		block.type === 'video' ||
+		block.type === 'image' ||
+		block.type === 'text-plain'
+	);
+}
+function isToolCallBlock(
+	block: LangchainMessages.ContentBlock,
+): block is LangchainMessages.ContentBlock.Tools.ToolCall {
+	return block.type === 'tool_call';
+}
+function isInvalidToolCallBlock(
+	block: LangchainMessages.ContentBlock,
+): block is LangchainMessages.ContentBlock.Tools.InvalidToolCall {
+	return block.type === 'invalid_tool_call';
+}
+function isToolResultBlock(
+	block: LangchainMessages.ContentBlock,
+): block is LangchainMessages.ContentBlock.Tools.ServerToolCallResult {
+	return block.type === 'tool-result';
+}
+function isCitationBlock(block: unknown): block is LangchainMessages.ContentBlock.Citation {
+	return (
+		typeof block === 'object' && block !== null && 'type' in block && block.type === 'citation'
+	);
+}
+function isNonStandardBlock(
+	block: LangchainMessages.ContentBlock,
+): block is LangchainMessages.ContentBlock.NonStandard {
+	return block.type === 'non_standard';
+}
 
 function fromLcContent(
 	content: string | LangchainMessages.ContentBlock | LangchainMessages.ContentBlock[],
@@ -32,44 +78,76 @@ function fromLcContent(
 	return blocks
 		.map((block) => {
 			let content: N8nMessages.MessageContent | null = null;
-			if (block.type === 'text') {
-				const textBlock = block as LangchainMessages.ContentBlock.Text;
+
+			if (isTextBlock(block)) {
 				content = {
 					type: 'text',
-					text: textBlock.text,
+					text: block.text,
 				};
 			}
-			if (block.type === 'reasoning') {
-				const reasoningBlock = block as LangchainMessages.ContentBlock.Reasoning;
+			if (isReasoningBlock(block)) {
 				content = {
 					type: 'reasoning',
-					text: reasoningBlock.reasoning,
+					text: block.reasoning,
 				};
 			}
-			if (block.type === 'file') {
-				const fileBlock = block as LangchainMessages.ContentBlock.Multimodal.File;
+			if (isFileBlock(block)) {
+				let metadata: Record<string, unknown> = {};
+				if (block.metadata) {
+					metadata = block.metadata;
+				}
+				if ('url' in block) {
+					metadata.url = block.url;
+				}
+				if ('fileId' in block) {
+					metadata.fileId = block.fileId;
+				}
 				content = {
 					type: 'file',
-					mediaType: fileBlock.mimeType!,
-					data: fileBlock.data!,
+					mediaType: block.mimeType!,
+					data: block.data!,
+					providerMetadata: Object.keys(metadata).length > 0 ? metadata : undefined,
 				};
 			}
-			if (block.type === 'tool_call') {
-				const toolCallBlock = block as LangchainMessages.ContentBlock.Tools.ToolCall;
+			if (isToolCallBlock(block)) {
 				content = {
 					type: 'tool-call',
-					toolCallId: toolCallBlock.id!,
-					toolName: toolCallBlock.name,
-					input: JSON.stringify(toolCallBlock.args),
+					toolCallId: block.id!,
+					toolName: block.name,
+					input: JSON.stringify(block.args),
 				};
 			}
-			if (block.type === 'tool-result') {
-				const toolResultBlock = block as LangchainMessages.ContentBlock.Tools.ServerToolCallResult;
+			if (isInvalidToolCallBlock(block)) {
 				content = {
 					type: 'tool-result',
-					toolCallId: toolResultBlock.toolCallId,
-					result: toolResultBlock.output,
-					isError: toolResultBlock.status === 'error',
+					toolCallId: block.id!,
+					result: block.error,
+					isError: true,
+				};
+			}
+			if (isToolResultBlock(block)) {
+				content = {
+					type: 'tool-result',
+					toolCallId: block.toolCallId,
+					result: block.output,
+					isError: block.status === 'error',
+				};
+			}
+			if (isCitationBlock(block)) {
+				content = {
+					type: 'citation',
+					source: block.source,
+					url: block.url,
+					title: block.title,
+					startIndex: block.startIndex,
+					endIndex: block.endIndex,
+					text: block.citedText,
+				};
+			}
+			if (isNonStandardBlock(block)) {
+				content = {
+					type: 'provider',
+					value: block.value,
 				};
 			}
 			if (!content) {
