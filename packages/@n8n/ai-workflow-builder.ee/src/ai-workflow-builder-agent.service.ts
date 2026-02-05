@@ -247,10 +247,9 @@ export class AiWorkflowBuilderService {
 		}
 
 		// Track telemetry after stream completes (onGenerationSuccess is called by the agent)
-		// Skip for code builder - it emits its own "Code builder agent ran" event
-		if (this.onTelemetryEvent && userId && !isCodeBuilder) {
+		if (this.onTelemetryEvent && userId) {
 			try {
-				await this.trackBuilderReplyTelemetry(agent, workflowId, userId, payload.id);
+				await this.trackBuilderReplyTelemetry(agent, workflowId, userId, payload.id, isCodeBuilder);
 			} catch (error) {
 				this.logger?.error('Failed to track builder reply telemetry', { error });
 			}
@@ -262,6 +261,7 @@ export class AiWorkflowBuilderService {
 		workflowId: string | undefined,
 		userId: string,
 		userMessageId: string,
+		isCodeBuilder: boolean,
 	): Promise<void> {
 		if (!this.onTelemetryEvent) return;
 
@@ -303,6 +303,7 @@ export class AiWorkflowBuilderService {
 				templates_selected: state.values.templateIds,
 			}),
 			user_message_id: userMessageId,
+			code_builder: isCodeBuilder,
 		};
 
 		this.onTelemetryEvent('Builder replied to user message', properties);
