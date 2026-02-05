@@ -640,6 +640,43 @@ describe('AskAssistantChat', () => {
 			const props = getThinkingMessageProps();
 			expect(props.defaultExpanded).toBe(true);
 		});
+
+		it('should use thinkingCompletionMessage prop instead of default when provided and tools completed', () => {
+			const message = createToolMessage({
+				id: '1',
+				status: 'completed',
+				displayTitle: 'Search Results',
+				updates: [{ type: 'output', data: { result: 'Found items' } }],
+			});
+
+			renderWithMessages([message], {
+				streaming: false,
+				thinkingCompletionMessage: 'Crafting workflow',
+			});
+
+			expect(thinkingMessageCallCount).toBe(1);
+
+			const props = getThinkingMessageProps();
+			// Should use the custom completion message instead of the default i18n key
+			expect(props.latestStatusText).toBe('Crafting workflow');
+		});
+
+		it('should use default i18n key when thinkingCompletionMessage is not provided', () => {
+			const message = createToolMessage({
+				id: '1',
+				status: 'completed',
+				displayTitle: 'Search Results',
+				updates: [{ type: 'output', data: { result: 'Found items' } }],
+			});
+
+			renderWithMessages([message], { streaming: false });
+
+			expect(thinkingMessageCallCount).toBe(1);
+
+			const props = getThinkingMessageProps();
+			// Should use the default i18n key (mocked to return the key itself)
+			expect(props.latestStatusText).toBe('assistantChat.thinking.workflowGenerated');
+		});
 	});
 
 	describe('Quick Replies', () => {

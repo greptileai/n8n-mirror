@@ -136,6 +136,13 @@ const creditsQuota = computed(() => builderStore.creditsQuota);
 const creditsRemaining = computed(() => builderStore.creditsRemaining);
 const showAskOwnerTooltip = computed(() => !usersStore.isInstanceOwner);
 
+// Use different completion message for code-builder
+const thinkingCompletionMessage = computed(() =>
+	builderStore.isCodeBuilder
+		? i18n.baseText('aiAssistant.builder.thinkingCompletionMessage.codeBuilder')
+		: undefined,
+);
+
 const workflowSuggestions = computed<WorkflowSuggestion[] | undefined>(() => {
 	// we don't show the suggestions if there are already messages
 	return builderStore.hasMessages ? undefined : shuffle(WORKFLOW_SUGGESTIONS);
@@ -397,6 +404,7 @@ defineExpose({
 			:messages="builderStore.chatMessages"
 			:streaming="builderStore.streaming"
 			:loading-message="loadingMessage"
+			:thinking-completion-message="thinkingCompletionMessage"
 			:mode="i18n.baseText('aiAssistant.builder.mode')"
 			:show-stop="true"
 			:scroll-on-new-message="true"
@@ -409,6 +417,7 @@ defineExpose({
 			:prune-time-hours="workflowHistoryStore.evaluatedPruneTime"
 			:disabled="isInputDisabled"
 			:disabled-tooltip="disabledTooltip"
+			:enable-thinking-parse="true"
 			@close="emit('close')"
 			@message="onUserMessage"
 			@upgrade-click="() => goToUpgrade('ai-builder-sidebar', 'upgrade-builder')"

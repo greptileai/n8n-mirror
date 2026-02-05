@@ -97,6 +97,7 @@ export namespace ChatRequest {
 
 	export interface BuilderFeatureFlags {
 		templateExamples?: boolean;
+		codeBuilder?: boolean;
 	}
 
 	export interface UserChatMessage {

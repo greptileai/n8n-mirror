@@ -29,6 +29,7 @@ import {
 	getWorkflowHistoryPruneTime,
 } from '@/workflows/workflow-history/workflow-history-helper';
 import { AiUsageService } from './ai-usage.service';
+import { NodeTypeGeneratorService } from './node-type-generator.service';
 import { UrlService } from './url.service';
 
 /**
@@ -121,6 +122,7 @@ export class FrontendService {
 		private readonly moduleRegistry: ModuleRegistry,
 		private readonly mfaService: MfaService,
 		private readonly ownershipService: OwnershipService,
+		private readonly nodeTypeGeneratorService: NodeTypeGeneratorService,
 		private readonly aiUsageService: AiUsageService,
 	) {
 		loadNodesAndCredentials.addPostProcessor(async () => await this.generateTypes());
@@ -381,6 +383,14 @@ export class FrontendService {
 		const nodeVersionIdentifiers = this.getNodeVersionIdentifiers(nodes);
 		this.writeStaticJSON('node-versions', nodeVersionIdentifiers);
 		this.writeStaticJSON('credentials', credentials);
+
+		// Generate SDK types for the AI workflow builder (must complete before startup)
+		const nodesJsonPath = path.join(staticCacheDir, 'types/nodes.json');
+		try {
+			await this.nodeTypeGeneratorService.generateIfNeeded(nodesJsonPath);
+		} catch (error) {
+			this.logger.warn('Failed to generate SDK node types', { error });
+		}
 	}
 
 	async getSettings(): Promise<FrontendSettings> {

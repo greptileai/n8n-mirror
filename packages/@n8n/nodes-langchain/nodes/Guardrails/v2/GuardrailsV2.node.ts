@@ -34,6 +34,25 @@ export class GuardrailsV2 implements INodeType {
 				name: 'Guardrails',
 			},
 			properties: propertiesDescription,
+			// Builder hint for workflow-sdk type generation
+			// ai_languageModel is required only when LLM-based guardrails are used
+			builderHint: {
+				inputs: {
+					ai_languageModel: {
+						required: true,
+						displayOptions: {
+							show: {
+								// Model is required when ANY of these LLM guardrails exist
+								'/guardrails.(jailbreak|nsfw|topicalAlignment|custom)': [
+									{ _cnd: { exists: true } },
+								],
+							},
+						},
+					},
+				},
+				message:
+					'Classify operation has two outputs: output 0 (Pass) for items that passed all guardrail checks, output 1 (Fail) for items that failed. Sanitize operation has only one output.',
+			},
 		};
 	}
 

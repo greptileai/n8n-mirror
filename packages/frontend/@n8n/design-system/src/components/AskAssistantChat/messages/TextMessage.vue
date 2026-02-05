@@ -3,11 +3,12 @@ import { computed, ref, onMounted, nextTick, watch } from 'vue';
 
 import BaseMessage from './BaseMessage.vue';
 import RestoreVersionLink from './RestoreVersionLink.vue';
-import { useMarkdown } from './useMarkdown';
+import { useMarkdown, parseThinkingSegments } from './useMarkdown';
 import { useI18n } from '../../../composables/useI18n';
 import type { ChatUI, RatingFeedback } from '../../../types/assistant';
 import BlinkingCursor from '../../BlinkingCursor/BlinkingCursor.vue';
 import N8nButton from '../../N8nButton';
+import N8nIcon from '../../N8nIcon';
 
 interface Props {
 	message: ChatUI.TextMessage & { quickReplies?: ChatUI.QuickReply[] };
@@ -20,6 +21,7 @@ interface Props {
 	isLastMessage?: boolean;
 	color?: string;
 	pruneTimeHours?: number;
+	enableThinkingParse?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -36,6 +38,13 @@ const { t } = useI18n();
 const isClipboardSupported = computed(() => {
 	return navigator.clipboard?.writeText;
 });
+
+// Parse content into segments (text and thinking) - only when enabled
+const parsedContent = computed(() =>
+	props.enableThinkingParse
+		? parseThinkingSegments(props.message.content)
+		: [{ type: 'text' as const, content: props.message.content }],
+);
 
 // User message expand/collapse functionality
 const isExpanded = ref(false);
@@ -114,13 +123,24 @@ async function onCopyButtonClick(content: string, e: MouseEvent) {
 					{{ isExpanded ? t('notice.showLess') : t('notice.showMore') }}
 				</button>
 			</div>
-			<!-- Assistant message - simple text without container -->
+			<!-- Assistant message - render segments with thinking sections as collapsible -->
 			<div
 				v-else
-				v-n8n-html="renderMarkdown(message.content)"
 				:class="[$style.assistantText, $style.renderedContent]"
 				:style="color ? { color } : undefined"
-			></div>
+			>
+				<template v-for="(segment, idx) in parsedContent" :key="idx">
+					<span v-if="segment.type === 'text'" v-n8n-html="renderMarkdown(segment.content)" />
+					<details v-else class="n8n-thinking-section">
+						<summary>
+							{{ t('assistantChat.thinking.thinking') }}...
+							<N8nIcon icon="chevron-right" class="n8n-thinking-chevron-closed" />
+							<N8nIcon icon="chevron-down" class="n8n-thinking-chevron-open" />
+						</summary>
+						<span v-n8n-html="renderMarkdown(segment.content)" />
+					</details>
+				</template>
+			</div>
 			<div
 				v-if="message?.codeSnippet"
 				:class="$style.codeSnippet"
@@ -301,6 +321,70 @@ async function onCopyButtonClick(content: string, e: MouseEvent) {
 		td {
 			border: var(--border);
 			padding: var(--spacing--4xs);
+		}
+	}
+
+	:global(.n8n-thinking-section) {
+		margin: var(--spacing--4xs) 0;
+
+		summary {
+			display: flex;
+			align-items: center;
+			gap: var(--spacing--4xs);
+			padding: var(--spacing--4xs) 0;
+			cursor: pointer;
+			font-weight: var(--font-weight--medium);
+			font-size: var(--font-size--sm);
+			color: var(--assistant--color--text--subtle);
+			line-height: var(--line-height--xl);
+			user-select: none;
+			list-style: none;
+
+			&::-webkit-details-marker {
+				display: none;
+			}
+
+			&:hover {
+				opacity: 0.8;
+			}
+		}
+
+		// Chevron icon styles
+		:global(.n8n-thinking-chevron-closed),
+		:global(.n8n-thinking-chevron-open) {
+			color: var(--assistant--color--text--subtle);
+			flex-shrink: 0;
+			width: var(--font-size--lg);
+			height: var(--font-size--lg);
+			padding-top: 1px;
+
+			svg {
+				width: var(--font-size--lg);
+				height: var(--font-size--lg);
+			}
+		}
+
+		// Show chevron-right when closed, hide chevron-down
+		:global(.n8n-thinking-chevron-open) {
+			display: none;
+		}
+
+		// When open, hide chevron-right, show chevron-down
+		&[open] :global(.n8n-thinking-chevron-closed) {
+			display: none;
+		}
+
+		&[open] :global(.n8n-thinking-chevron-open) {
+			display: inline-flex;
+		}
+
+		// Content area when expanded
+		> *:not(summary) {
+			padding-left: var(--spacing--4xs);
+			padding-bottom: var(--spacing--4xs);
+			color: var(--assistant--color--text--subtle);
+			font-size: var(--font-size--sm);
+			line-height: var(--line-height--xl);
 		}
 	}
 }

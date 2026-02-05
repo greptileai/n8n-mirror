@@ -11,12 +11,14 @@ import {
 	ApplicationError,
 	type INodeTypeDescription,
 	type IRunExecutionData,
+	type ITelemetryTrackProperties,
 	type IWorkflowBase,
 	type NodeExecutionSchema,
 } from 'n8n-workflow';
 
 import { MAX_AI_BUILDER_PROMPT_LENGTH, MAX_MULTI_AGENT_STREAM_ITERATIONS } from '@/constants';
 
+import { CodeWorkflowBuilder } from './code-builder';
 import { ValidationError } from './errors';
 import { createMultiAgentWorkflowWithSubgraphs } from './multi-agent-workflow-subgraphs';
 import { SessionManagerService } from './session-manager.service';
@@ -64,8 +66,15 @@ export interface WorkflowBuilderAgentConfig {
 	featureFlags?: BuilderFeatureFlags;
 	/** Callback when generation completes successfully (not aborted) */
 	onGenerationSuccess?: () => Promise<void>;
+	/**
+	 * Path to the generated types directory (from InstanceSettings.generatedTypesDir).
+	 * If not provided, falls back to workflow-sdk static types.
+	 */
+	generatedTypesDir?: string;
 	/** Callback for fetching resource locator options */
 	resourceLocatorCallback?: ResourceLocatorCallback;
+	/** Callback for emitting telemetry events */
+	onTelemetryEvent?: (event: string, properties: ITelemetryTrackProperties) => void;
 }
 
 export interface ExpressionValue {
@@ -76,6 +85,8 @@ export interface ExpressionValue {
 
 export interface BuilderFeatureFlags {
 	templateExamples?: boolean;
+	/** Enable CodeWorkflowBuilder (default: false). When false, uses legacy multi-agent system. */
+	codeBuilder?: boolean;
 }
 
 export interface ChatPayload {
@@ -101,7 +112,9 @@ export class WorkflowBuilderAgent {
 	private instanceUrl?: string;
 	private runMetadata?: Record<string, unknown>;
 	private onGenerationSuccess?: () => Promise<void>;
+	private generatedTypesDir?: string;
 	private resourceLocatorCallback?: ResourceLocatorCallback;
+	private onTelemetryEvent?: (event: string, properties: ITelemetryTrackProperties) => void;
 
 	constructor(config: WorkflowBuilderAgentConfig) {
 		this.parsedNodeTypes = config.parsedNodeTypes;
@@ -112,7 +125,9 @@ export class WorkflowBuilderAgent {
 		this.instanceUrl = config.instanceUrl;
 		this.runMetadata = config.runMetadata;
 		this.onGenerationSuccess = config.onGenerationSuccess;
+		this.generatedTypesDir = config.generatedTypesDir;
 		this.resourceLocatorCallback = config.resourceLocatorCallback;
+		this.onTelemetryEvent = config.onTelemetryEvent;
 	}
 
 	/**
@@ -156,6 +171,35 @@ export class WorkflowBuilderAgent {
 		externalCallbacks?: Callbacks,
 	) {
 		this.validateMessageLength(payload.message);
+
+		// Feature flag: Route to CodeWorkflowBuilder if enabled (default: false)
+		const useCodeWorkflowBuilder = payload.featureFlags?.codeBuilder ?? false;
+
+		if (useCodeWorkflowBuilder) {
+			this.logger?.debug('Routing to CodeWorkflowBuilder', { userId });
+
+			// Use CodeWorkflowBuilder (unified code builder agent)
+			const codeWorkflowBuilder = new CodeWorkflowBuilder({
+				llm: this.stageLLMs.builder,
+				nodeTypes: this.parsedNodeTypes,
+				logger: this.logger,
+				generatedTypesDir: this.generatedTypesDir,
+				checkpointer: this.checkpointer,
+				onGenerationSuccess: this.onGenerationSuccess,
+				callbacks: this.tracer ? [this.tracer] : undefined,
+				runMetadata: {
+					...this.runMetadata,
+					userMessageId: payload.id,
+				},
+				onTelemetryEvent: this.onTelemetryEvent,
+			});
+
+			yield* codeWorkflowBuilder.chat(payload, userId ?? 'unknown', abortSignal);
+			return;
+		}
+
+		// Fall back to legacy multi-agent system
+		this.logger?.debug('Routing to legacy multi-agent system', { userId });
 
 		const { agent, threadConfig, streamConfig } = this.setupAgentAndConfigs(
 			payload,

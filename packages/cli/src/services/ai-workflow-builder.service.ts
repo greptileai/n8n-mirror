@@ -154,6 +154,7 @@ export class WorkflowBuilderService {
 			N8N_VERSION,
 			onCreditsUpdated,
 			onTelemetryEvent,
+			this.instanceSettings.generatedTypesDir,
 			resourceLocatorCallbackFactory,
 		);
 

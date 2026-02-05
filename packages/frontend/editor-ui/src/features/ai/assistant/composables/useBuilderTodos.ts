@@ -126,17 +126,61 @@ export function useBuilderTodos() {
 	const locale = useI18n();
 
 	/**
+	 * Checks if a node has pinned data, either directly or through any ancestor node.
+	 * Sub-nodes (like AI models) don't have pinned data themselves, but if any
+	 * ancestor node has pinned data, the sub-node's output is already defined.
+	 * Handles nested sub-nodes by recursively checking up the chain.
+	 */
+	function nodeHasPinnedData(nodeName: string, visited: Set<string> = new Set()): boolean {
+		// Prevent infinite loops in case of circular connections
+		if (visited.has(nodeName)) {
+			return false;
+		}
+		visited.add(nodeName);
+
+		const pinData = workflowsStore.workflow.pinData;
+
+		// Check if node has direct pinned data
+		if (pinData?.[nodeName]?.length) {
+			return true;
+		}
+
+		// Check if any ancestor node (nodes this one outputs to) has pinned data
+		// Sub-nodes output to their parent, so recursively check up the chain
+		const outgoingConnections = workflowsStore.outgoingConnectionsByNodeName(nodeName);
+		for (const connectionType of Object.keys(outgoingConnections)) {
+			const connections = outgoingConnections[connectionType];
+			if (connections) {
+				for (const connectionGroup of connections) {
+					if (!connectionGroup) continue;
+					for (const connection of connectionGroup) {
+						// Recursively check if the parent or any of its ancestors has pinned data
+						if (nodeHasPinnedData(connection.node, visited)) {
+							return true;
+						}
+					}
+				}
+			}
+		}
+
+		return false;
+	}
+
+	/**
 	 * Base workflow validation issues filtered to only credentials and parameters types.
+	 * Excludes issues from nodes that have pinned data.
 	 */
 	const baseWorkflowIssues = computed(() =>
-		workflowsStore.workflowValidationIssues.filter((issue) =>
-			['credentials', 'parameters'].includes(issue.type),
+		workflowsStore.workflowValidationIssues.filter(
+			(issue) =>
+				['credentials', 'parameters'].includes(issue.type) && !nodeHasPinnedData(issue.node),
 		),
 	);
 
 	/**
 	 * Placeholder issues detected in workflow node parameters.
 	 * These are values with the format <__PLACEHOLDER_VALUE__label__>.
+	 * Excludes issues from nodes that have pinned data.
 	 */
 	const placeholderIssues = computed(() => {
 		const issues: WorkflowValidationIssue[] = [];
@@ -144,6 +188,9 @@ export function useBuilderTodos() {
 
 		for (const node of workflowsStore.workflow.nodes) {
 			if (!node?.parameters) continue;
+
+			// Skip nodes with pinned data - their output is already defined
+			if (nodeHasPinnedData(node.name)) continue;
 
 			const placeholders = findPlaceholderDetails(node.parameters);
 			if (placeholders.length === 0) continue;

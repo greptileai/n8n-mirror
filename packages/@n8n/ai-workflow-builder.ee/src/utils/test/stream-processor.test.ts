@@ -385,7 +385,7 @@ describe('stream-processor', () => {
 			expect(result[0]).not.toHaveProperty('revertVersionId');
 		});
 
-		it('should not include id when messageId is missing', () => {
+		it('should include HumanMessage and extract versionId even without messageId', () => {
 			const message = new HumanMessage({ content: 'Another message' });
 			message.additional_kwargs = { versionId: 'version-999' };
 
@@ -416,7 +416,7 @@ describe('stream-processor', () => {
 			expect(formatted.id).toBe('msg-complete');
 		});
 
-		it('should handle undefined additional_kwargs', () => {
+		it('should include HumanMessage with undefined additional_kwargs', () => {
 			const message = new HumanMessage({ content: 'Message without kwargs' });
 			// Message is created without additional_kwargs, so it's undefined by default
 
@@ -432,7 +432,7 @@ describe('stream-processor', () => {
 			expect(result[0]).not.toHaveProperty('id');
 		});
 
-		it('should handle empty additional_kwargs object', () => {
+		it('should include HumanMessage with empty additional_kwargs object', () => {
 			const message = new HumanMessage({ content: 'Empty kwargs' });
 			message.additional_kwargs = {};
 
@@ -464,7 +464,7 @@ describe('stream-processor', () => {
 			expect(result[0]).not.toHaveProperty('revertVersionId');
 		});
 
-		it('should only include id when messageId is a string', () => {
+		it('should include HumanMessage when messageId is not a string but exclude id from output', () => {
 			const message = new HumanMessage({ content: 'Non-string messageId' });
 			message.additional_kwargs = { versionId: 'version-456', messageId: 456 };
 
@@ -1191,6 +1191,57 @@ describe('stream-processor', () => {
 				data: { success: true, connectionId: 'conn-1' },
 			});
 		});
+
+		describe('internal feedback message filtering', () => {
+			it('should filter out HumanMessage with validationMessage flag', () => {
+				const userMessage = new HumanMessage({ content: 'User request' });
+				userMessage.additional_kwargs = { messageId: 'msg-123' };
+
+				const internalFeedback = new HumanMessage({
+					content: 'Validation warnings:\n- [INVALID_EXPRESSION_PATH] Some error',
+				});
+				internalFeedback.additional_kwargs = { validationMessage: true };
+
+				const messages = [userMessage, internalFeedback];
+				const result = formatMessages(messages);
+
+				expect(result).toHaveLength(1);
+				expect(result[0].text).toBe('User request');
+				expect(result[0].id).toBe('msg-123');
+			});
+
+			it('should include HumanMessage without validationMessage flag even if no messageId', () => {
+				// This tests that normal HumanMessages (e.g., from code-builder where
+				// messageId might be on a different message) are still included
+				const userMessage = new HumanMessage({ content: 'User request' });
+				// No messageId, but also no validationMessage flag
+
+				const result = formatMessages([userMessage]);
+
+				expect(result).toHaveLength(1);
+				expect(result[0].text).toBe('User request');
+			});
+
+			it('should format mixed conversation excluding validation feedback', () => {
+				const userMsg = new HumanMessage({ content: 'Build workflow' });
+				userMsg.additional_kwargs = { messageId: 'msg-1' };
+
+				const aiMsg = new AIMessage({ content: 'I will help you' });
+
+				const feedback = new HumanMessage({ content: 'Validation warnings...' });
+				feedback.additional_kwargs = { validationMessage: true };
+
+				const aiResponse = new AIMessage({ content: 'Fixed the issues' });
+
+				const messages = [userMsg, aiMsg, feedback, aiResponse];
+				const result = formatMessages(messages);
+
+				expect(result).toHaveLength(3); // userMsg + 2 AI messages
+				expect(result[0].role).toBe('user');
+				expect(result[1].role).toBe('assistant');
+				expect(result[2].role).toBe('assistant');
+			});
+		});
 	});
 
 	describe('createStreamProcessor with subgraph events', () => {
@@ -1443,6 +1494,57 @@ describe('stream-processor', () => {
 			const input = 'Plain text without any tags';
 			const result = cleanContextTags(input);
 			expect(result).toBe('Plain text without any tags');
+		});
+
+		it('should extract user request from XML tag format', () => {
+			const input = `<previous_requests>
+test
+</previous_requests>
+<workflow_file path="/workflow.ts">
+1: const wf = workflow('id', 'name');
+</workflow_file>
+<user_request>
+add set node
+</user_request>`;
+
+			const result = cleanContextTags(input);
+			expect(result).toBe('add set node');
+		});
+
+		it('should extract multiline user request from XML tag', () => {
+			const input = `<workflow_file path="/workflow.ts">
+code
+</workflow_file>
+<user_request>
+add a set node
+and connect it to the trigger
+</user_request>`;
+
+			const result = cleanContextTags(input);
+			expect(result).toBe('add a set node\nand connect it to the trigger');
+		});
+
+		it('should handle backwards compatible "User request:" text format', () => {
+			const input = `<workflow_file path="/workflow.ts">
+code
+</workflow_file>
+User request:
+old format request`;
+
+			const result = cleanContextTags(input);
+			expect(result).toBe('old format request');
+		});
+
+		it('should strip code builder tags when no user request marker found', () => {
+			const input = `<previous_requests>
+old request
+</previous_requests>
+<workflow_file path="/workflow.ts">
+code
+</workflow_file>`;
+
+			const result = cleanContextTags(input);
+			expect(result).toBe('');
 		});
 	});
 

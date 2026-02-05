@@ -14,6 +14,7 @@ import { CommunityPackagesConfig } from '@/modules/community-packages/community-
 import type { PushConfig } from '@/push/push.config';
 import type { AiUsageService } from '@/services/ai-usage.service';
 import { FrontendService, type PublicFrontendSettings } from '@/services/frontend.service';
+import type { NodeTypeGeneratorService } from '@/services/node-type-generator.service';
 import type { UrlService } from '@/services/url.service';
 import type { UserManagementMailer } from '@/user-management/email';
 import type { OwnershipService } from '../ownership.service';
@@ -155,6 +156,10 @@ describe('FrontendService', () => {
 		hasInstanceOwner: jest.fn().mockReturnValue(false),
 	});
 
+	const nodeTypeGeneratorService = mock<NodeTypeGeneratorService>({
+		generateIfNeeded: jest.fn().mockResolvedValue(false),
+	});
+
 	const aiUsageService = mock<AiUsageService>({
 		getAiUsageSettings: jest.fn().mockResolvedValue(true),
 	});
@@ -185,6 +190,7 @@ describe('FrontendService', () => {
 				moduleRegistry,
 				mfaService,
 				ownershipService,
+				nodeTypeGeneratorService,
 				aiUsageService,
 			),
 			license,

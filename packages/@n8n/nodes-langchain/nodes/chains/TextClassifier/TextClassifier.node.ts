@@ -63,6 +63,13 @@ export class TextClassifier implements INodeType {
 			},
 		],
 		outputs: `={{(${configuredOutputs})($parameter)}}`,
+		builderHint: {
+			inputs: {
+				ai_languageModel: { required: true },
+			},
+			message:
+				'Each category defined creates a separate output branch. Output 0 corresponds to the first category, output 1 to the second, and so on.',
+		},
 		properties: [
 			{
 				displayName: 'Text to Classify',
