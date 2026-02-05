@@ -126,12 +126,44 @@ export function useBuilderTodos() {
 	const locale = useI18n();
 
 	/**
-	 * Checks if a node has pinned data.
-	 * Nodes with pinned data don't need to execute, so their validation issues should be ignored.
+	 * Checks if a node has pinned data, either directly or through any ancestor node.
+	 * Sub-nodes (like AI models) don't have pinned data themselves, but if any
+	 * ancestor node has pinned data, the sub-node's output is already defined.
+	 * Handles nested sub-nodes by recursively checking up the chain.
 	 */
-	function nodeHasPinnedData(nodeName: string): boolean {
+	function nodeHasPinnedData(nodeName: string, visited: Set<string> = new Set()): boolean {
+		// Prevent infinite loops in case of circular connections
+		if (visited.has(nodeName)) {
+			return false;
+		}
+		visited.add(nodeName);
+
 		const pinData = workflowsStore.workflow.pinData;
-		return Boolean(pinData?.[nodeName]?.length);
+
+		// Check if node has direct pinned data
+		if (pinData?.[nodeName]?.length) {
+			return true;
+		}
+
+		// Check if any ancestor node (nodes this one outputs to) has pinned data
+		// Sub-nodes output to their parent, so recursively check up the chain
+		const outgoingConnections = workflowsStore.outgoingConnectionsByNodeName(nodeName);
+		for (const connectionType of Object.keys(outgoingConnections)) {
+			const connections = outgoingConnections[connectionType];
+			if (connections) {
+				for (const connectionGroup of connections) {
+					if (!connectionGroup) continue;
+					for (const connection of connectionGroup) {
+						// Recursively check if the parent or any of its ancestors has pinned data
+						if (nodeHasPinnedData(connection.node, visited)) {
+							return true;
+						}
+					}
+				}
+			}
+		}
+
+		return false;
 	}
 
 	/**

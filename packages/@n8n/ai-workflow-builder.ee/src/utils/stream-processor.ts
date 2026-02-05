@@ -458,7 +458,11 @@ export function formatMessages(
 
 	for (const msg of messages) {
 		if (msg instanceof HumanMessage) {
-			formattedMessages.push(formatHumanMessage(msg));
+			// Only include user-initiated messages (those with string messageId)
+			// Filter out internal feedback messages (validation warnings, parse errors)
+			if (typeof msg.additional_kwargs?.messageId === 'string') {
+				formattedMessages.push(formatHumanMessage(msg));
+			}
 		} else if (msg instanceof AIMessage) {
 			// Add AI message content
 			formattedMessages.push(...processAIMessageContent(msg));

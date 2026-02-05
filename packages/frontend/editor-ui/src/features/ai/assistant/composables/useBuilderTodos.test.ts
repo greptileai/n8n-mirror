@@ -402,6 +402,183 @@ describe('useBuilderTodos', () => {
 			expect(workflowTodos.value).toHaveLength(0);
 		});
 
+		it('excludes credential issues from pinned AI model nodes with incoming connections', () => {
+			const workflowsStore = useWorkflowsStore();
+
+			// Setup an AI model node with credential issues (like OpenAI GPT-4o-mini)
+			const aiModelNode = createMockNode({
+				name: 'OpenAI GPT-4o-mini',
+				type: '@n8n/n8n-nodes-langchain.lmChatOpenAi',
+				issues: {
+					credentials: {
+						openAiApi: ['Credentials not set'],
+					},
+				},
+			});
+
+			const agentNode = createMockNode({
+				id: 'agent-1',
+				name: 'AI Agent',
+				type: '@n8n/n8n-nodes-langchain.agent',
+			});
+
+			// Connections are stored by SOURCE node. AI Agent connects TO the model node.
+			// This gives the model node an INCOMING connection.
+			workflowsStore.workflow.nodes = [aiModelNode, agentNode];
+			workflowsStore.workflow.connections = {
+				'AI Agent': {
+					ai_languageModel: [
+						[{ node: 'OpenAI GPT-4o-mini', type: 'ai_languageModel' as const, index: 0 }],
+					],
+				},
+			};
+			workflowsStore.workflow.pinData = {
+				'OpenAI GPT-4o-mini': [{ json: { response: 'pinned AI response' } }],
+			};
+
+			// Verify the issue exists in workflowValidationIssues before filtering
+			const validationIssues = workflowsStore.workflowValidationIssues;
+			expect(validationIssues.some((i) => i.node === 'OpenAI GPT-4o-mini')).toBe(true);
+
+			const { workflowTodos } = useBuilderTodos();
+
+			// Since the node has pinned data, the credential issue should be excluded
+			expect(workflowTodos.value).toHaveLength(0);
+		});
+
+		it('excludes credential issues from sub-nodes when parent node has pinned data', () => {
+			const workflowsStore = useWorkflowsStore();
+
+			// Setup: AI model sub-node with credential issues
+			const aiModelSubNode = createMockNode({
+				name: 'OpenAI GPT-4.1-mini',
+				type: '@n8n/n8n-nodes-langchain.lmChatOpenAi',
+				issues: {
+					credentials: {
+						openAiApi: ['Credentials not set'],
+					},
+				},
+			});
+
+			// Parent node (AI Agent) that the sub-node outputs to
+			const parentNode = createMockNode({
+				id: 'parent-1',
+				name: 'Analyze Emails',
+				type: '@n8n/n8n-nodes-langchain.agent',
+			});
+
+			workflowsStore.workflow.nodes = [aiModelSubNode, parentNode];
+
+			// Sub-node outputs TO the parent node (stored by source node)
+			workflowsStore.workflow.connections = {
+				'OpenAI GPT-4.1-mini': {
+					ai_languageModel: [
+						[{ node: 'Analyze Emails', type: 'ai_languageModel' as const, index: 0 }],
+					],
+				},
+			};
+
+			// Parent node has pinned data, but sub-node does NOT
+			workflowsStore.workflow.pinData = {
+				'Analyze Emails': [{ json: { response: 'pinned response' } }],
+			};
+
+			// Verify validation issue exists for the sub-node
+			const validationIssues = workflowsStore.workflowValidationIssues;
+			expect(validationIssues.some((i) => i.node === 'OpenAI GPT-4.1-mini')).toBe(true);
+
+			const { workflowTodos } = useBuilderTodos();
+
+			// Sub-node's credential issue should be excluded because parent has pinned data
+			expect(workflowTodos.value).toHaveLength(0);
+		});
+
+		it('excludes credential issues from nested sub-nodes when ancestor has pinned data', () => {
+			const workflowsStore = useWorkflowsStore();
+
+			// Setup: Nested sub-node structure
+			// grandparentNode (has pinned data) <- parentSubNode <- childSubNode (has credential issues)
+			const childSubNode = createMockNode({
+				name: 'Child Tool',
+				type: '@n8n/n8n-nodes-langchain.tool',
+				issues: {
+					credentials: {
+						toolApi: ['Credentials not set'],
+					},
+				},
+			});
+
+			const parentSubNode = createMockNode({
+				id: 'parent-sub-1',
+				name: 'AI Model',
+				type: '@n8n/n8n-nodes-langchain.lmChatOpenAi',
+			});
+
+			const grandparentNode = createMockNode({
+				id: 'grandparent-1',
+				name: 'AI Agent',
+				type: '@n8n/n8n-nodes-langchain.agent',
+			});
+
+			workflowsStore.workflow.nodes = [childSubNode, parentSubNode, grandparentNode];
+
+			// Child outputs to parent, parent outputs to grandparent
+			workflowsStore.workflow.connections = {
+				'Child Tool': {
+					ai_tool: [[{ node: 'AI Model', type: 'ai_tool' as const, index: 0 }]],
+				},
+				'AI Model': {
+					ai_languageModel: [[{ node: 'AI Agent', type: 'ai_languageModel' as const, index: 0 }]],
+				},
+			};
+
+			// Only grandparent has pinned data
+			workflowsStore.workflow.pinData = {
+				'AI Agent': [{ json: { response: 'pinned response' } }],
+			};
+
+			const { workflowTodos } = useBuilderTodos();
+
+			// Child sub-node's credential issue should be excluded because ancestor has pinned data
+			expect(workflowTodos.value).toHaveLength(0);
+		});
+
+		it('verifies pinData structure is correct for filtering', () => {
+			const workflowsStore = useWorkflowsStore();
+
+			// Setup pinData with various structures to verify filtering works
+			const nodeWithIssues = createMockNode({
+				name: 'Test Node',
+				issues: {
+					credentials: {
+						testCred: ['Credentials not set'],
+					},
+				},
+			});
+
+			workflowsStore.workflow.nodes = [nodeWithIssues];
+			workflowsStore.workflow.connections = {
+				'Test Node': {
+					main: [[{ node: 'Other', type: 'main' as const, index: 0 }]],
+				},
+			};
+
+			// Verify pinData must have array with length > 0 to be considered pinned
+			const { workflowTodos } = useBuilderTodos();
+
+			// No pinData - should show issue
+			workflowsStore.workflow.pinData = {};
+			expect(workflowTodos.value).toHaveLength(1);
+
+			// Empty array - should still show issue
+			workflowsStore.workflow.pinData = { 'Test Node': [] };
+			expect(workflowTodos.value).toHaveLength(1);
+
+			// Non-empty array - should hide issue
+			workflowsStore.workflow.pinData = { 'Test Node': [{ json: { data: 'test' } }] };
+			expect(workflowTodos.value).toHaveLength(0);
+		});
+
 		it('includes validation issues from non-pinned nodes', () => {
 			const workflowsStore = useWorkflowsStore();
 
