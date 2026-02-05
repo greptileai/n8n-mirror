@@ -50,11 +50,11 @@ export class SecretsProviderConnectionRepository extends Repository<SecretsProvi
 				'project',
 			);
 		} else {
-			qb.innerJoin('connection.projectAccess', 'access');
+			qb.innerJoin('connection.projectAccess', 'projectAccess');
 		}
 
 		return await qb
-			.where('access.projectId = :projectId', { projectId })
+			.where('projectAccess.projectId = :projectId', { projectId })
 			.andWhere('connection.isEnabled = :isEnabled', { isEnabled: true })
 			.getMany();
 	}
