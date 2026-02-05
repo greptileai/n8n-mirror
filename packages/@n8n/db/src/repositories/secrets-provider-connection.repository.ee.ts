@@ -15,11 +15,19 @@ export class SecretsProviderConnectionRepository extends Repository<SecretsProvi
 
 	/**
 	 * Find all global connections (connections with no project access entries)
+	 * @param loadRelations - Whether to load projectAccess relation. Default: true
 	 */
-	async findGlobalConnections(): Promise<SecretsProviderConnection[]> {
-		return await this.manager
-			.createQueryBuilder(SecretsProviderConnection, 'connection')
-			.leftJoinAndSelect('connection.projectAccess', 'access')
+	async findGlobalConnections(loadRelations = true): Promise<SecretsProviderConnection[]> {
+		const qb = this.createQueryBuilder('connection');
+
+		// Always need LEFT JOIN for WHERE clause, but only SELECT if relations requested
+		if (loadRelations) {
+			qb.leftJoinAndSelect('connection.projectAccess', 'access');
+		} else {
+			qb.leftJoin('connection.projectAccess', 'access');
+		}
+
+		return await qb
 			.where('access.secretsProviderConnectionId IS NULL')
 			.andWhere('connection.isEnabled = :isEnabled', { isEnabled: true })
 			.getMany();
@@ -27,11 +35,25 @@ export class SecretsProviderConnectionRepository extends Repository<SecretsProvi
 
 	/**
 	 * Find all enabled connections that have access to a specific project
+	 * @param projectId - The project ID to filter by
+	 * @param loadRelations - Whether to load projectAccess and nested project relations. Default: true
 	 */
-	async findByProjectId(projectId: string): Promise<SecretsProviderConnection[]> {
-		return await this.manager
-			.createQueryBuilder(SecretsProviderConnection, 'connection')
-			.innerJoin('connection.projectAccess', 'access')
+	async findByProjectId(
+		projectId: string,
+		loadRelations = true,
+	): Promise<SecretsProviderConnection[]> {
+		const qb = this.createQueryBuilder('connection');
+
+		if (loadRelations) {
+			qb.leftJoinAndSelect('connection.projectAccess', 'projectAccess').leftJoinAndSelect(
+				'projectAccess.project',
+				'project',
+			);
+		} else {
+			qb.innerJoin('connection.projectAccess', 'access');
+		}
+
+		return await qb
 			.where('access.projectId = :projectId', { projectId })
 			.andWhere('connection.isEnabled = :isEnabled', { isEnabled: true })
 			.getMany();
@@ -44,25 +66,8 @@ export class SecretsProviderConnectionRepository extends Repository<SecretsProvi
 	 * Returns connections with full project access relations loaded.
 	 */
 	async findAllAccessibleByProject(projectId: string): Promise<SecretsProviderConnection[]> {
-		// First, get connections assigned to this project
-		const projectConnections = await this.createQueryBuilder('connection')
-			.leftJoinAndSelect('connection.projectAccess', 'projectAccess')
-			.leftJoinAndSelect('projectAccess.project', 'project')
-			.innerJoin('connection.projectAccess', 'access')
-			.where('access.projectId = :projectId', { projectId })
-			.andWhere('connection.isEnabled = :isEnabled', { isEnabled: true })
-			.getMany();
-
-		// Second, get global connections (no project assignments)
-		const globalConnections = await this.findGlobalConnections();
-
-		// Combine and deduplicate by connection id
-		const connectionMap = new Map<number, SecretsProviderConnection>();
-
-		for (const conn of [...projectConnections, ...globalConnections]) {
-			connectionMap.set(conn.id, conn);
-		}
-
-		return Array.from(connectionMap.values());
+		const projectConnections = await this.findByProjectId(projectId, true);
+		const globalConnections = await this.findGlobalConnections(true);
+		return projectConnections.concat(globalConnections);
 	}
 }
