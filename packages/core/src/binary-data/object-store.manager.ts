@@ -98,10 +98,8 @@ export class ObjectStoreManager implements BinaryData.Manager {
 			mode: 's3',
 			bucket: this.config.bucket.name,
 			region: this.config.bucket.region,
-			credentials: {
-				accessKeyId: this.config.credentials.accessKey,
-				secretAccessKey: this.config.credentials.accessSecret,
-			},
+			accessKeyId: this.config.credentials.accessKey,
+			secretAccessKey: this.config.credentials.accessSecret,
 			endpoint:
 				this.config.host !== '' ? `${this.config.protocol}://${this.config.host}` : undefined,
 		};

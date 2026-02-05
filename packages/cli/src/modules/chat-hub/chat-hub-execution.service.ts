@@ -122,7 +122,7 @@ export class ChatHubExecutionService {
 			await this.chatStreamService.endExecution(user.id, sessionId, 'error');
 		} finally {
 			if (model.provider !== 'n8n') {
-				await this.chatHubWorkflowService.deleteChatWorkflow(workflowData.id);
+				//await this.chatHubWorkflowService.deleteChatWorkflow(workflowData.id);
 			}
 		}
 	}

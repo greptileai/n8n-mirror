@@ -23,11 +23,13 @@ import { WorkflowExecutionService } from '@/workflows/workflow-execution.service
 import { BadRequestError } from '@/errors/response-errors/bad-request.error';
 import { ChatHubSettingsService } from './chat-hub.settings.service';
 import type { ProviderAndCredentialId } from './chat-hub.types';
-import { VectorStoreDataRepository } from '../vector-store/vector-store-data.repository';
+// TODO: Remove after implementing direct LanceDB access
+// import { VectorStoreDataRepository } from '../vector-store/vector-store-data.repository';
 
 import { NotFoundError } from '@/errors/response-errors/not-found.error';
 import { ChatHubExecutionService } from './chat-hub-execution.service';
 import { CredentialsService } from '@/credentials/credentials.service';
+import { BinaryDataService, FileLocation } from 'n8n-core';
 
 @Service()
 export class ChatHubAgentService {
@@ -39,9 +41,11 @@ export class ChatHubAgentService {
 		private readonly chatHubWorkflowService: ChatHubWorkflowService,
 		private readonly chatHubExecutionService: ChatHubExecutionService,
 		private readonly workflowExecutionService: WorkflowExecutionService,
-		private readonly vectorStoreRepository: VectorStoreDataRepository,
+		// TODO: Remove after implementing direct LanceDB access
+		// private readonly vectorStoreRepository: VectorStoreDataRepository,
 		private readonly chatHubSettingsService: ChatHubSettingsService,
 		private readonly credentialsService: CredentialsService,
+		private readonly binaryDataService: BinaryDataService,
 	) {
 		this.logger = this.logger.scoped('chat-hub');
 	}
@@ -232,8 +236,25 @@ export class ChatHubAgentService {
 		this.logger.debug(`Chat agent deleted: ${id} by user ${user.id}`);
 	}
 
-	getAgentMemoryKey(userId: string, agentId: string): string {
-		return `chat-hub-agent-files-${userId}-${agentId}`;
+	getAgentMemoryKey(agentId: string): string {
+		return `chat-hub-agent-files-${agentId}`;
+	}
+
+	async createVectorStoreCredential(user: User) {
+		// Get storage config from binary data service
+		const storageConfig = this.binaryDataService.getStorageConfig();
+		const storagePath = await this.binaryDataService.ensureLocation(
+			FileLocation.ofCustom({ pathSegments: ['chat-hub', 'users', user.id, 'embeddings'] }),
+		);
+
+		return await this.credentialsService.createManagedCredential(
+			{
+				type: 'n8nInternalBinaryDataServiceApi',
+				name: 'Temporary credential for ChatHub execution',
+				data: { ...storageConfig, storagePath },
+			},
+			user,
+		);
 	}
 
 	private async insertEmbeddings(
@@ -246,16 +267,7 @@ export class ChatHubAgentService {
 			return;
 		}
 
-		const cred = await this.credentialsService.createManagedCredential(
-			{
-				type: 'n8nInternalBinaryDataServiceApi',
-				name: 'Temporary credential for ChatHub execution',
-				data: {
-					hello: 'from chat!',
-				},
-			},
-			user,
-		);
+		const cred = await this.createVectorStoreCredential(user);
 
 		const { workflowData, executionData } = await this.chatAgentRepository.manager.transaction(
 			async (trx) => {
@@ -267,7 +279,7 @@ export class ChatHubAgentService {
 					files,
 					{
 						embeddingModel,
-						memoryKey: this.getAgentMemoryKey(user.id, agentId),
+						memoryKey: this.getAgentMemoryKey(agentId),
 						vectorStoreCredentialId: cred.id,
 					},
 					trx,
@@ -293,11 +305,12 @@ export class ChatHubAgentService {
 	}
 
 	private async deleteEmbeddings(user: User, agentId: string): Promise<void> {
-		const memoryKey = this.getAgentMemoryKey(user.id, agentId);
+		const memoryKey = this.getAgentMemoryKey(agentId);
 		const { id: projectId } = await this.chatHubCredentialsService.findPersonalProject(user);
 
 		// Delete all embeddings for this agent from the vector store
-		await this.vectorStoreRepository.clearStore(memoryKey, projectId);
+		// TODO: Implement direct LanceDB access to delete embeddings
+		// await this.vectorStoreRepository.clearStore(memoryKey, projectId);
 
 		this.logger.debug(
 			`Deleted embeddings for agent ${agentId} from vector store (memoryKey: ${memoryKey}, projectId: ${projectId})`,
@@ -313,18 +326,19 @@ export class ChatHubAgentService {
 			return;
 		}
 
-		const memoryKey = this.getAgentMemoryKey(user.id, agentId);
+		const memoryKey = this.getAgentMemoryKey(agentId);
 		const { id: projectId } = await this.chatHubCredentialsService.findPersonalProject(user);
 
 		// Delete embeddings for specific files from the vector store
-		const deletedCount = await this.vectorStoreRepository.deleteByFileNames(
-			memoryKey,
-			projectId,
-			fileNames,
-		);
+		// TODO: Implement direct LanceDB access to delete embeddings by file names
+		// const deletedCount = await this.vectorStoreRepository.deleteByFileNames(
+		// 	memoryKey,
+		// 	projectId,
+		// 	fileNames,
+		// );
 
 		this.logger.debug(
-			`Deleted ${deletedCount} embeddings for ${fileNames.length} files from vector store (memoryKey: ${memoryKey}, projectId: ${projectId}, fileNames: ${fileNames.join(', ')})`,
+			`Deleted embeddings for ${fileNames.length} files from vector store (memoryKey: ${memoryKey}, projectId: ${projectId}, fileNames: ${fileNames.join(', ')})`,
 		);
 	}
 

@@ -44,7 +44,8 @@ export namespace BinaryData {
 				mode: 's3';
 				bucket: string;
 				region: string;
-				credentials: { accessKeyId: string; secretAccessKey: string };
+				accessKeyId: string;
+				secretAccessKey: string;
 				endpoint?: string;
 		  };
 

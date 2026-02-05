@@ -57,7 +57,6 @@ import { getModelMetadata } from './chat-hub.constants';
 import { inE2ETests } from '@/constants';
 import { DateTime } from 'luxon';
 import { collectChatArtifacts, parseMessage } from '@n8n/chat-hub';
-import { CredentialsService } from '@/credentials/credentials.service';
 
 @Service()
 export class ChatHubService {
@@ -76,7 +75,6 @@ export class ChatHubService {
 		private readonly chatHubTitleService: ChatHubTitleService,
 		private readonly chatHubWorkflowService: ChatHubWorkflowService,
 		private readonly globalConfig: GlobalConfig,
-		private readonly credentialsService: CredentialsService,
 	) {
 		this.logger = this.logger.scoped('chat-hub');
 	}
@@ -383,17 +381,10 @@ export class ChatHubService {
 		let previousMessage: ChatHubMessage | undefined;
 
 		try {
-			const cred = await this.credentialsService.createManagedCredential(
-				{
-					type: 'n8nInternalBinaryDataServiceApi',
-					name: 'Temporary credential for ChatHub execution',
-					data: {
-						hello: 'from chat!',
-					},
-				},
-				user,
-			);
-
+			const vectorStoreCredential =
+				model.provider === 'custom-agent'
+					? await this.chatHubAgentService.createVectorStoreCredential(user)
+					: undefined;
 			const result = await this.messageRepository.manager.transaction(async (trx) => {
 				let session = await this.getChatSession(user, sessionId, trx);
 				session ??= await this.createChatSession(
@@ -438,7 +429,7 @@ export class ChatHubService {
 					tz,
 					trx,
 					executionMetadata,
-					cred.id,
+					vectorStoreCredential?.id,
 				);
 
 				return { workflow: replyWorkflow, previousMessage };
@@ -773,7 +764,7 @@ export class ChatHubService {
 				model.provider === 'custom-agent'
 					? [
 							await this.chatHubAgentService.getAgentById(user.id, model.agentId),
-							this.chatHubAgentService.getAgentMemoryKey(user.id, model.agentId),
+							this.chatHubAgentService.getAgentMemoryKey(model.agentId),
 						]
 					: [null, null];
 

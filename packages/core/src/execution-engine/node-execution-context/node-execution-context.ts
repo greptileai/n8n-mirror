@@ -363,8 +363,6 @@ export abstract class NodeExecutionContext implements Omit<FunctionsBase, 'getCr
 			}
 		}
 
-		this.logger.debug(`node.credentials=${JSON.stringify(node.credentials)}, type=${type}`);
-
 		if (fullAccess && !node.credentials?.[type]) {
 			// Make sure that fullAccess nodes still behave like before that if they
 			// request access to credentials that are currently not set it returns undefined

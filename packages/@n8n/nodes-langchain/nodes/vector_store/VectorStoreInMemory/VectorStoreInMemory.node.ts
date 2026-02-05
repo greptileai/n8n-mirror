@@ -13,12 +13,7 @@ import {
 
 import { createVectorStoreNode } from '../shared/createVectorStoreNode/createVectorStoreNode';
 import { MemoryVectorStoreManager } from '../shared/MemoryManager/MemoryVectorStoreManager';
-import { DatabaseVectorStore } from './DatabaseVectorStore';
-
-interface N8nInternalBinaryDataServiceCredentials {
-	apiKey: string;
-	baseUrl: string;
-}
+import { DatabaseVectorStore, type BinaryDataCredentials } from './DatabaseVectorStore';
 
 const warningBanner: INodeProperties = {
 	displayName:
@@ -231,25 +226,16 @@ export class VectorStoreInMemory extends createVectorStoreNode<
 				this: ILoadOptionsFunctions,
 				filter?: string,
 			): Promise<INodeListSearchResult> {
-				// Access vector store service from helpers (similar to DataTable pattern)
-				const service = this.helpers.getVectorStoreService?.();
+				// Get credentials
+				const credentials = await this.getCredentials<BinaryDataCredentials>(
+					'n8nInternalBinaryDataServiceApi',
+				);
 
-				if (!service) {
-					// Service not available (module might be disabled)
-					return { results: [] };
-				}
-
-				const workflowId = this.getWorkflow().id;
-
-				if (!workflowId) {
-					return { results: [] };
-				}
-
-				// Query the database for persisted vector store keys
-				const memoryKeys = await service.listStores(workflowId, filter);
+				// Use DatabaseVectorStore to list stores
+				const tableNames = await DatabaseVectorStore.listStores(credentials, filter);
 
 				return {
-					results: memoryKeys.map((key: string) => ({ name: key, value: key })),
+					results: tableNames.map((key: string) => ({ name: key, value: key })),
 				};
 			},
 		},
@@ -287,44 +273,13 @@ export class VectorStoreInMemory extends createVectorStoreNode<
 			false,
 		) as boolean;
 
-		// Access the optional binary data service credential
-		// This credential is always hidden but can be accessed programmatically
-		// If not configured, mock credentials are automatically returned by the execution context
-		const binaryDataCredentials = (await context.getCredentials(
-			'n8nInternalBinaryDataServiceApi',
-		)) as N8nInternalBinaryDataServiceCredentials;
-
-		// Binary data service credentials are available (real or mock)
-		// Can be used to configure external binary data storage
-		const { apiKey, baseUrl } = binaryDataCredentials;
-
-		context.logger.debug('Binary data service credentials available', {
-			baseUrl,
-			hasApiKey: !!apiKey,
-			isMock: apiKey === 'mock-api-key',
-		});
-
-		// TODO: Use these credentials to configure binary data storage
-		// For example, when storing large embeddings or documents externally
-
 		if (enablePersistence) {
-			// Use database-backed vector store
-			const service = context.helpers.getVectorStoreService?.();
+			// Use LanceDB-backed vector store
+			const credentials = await context.getCredentials<BinaryDataCredentials>(
+				'n8nInternalBinaryDataServiceApi',
+			);
 
-			if (!service) {
-				throw new ApplicationError(
-					'Vector store persistence is not available. The vector-store module may not be loaded.',
-				);
-			}
-
-			const workflowId = context.getWorkflow().id;
-			if (!workflowId) {
-				throw new ApplicationError(
-					'Workflow ID is required for vector store persistence. This execution may not be associated with a workflow.',
-				);
-			}
-
-			return new DatabaseVectorStore(embeddings, service, memoryKey, workflowId);
+			return new DatabaseVectorStore(credentials, embeddings, memoryKey);
 		} else {
 			// Use in-memory vector store (existing behavior)
 			const vectorStoreSingleton = MemoryVectorStoreManager.getInstance(embeddings, context.logger);
@@ -341,28 +296,12 @@ export class VectorStoreInMemory extends createVectorStoreNode<
 		) as boolean;
 
 		if (enablePersistence) {
-			// Use database-backed vector store
-			const vectorStoreService = context.helpers.getVectorStoreService?.();
-
-			if (!vectorStoreService) {
-				throw new ApplicationError(
-					'Vector store persistence is not available. The vector-store module may not be loaded.',
-				);
-			}
-
-			const workflowId = context.getWorkflow().id;
-			if (!workflowId) {
-				throw new ApplicationError(
-					'Workflow ID is required for vector store persistence. This execution may not be associated with a workflow.',
-				);
-			}
-
-			const vectorStore = new DatabaseVectorStore(
-				embeddings,
-				vectorStoreService,
-				memoryKey,
-				workflowId,
+			// Use LanceDB-backed vector store
+			const credentials = await context.getCredentials<BinaryDataCredentials>(
+				'n8nInternalBinaryDataServiceApi',
 			);
+
+			const vectorStore = new DatabaseVectorStore(credentials, embeddings, memoryKey);
 
 			if (clearStore) {
 				await vectorStore.clearStore();

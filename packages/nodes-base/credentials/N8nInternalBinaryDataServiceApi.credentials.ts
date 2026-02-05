@@ -1,9 +1,4 @@
-import type {
-	IAuthenticateGeneric,
-	ICredentialTestRequest,
-	ICredentialType,
-	INodeProperties,
-} from 'n8n-workflow';
+import type { ICredentialType, INodeProperties } from 'n8n-workflow';
 
 export class N8nInternalBinaryDataServiceApi implements ICredentialType {
 	name = 'n8nInternalBinaryDataServiceApi';
@@ -15,36 +10,89 @@ export class N8nInternalBinaryDataServiceApi implements ICredentialType {
 
 	properties: INodeProperties[] = [
 		{
-			displayName: 'API Key',
-			name: 'apiKey',
+			displayName: 'Storage Mode',
+			name: 'mode',
+			type: 'options',
+			options: [
+				{
+					name: 'Filesystem',
+					value: 'filesystem',
+				},
+				{
+					name: 'S3',
+					value: 's3',
+				},
+			],
+			default: 'filesystem',
+			description: 'The storage backend mode',
+		},
+		{
+			displayName: 'Bucket',
+			name: 'bucket',
+			type: 'string',
+			default: '',
+			displayOptions: {
+				show: {
+					mode: ['s3'],
+				},
+			},
+			description: 'The S3 bucket name',
+		},
+		{
+			displayName: 'Region',
+			name: 'region',
+			type: 'string',
+			default: '',
+			displayOptions: {
+				show: {
+					mode: ['s3'],
+				},
+			},
+			description: 'The AWS region',
+		},
+		{
+			displayName: 'Access Key ID',
+			name: 'accessKeyId',
+			type: 'string',
+			default: '',
+			displayOptions: {
+				show: {
+					mode: ['s3'],
+				},
+			},
+			description: 'The AWS access key ID',
+		},
+		{
+			displayName: 'Secret Access Key',
+			name: 'secretAccessKey',
 			type: 'string',
 			typeOptions: { password: true },
 			default: '',
-			description: 'The API key for the n8n internal binary data service',
+			displayOptions: {
+				show: {
+					mode: ['s3'],
+				},
+			},
+			description: 'The AWS secret access key',
 		},
 		{
-			displayName: 'Base URL',
-			name: 'baseUrl',
+			displayName: 'Endpoint',
+			name: 'endpoint',
 			type: 'string',
 			default: '',
-			placeholder: 'https://binary-data.internal.n8n.io',
-			description: 'The base URL of the internal binary data service',
+			displayOptions: {
+				show: {
+					mode: ['s3'],
+				},
+			},
+			description: 'Optional custom S3 endpoint URL',
+		},
+		{
+			displayName: 'Storage Path',
+			name: 'storagePath',
+			type: 'string',
+			default: '',
+			description: 'The storage path for binary data',
 		},
 	];
-
-	authenticate: IAuthenticateGeneric = {
-		type: 'generic',
-		properties: {
-			headers: {
-				'X-N8N-API-KEY': '={{ $credentials.apiKey }}',
-			},
-		},
-	};
-
-	test: ICredentialTestRequest = {
-		request: {
-			baseURL: '={{ $credentials.baseUrl }}',
-			url: '/health',
-		},
-	};
 }
