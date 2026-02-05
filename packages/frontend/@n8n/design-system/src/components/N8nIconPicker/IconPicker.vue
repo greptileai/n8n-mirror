@@ -87,8 +87,6 @@ const filteredEmojis = computed(() => {
 		return emojis.value;
 	}
 
-	void loadEmojiMetadataMap();
-
 	const query = searchQuery.value.toLowerCase();
 	return emojis.value.filter((emoji) => {
 		const metadata = emojiMetadataMap.value?.get(emoji);
@@ -207,6 +205,7 @@ async function loadEmojiMetadataMap() {
 					:clearable="true"
 					size="small"
 					data-test-id="icon-picker-search"
+					@input="loadEmojiMetadataMap"
 				>
 					<template #prefix>
 						<N8nIcon icon="search" :size="16" />
