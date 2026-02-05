@@ -3,8 +3,10 @@ import type { User } from '@n8n/db';
 import { Service } from '@n8n/di';
 import type { ICredentialDataDecryptedObject } from 'n8n-workflow';
 
+import { CredentialsFinderService } from '@/credentials/credentials-finder.service';
 import { CredentialsService } from '@/credentials/credentials.service';
 import { BadRequestError } from '@/errors/response-errors/bad-request.error';
+import { ConflictError } from '@/errors/response-errors/conflict.error';
 import { NotFoundError } from '@/errors/response-errors/not-found.error';
 
 import { QuickConnectHandlerRegistry } from './handlers/quick-connect.handler';
@@ -15,6 +17,7 @@ import { QuickConnectError } from './quick-connect.errors';
 export class QuickConnectService {
 	constructor(
 		private readonly credentialsService: CredentialsService,
+		private readonly credentialsFinderService: CredentialsFinderService,
 		private readonly config: QuickConnectConfig,
 		private readonly handlerRegistry: QuickConnectHandlerRegistry,
 		private readonly logger: Logger,
@@ -27,6 +30,16 @@ export class QuickConnectService {
 		if (!option) {
 			throw new NotFoundError(
 				`Quick Connect is not available for credential type: ${credentialType}`,
+			);
+		}
+
+		const existingCredentials = await this.credentialsFinderService.findCredentialsForUser(user, [
+			'credential:read',
+		]);
+		const hasExisting = existingCredentials.some((cred) => cred.type === credentialType);
+		if (hasExisting) {
+			throw new ConflictError(
+				`A credential of type "${credentialType}" already exists. Quick Connect only allows one credential per type.`,
 			);
 		}
 
@@ -56,7 +69,7 @@ export class QuickConnectService {
 				credentialType,
 			});
 			throw new QuickConnectError(
-				'Failed to connect to third-party service. Please try again later.',
+				`Failed to connect to ${option.serviceName}. Please try again later.`,
 				credentialType,
 				error instanceof Error ? error : undefined,
 			);
