@@ -25,7 +25,11 @@ export class QuickConnectService {
 		this.logger = this.logger.scoped('quick-connect');
 	}
 
-	async createCredential(credentialType: string, user: User): Promise<{ id: string }> {
+	async createCredential(
+		credentialType: string,
+		user: User,
+		projectId?: string,
+	): Promise<{ id: string }> {
 		const option = this.config.options.find((opt) => opt.credentialType === credentialType);
 		if (!option) {
 			throw new NotFoundError(
@@ -80,6 +84,7 @@ export class QuickConnectService {
 				name: `${option.serviceName} (Quick Connect)`,
 				type: credentialType,
 				data: credentialData,
+				projectId,
 			},
 			user,
 		);

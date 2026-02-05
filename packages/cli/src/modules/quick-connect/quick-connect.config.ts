@@ -2,6 +2,7 @@ import { Config, Env } from '@n8n/config';
 import { z } from 'zod';
 
 const backendFlowConfigSchema = z.object({
+	consentText: z.string().optional(),
 	secret: z.string(),
 });
 

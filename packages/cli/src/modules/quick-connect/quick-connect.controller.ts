@@ -1,5 +1,6 @@
+import { CreateQuickConnectCredentialDto } from '@n8n/api-types';
 import type { AuthenticatedRequest } from '@n8n/db';
-import { Param, Post, RestController } from '@n8n/decorators';
+import { Body, Post, RestController } from '@n8n/decorators';
 
 import { QuickConnectService } from './quick-connect.service';
 
@@ -7,12 +8,16 @@ import { QuickConnectService } from './quick-connect.service';
 export class QuickConnectController {
 	constructor(private readonly quickConnectService: QuickConnectService) {}
 
-	@Post('/:credentialType')
+	@Post('/create')
 	async createCredential(
 		req: AuthenticatedRequest,
 		_res: unknown,
-		@Param('credentialType') credentialType: string,
+		@Body body: CreateQuickConnectCredentialDto,
 	): Promise<{ id: string }> {
-		return await this.quickConnectService.createCredential(credentialType, req.user);
+		return await this.quickConnectService.createCredential(
+			body.credentialType,
+			req.user,
+			body.projectId,
+		);
 	}
 }

@@ -59,6 +59,7 @@ export { PushWorkFolderRequestDto } from './source-control/push-work-folder-requ
 export { type GitCommitInfo } from './source-control/push-work-folder-response.dto';
 
 export { CreateCredentialDto } from './credentials/create-credential.dto';
+export { CreateQuickConnectCredentialDto } from './quick-connect/create-quick-connect-credential.dto';
 export { VariableListRequestDto } from './variables/variables-list-request.dto';
 export { CreateVariableRequestDto } from './variables/create-variable-request.dto';
 export { UpdateVariableRequestDto } from './variables/update-variable-request.dto';

@@ -12,7 +12,7 @@ export class QuickConnectModule implements ModuleInterface {
 	/**
 	 * Settings exposed to the frontend under `/rest/module-settings`.
 	 *
-	 * The response shape will be `{ options: [{ packageName: string, credentialType: string, text: string, quickConnectType: string, serviceName: string, backendConfig?: {} }]}`.
+	 * The response shape will be `{ options: [{ packageName: string, credentialType: string, text: string, quickConnectType: string, serviceName: string, backendConfig?: { consentText?: string } }]}`.
 	 * Note: backendConfig.secret is intentionally excluded from the response to keep secrets server-side only.
 	 */
 	async settings() {
