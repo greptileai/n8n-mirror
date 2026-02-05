@@ -33,7 +33,9 @@ export class SecretsProviderConnectionRepository extends Repository<SecretsProvi
 	 * - Connections specifically shared with this project
 	 * - Global connections (those with no project assignments)
 	 */
-	async findAllAccessibleByProject(projectId: string): Promise<SecretsProviderConnection[]> {
+	async findAllAccessibleByProjectWithProjectAccess(
+		projectId: string,
+	): Promise<SecretsProviderConnection[]> {
 		const projectConnections = await this.createQueryBuilder('connection')
 			.leftJoinAndSelect('connection.projectAccess', 'projectAccess')
 			.leftJoinAndSelect('projectAccess.project', 'project')
