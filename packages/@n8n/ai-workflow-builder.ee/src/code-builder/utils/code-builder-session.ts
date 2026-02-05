@@ -253,9 +253,13 @@ export async function saveSessionMessages(
 	// Generate unique messageId for the first HumanMessage (used for truncation support)
 	const messageId = crypto.randomUUID();
 
+	// Find the index of the first HumanMessage in the batch
+	// (may not be at index 0 if SystemMessage comes first, e.g., in code-builder)
+	const firstHumanMessageIndex = messages.findIndex((msg) => msg instanceof HumanMessage);
+
 	// Add metadata to the first HumanMessage for truncation/restore support
 	const messagesWithMetadata = messages.map((msg, index) => {
-		if (index === 0 && msg instanceof HumanMessage) {
+		if (index === firstHumanMessageIndex && msg instanceof HumanMessage) {
 			return new HumanMessage({
 				content: msg.content,
 				additional_kwargs: {

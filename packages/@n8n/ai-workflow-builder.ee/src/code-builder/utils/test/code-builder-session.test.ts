@@ -1,5 +1,5 @@
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
-import { AIMessage, HumanMessage } from '@langchain/core/messages';
+import { AIMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { FakeListChatModel } from '@langchain/core/utils/testing';
 import { MemorySaver } from '@langchain/langgraph';
 
@@ -403,6 +403,113 @@ describe('code-builder-session', () => {
 
 			expect(tuple).toBeDefined();
 			expect(tuple?.checkpoint.channel_values?.messages).toBeDefined();
+		});
+
+		it('should add messageId to first HumanMessage even when SystemMessage is at index 0', async () => {
+			const checkpointer = new MemorySaver();
+			const workflowId = 'workflow-123';
+			const userId = 'user-456';
+
+			// Code-builder messages start with SystemMessage, not HumanMessage
+			const messages = [
+				new SystemMessage('You are a workflow builder assistant.'),
+				new HumanMessage('Create a workflow that sends email'),
+				new AIMessage('I have created the workflow.'),
+			];
+
+			await saveSessionMessages(checkpointer, workflowId, userId, messages);
+
+			const threadId = SessionManagerService.generateThreadId(workflowId, userId);
+			const config = { configurable: { thread_id: threadId } };
+			const tuple = await checkpointer.getTuple(config);
+
+			const savedMessages = tuple?.checkpoint.channel_values?.messages as Array<
+				SystemMessage | HumanMessage | AIMessage
+			>;
+			expect(savedMessages).toHaveLength(3);
+
+			// SystemMessage should NOT have messageId
+			expect(savedMessages[0]).toBeInstanceOf(SystemMessage);
+			expect(savedMessages[0].additional_kwargs?.messageId).toBeUndefined();
+
+			// First HumanMessage should have messageId even though it's at index 1
+			expect(savedMessages[1]).toBeInstanceOf(HumanMessage);
+			expect(savedMessages[1].additional_kwargs?.messageId).toBeDefined();
+
+			// AIMessage should NOT have messageId
+			expect(savedMessages[2]).toBeInstanceOf(AIMessage);
+			expect(savedMessages[2].additional_kwargs?.messageId).toBeUndefined();
+		});
+
+		it('should add messageId to first HumanMessage in each follow-up turn', async () => {
+			const checkpointer = new MemorySaver();
+			const workflowId = 'workflow-123';
+			const userId = 'user-456';
+
+			// First turn - with SystemMessage
+			const firstMessages = [
+				new SystemMessage('System prompt'),
+				new HumanMessage('First request'),
+				new AIMessage('First response'),
+			];
+			await saveSessionMessages(checkpointer, workflowId, userId, firstMessages);
+
+			// Second turn - follow-up with SystemMessage
+			const secondMessages = [
+				new SystemMessage('System prompt'),
+				new HumanMessage('Follow-up request'),
+				new AIMessage('Follow-up response'),
+			];
+			await saveSessionMessages(checkpointer, workflowId, userId, secondMessages);
+
+			const threadId = SessionManagerService.generateThreadId(workflowId, userId);
+			const config = { configurable: { thread_id: threadId } };
+			const tuple = await checkpointer.getTuple(config);
+
+			const savedMessages = tuple?.checkpoint.channel_values?.messages as Array<
+				SystemMessage | HumanMessage | AIMessage
+			>;
+			expect(savedMessages).toHaveLength(6); // 3 from each turn
+
+			// First turn's HumanMessage (index 1) should have messageId
+			expect(savedMessages[1]).toBeInstanceOf(HumanMessage);
+			expect(savedMessages[1].additional_kwargs?.messageId).toBeDefined();
+			const firstMessageId = savedMessages[1].additional_kwargs?.messageId;
+
+			// Second turn's HumanMessage (index 4) should have a DIFFERENT messageId
+			expect(savedMessages[4]).toBeInstanceOf(HumanMessage);
+			expect(savedMessages[4].additional_kwargs?.messageId).toBeDefined();
+			const secondMessageId = savedMessages[4].additional_kwargs?.messageId;
+
+			// Each turn should have unique messageId
+			expect(firstMessageId).not.toBe(secondMessageId);
+		});
+
+		it('should add versionId to first HumanMessage when SystemMessage is at index 0', async () => {
+			const checkpointer = new MemorySaver();
+			const workflowId = 'workflow-123';
+			const userId = 'user-456';
+			const versionId = 'version-abc';
+
+			const messages = [
+				new SystemMessage('System prompt'),
+				new HumanMessage('Create workflow'),
+				new AIMessage('Done'),
+			];
+
+			await saveSessionMessages(checkpointer, workflowId, userId, messages, versionId);
+
+			const threadId = SessionManagerService.generateThreadId(workflowId, userId);
+			const config = { configurable: { thread_id: threadId } };
+			const tuple = await checkpointer.getTuple(config);
+
+			const savedMessages = tuple?.checkpoint.channel_values?.messages as Array<
+				SystemMessage | HumanMessage | AIMessage
+			>;
+
+			// versionId should be on the HumanMessage, not SystemMessage
+			expect(savedMessages[0].additional_kwargs?.versionId).toBeUndefined();
+			expect(savedMessages[1].additional_kwargs?.versionId).toBe(versionId);
 		});
 	});
 });
