@@ -61,13 +61,15 @@ export class SecretsProviderConnectionRepository extends Repository<SecretsProvi
 
 	/**
 	 * Find all connections accessible to a project:
-	 * - Connections specifically assigned to this project
+	 * - Connections specifically shared with this project
 	 * - Global connections (those with no project assignments)
-	 * Returns connections with full project access relations loaded.
 	 */
-	async findAllAccessibleByProject(projectId: string): Promise<SecretsProviderConnection[]> {
-		const projectConnections = await this.findByProjectId(projectId, true);
-		const globalConnections = await this.findGlobalConnections(true);
+	async findAllAccessibleByProject(
+		projectId: string,
+		loadRelations = true,
+	): Promise<SecretsProviderConnection[]> {
+		const projectConnections = await this.findByProjectId(projectId, loadRelations);
+		const globalConnections = await this.findGlobalConnections(loadRelations);
 		return projectConnections.concat(globalConnections);
 	}
 }
