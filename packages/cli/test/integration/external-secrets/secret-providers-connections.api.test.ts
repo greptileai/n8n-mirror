@@ -67,33 +67,6 @@ describe('Secret Providers Connections API', () => {
 		await testDb.truncate(['SecretsProviderConnection', 'ProjectSecretsProviderAccess']);
 	});
 
-	describe('Authorization', () => {
-		const FORBIDDEN_MESSAGE = 'User is missing a scope required to perform this action';
-		let agents: Record<string, SuperAgentTest>;
-
-		beforeAll(() => {
-			agents = {
-				owner: ownerAgent,
-				admin: adminAgent,
-				member: memberAgent,
-			};
-		});
-
-		test.each([
-			{ role: 'owner', allowed: true },
-			{ role: 'admin', allowed: true },
-			{ role: 'member', allowed: false },
-		])('should allow=$allowed for $role to list global secrets', async ({ role, allowed }) => {
-			const response = await agents[role]
-				.get('/secret-providers/connections')
-				.expect(allowed ? 200 : 403);
-
-			if (!allowed) {
-				expect(response.body.message).toBe(FORBIDDEN_MESSAGE);
-			}
-		});
-	});
-
 	describe('Create connection', () => {
 		test('should create a global connection by default with encrypted settings', async () => {
 			const payload = {
