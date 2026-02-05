@@ -12,7 +12,7 @@ const N8N_IMAGE = TEST_CONTAINER_IMAGES.n8n;
 const BASE_ENV: Record<string, string> = {
 	N8N_LOG_LEVEL: 'debug',
 	N8N_ENCRYPTION_KEY: process.env.N8N_ENCRYPTION_KEY ?? 'test-encryption-key',
-	E2E_TESTS: 'false',
+	E2E_TESTS: 'true',
 	QUEUE_HEALTH_CHECK_ACTIVE: 'true',
 	N8N_DIAGNOSTICS_ENABLED: 'false',
 	N8N_METRICS: 'true',
@@ -24,6 +24,8 @@ const BASE_ENV: Record<string, string> = {
 	N8N_RUNNERS_MODE: 'external',
 	N8N_RUNNERS_AUTH_TOKEN: 'test',
 	N8N_RUNNERS_BROKER_LISTEN_ADDRESS: '0.0.0.0',
+	// Expose V8 garbage collector for memory profiling in performance tests
+	NODE_OPTIONS: '--expose-gc',
 };
 
 const MAIN_WAIT_STRATEGY = Wait.forAll([
