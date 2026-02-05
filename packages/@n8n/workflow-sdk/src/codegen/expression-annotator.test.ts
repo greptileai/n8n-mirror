@@ -91,5 +91,73 @@ describe('expression-annotator', () => {
 			expect(result.get('={{ $json.a }}')).toBe('"A"');
 			expect(result.get('={{ $json.b }}')).toBe('"B"');
 		});
+
+		it('creates secondary key from node name and parameter path', () => {
+			const expressionValues: Record<string, ExpressionValue[]> = {
+				'HTTP Request': [
+					{
+						expression: '={{ $json.url }}',
+						resolvedValue: 'https://example.com',
+						parameterPath: 'url',
+					},
+				],
+			};
+
+			const result = buildExpressionAnnotations(expressionValues);
+
+			// Should be accessible by both expression and node::path
+			expect(result.get('={{ $json.url }}')).toBe('"https://example.com"');
+			expect(result.get('HTTP Request::url')).toBe('"https://example.com"');
+		});
+
+		it('handles truncated expressions via parameter path lookup', () => {
+			const longExpression = '={{ $json.' + 'a'.repeat(500) + ' }}';
+			const truncatedExpression = longExpression.slice(0, 500) + '... [truncated]';
+
+			const expressionValues: Record<string, ExpressionValue[]> = {
+				Node: [
+					{
+						expression: truncatedExpression,
+						resolvedValue: 'value',
+						parameterPath: 'parameters.body',
+					},
+				],
+			};
+
+			const result = buildExpressionAnnotations(expressionValues);
+
+			// Truncated expression key exists
+			expect(result.get(truncatedExpression)).toBe('"value"');
+			// But we can also look up by node::path
+			expect(result.get('Node::parameters.body')).toBe('"value"');
+		});
+
+		it('handles nested parameter paths', () => {
+			const expressionValues: Record<string, ExpressionValue[]> = {
+				'Set Node': [
+					{
+						expression: '={{ $json.data }}',
+						resolvedValue: 'test',
+						parameterPath: 'assignments.assignments[0].value',
+					},
+				],
+			};
+
+			const result = buildExpressionAnnotations(expressionValues);
+
+			expect(result.get('Set Node::assignments.assignments[0].value')).toBe('"test"');
+		});
+
+		it('does not create path key when parameterPath is missing', () => {
+			const expressionValues: Record<string, ExpressionValue[]> = {
+				Node: [{ expression: '={{ $json.x }}', resolvedValue: 'value' }],
+			};
+
+			const result = buildExpressionAnnotations(expressionValues);
+
+			expect(result.get('={{ $json.x }}')).toBe('"value"');
+			expect(result.has('Node::undefined')).toBe(false);
+			expect(result.has('Node::')).toBe(false);
+		});
 	});
 });
