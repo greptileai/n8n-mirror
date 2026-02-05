@@ -39,7 +39,7 @@ describe('CredentialsRepository', () => {
 				'shared.project',
 				'shared.project.projectRelations',
 			]);
-			expect(callArg!.order).toEqual({ createdAt: 'DESC' });
+			expect(callArg!.order).toBeUndefined();
 		});
 
 		it('should apply credentialIds filter when provided', async () => {

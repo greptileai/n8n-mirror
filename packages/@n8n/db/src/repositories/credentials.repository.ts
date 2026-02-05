@@ -20,7 +20,12 @@ export class CredentialsRepository extends Repository<CredentialsEntity> {
 	}
 
 	async findMany(
-		listQueryOptions?: ListQuery.Options & { includeData?: boolean; user?: User },
+		listQueryOptions?: ListQuery.Options & {
+			includeData?: boolean;
+			user?: User;
+			/** When provided, sets sort order for the query. */
+			order?: FindManyOptions<CredentialsEntity>['order'];
+		},
 		credentialIds?: string[],
 	) {
 		const findManyOptions = this.toFindManyOptions(listQueryOptions);
@@ -33,7 +38,12 @@ export class CredentialsRepository extends Repository<CredentialsEntity> {
 	}
 
 	async findManyAndCount(
-		listQueryOptions?: ListQuery.Options & { includeData?: boolean; user?: User },
+		listQueryOptions?: ListQuery.Options & {
+			includeData?: boolean;
+			user?: User;
+			/** When provided, sets sort order for the query. */
+			order?: FindManyOptions<CredentialsEntity>['order'];
+		},
 		credentialIds?: string[],
 	): Promise<[CredentialsEntity[], number]> {
 		const findManyOptions = this.toFindManyOptions(listQueryOptions);
@@ -45,7 +55,12 @@ export class CredentialsRepository extends Repository<CredentialsEntity> {
 		return await this.findAndCount(findManyOptions);
 	}
 
-	private toFindManyOptions(listQueryOptions?: ListQuery.Options & { includeData?: boolean }) {
+	private toFindManyOptions(
+		listQueryOptions?: ListQuery.Options & {
+			includeData?: boolean;
+			order?: FindManyOptions<CredentialsEntity>['order'];
+		},
+	) {
 		const findManyOptions: FindManyOptions<CredentialsEntity> = {};
 
 		type Select = Array<keyof CredentialsEntity>;
@@ -64,16 +79,14 @@ export class CredentialsRepository extends Repository<CredentialsEntity> {
 			'resolvableAllowFallback',
 		];
 
-		const defaultOrder = { createdAt: 'DESC' as const };
 		if (!listQueryOptions) {
 			return {
 				select: defaultSelect,
 				relations: defaultRelations,
-				order: defaultOrder,
 			} as FindManyOptions<CredentialsEntity>;
 		}
 
-		const { filter, select, take, skip } = listQueryOptions;
+		const { filter, select, take, skip, order } = listQueryOptions;
 
 		if (typeof filter?.name === 'string' && filter?.name !== '') {
 			filter.name = Like(`%${filter.name}%`);
@@ -99,8 +112,8 @@ export class CredentialsRepository extends Repository<CredentialsEntity> {
 			findManyOptions.relations = defaultRelations;
 		}
 
-		if (!findManyOptions.order) {
-			findManyOptions.order = { createdAt: 'DESC' as const };
+		if (order !== undefined) {
+			findManyOptions.order = order;
 		}
 
 		if (listQueryOptions.includeData) {
