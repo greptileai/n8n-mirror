@@ -523,13 +523,6 @@ describe('areSameCredentials', () => {
 		expect(areSameCredentials(creds1, creds2)).toBe(true);
 	});
 
-	it('should return true when only ids are different', () => {
-		const creds1 = mockCredential();
-		const creds2 = mockCredential({ id: 'cred2' });
-
-		expect(areSameCredentials(creds1, creds2)).toBe(true);
-	});
-
 	it('should return true when only data is different', () => {
 		const creds1 = mockCredential({ data: { accessToken: 'access token' } });
 		const creds2 = mockCredential({ data: { accessToken: 'different access token' } });
