@@ -46,8 +46,8 @@ export function buildProjectsForCredential(credential: CredentialsEntity): Crede
 	return shared
 		.filter((sh) => typeof sh.project?.id === 'string')
 		.map((sh) => ({
-			id: sh.project!.id,
-			name: sh.project!.name ?? '',
+			id: sh.project.id,
+			name: sh.project.name,
 			role: sh.role,
 			createdAt: sh.createdAt,
 			updatedAt: sh.updatedAt,
