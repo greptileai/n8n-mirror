@@ -169,15 +169,8 @@ export class SecretsProvidersConnectionsService {
 
 	toPublicConnection(connection: SecretsProviderConnection): SecretsProvidersResponses.Connection {
 		const decryptedSettings = this.decryptConnectionSettings(connection.encryptedSettings);
-
-		let redactedSettings: IDataObject;
-		try {
-			const { provider } = this.externalSecretsManager.getProviderWithSettings(connection.type);
-			redactedSettings = this.redactionService.redact(decryptedSettings, provider.properties);
-		} catch (error) {
-			// If provider not found (e.g., in test environments), redact all fields to be safe
-			redactedSettings = this.redactionService.redact(decryptedSettings, []);
-		}
+		const { provider } = this.externalSecretsManager.getProviderWithSettings(connection.type);
+		const redactedSettings = this.redactionService.redact(decryptedSettings, provider.properties);
 
 		return {
 			id: String(connection.id),
