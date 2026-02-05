@@ -19,7 +19,7 @@ pnpm test
 pnpm dev
 ```
 
-# AI Node SDK Interface Specification
+# Model SDK
 
 ## Core Pattern
 
@@ -220,14 +220,327 @@ export class LmChatImaginaryLlm implements INodeType {
 
 ---
 
+# Memory SDK
+
+The Memory SDK provides abstractions for building conversation memory nodes without LangChain dependencies.
+
+## Architecture
+
+Memory uses a **two-layer design**:
+
+1. **ChatMessageHistory** (Storage Layer) - Where messages are stored (Redis, Postgres, in-memory)
+2. **Memory** (Logic Layer) - How messages are managed (windowing, session scoping)
+
+## Core Pattern
+
+### Option A: In-Memory Storage (simplest)
+
+Use the SDK's built-in `InMemoryChatMessageHistory` for prototyping or testing:
+
+```typescript
+import { InMemoryChatMessageHistory, BufferWindowMemory, supplyMemory } from '@n8n/ai-node-sdk';
+
+async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyData> {
+  const sessionId = this.getNodeParameter('sessionId', itemIndex) as string;
+  const windowSize = this.getNodeParameter('windowSize', itemIndex) as number;
+
+  const history = new InMemoryChatMessageHistory(sessionId);
+  const memory = new BufferWindowMemory(history, { windowSize });
+
+  return supplyMemory(this, memory);
+}
+```
+
+> **Note:** In-memory storage is lost on restart. Use for prototyping or testing only.
+
+### Option B: Built-in Storage Backends (recommended)
+
+The SDK includes ready-to-use storage implementations for common databases:
+
+```typescript
+import { 
+  RedisChatMessageHistory,      // Redis
+  PostgresChatMessageHistory,   // PostgreSQL  
+  MongoDBChatMessageHistory,    // MongoDB
+  BufferWindowMemory, 
+  supplyMemory 
+} from '@n8n/ai-node-sdk';
+
+async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyData> {
+  const credentials = await this.getCredentials('redis');
+  const sessionId = this.getNodeParameter('sessionId', itemIndex) as string;
+  const windowSize = this.getNodeParameter('windowSize', itemIndex) as number;
+
+  const client = createClient({ url: credentials.url });
+  await client.connect();
+
+  // SDK provides the implementation - you just configure it
+  const history = new RedisChatMessageHistory({
+    sessionId,
+    client,
+    ttl: credentials.ttl,
+  });
+
+  const memory = new BufferWindowMemory(history, { windowSize });
+
+  return supplyMemory(this, memory, {
+    closeFunction: () => client.disconnect(),
+  });
+}
+```
+
+**Available backends:**
+
+| Class | Database | Required Client |
+|-------|----------|-----------------|
+| `RedisChatMessageHistory` | Redis | `redis` package |
+| `PostgresChatMessageHistory` | PostgreSQL | `pg` package |
+| `MongoDBChatMessageHistory` | MongoDB | `mongodb` package |
+
+> **Note:** The SDK wraps LangChain implementations internally but exposes a clean, LangChain-free API.
+> Community developers never need to import from `@langchain/*`.
+
+### Option C: Custom Storage (full control)
+
+For exotic databases not covered by the SDK, extend `BaseChatMessageHistory`:
+
+```typescript
+import {
+  BaseChatMessageHistory,
+  BufferWindowMemory,
+  supplyMemory,
+  type Message,
+} from '@n8n/ai-node-sdk';
+
+class MyChatMessageHistory extends BaseChatMessageHistory {
+  constructor(private sessionId: string) {
+    super();
+  }
+
+  async getMessages(): Promise<Message[]> {
+    // Read from your storage...
+    return [];
+  }
+
+  async addMessage(message: Message): Promise<void> {
+    // Write to your storage...
+  }
+
+  async clear(): Promise<void> {
+    // Clear your storage...
+  }
+}
+
+const history = new MyChatMessageHistory(sessionId);
+const memory = new BufferWindowMemory(history, { windowSize: 10 });
+return supplyMemory(this, memory);
+```
+
+---
+
+## Before/After Examples
+
+### Example: Redis Memory Node
+
+**Before (LangChain):**
+
+```typescript
+import { BufferWindowMemory } from '@langchain/classic/memory';
+import { RedisChatMessageHistory } from '@langchain/redis';
+import { logWrapper } from '@n8n/ai-utilities';
+
+async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyData> {
+  const credentials = await this.getCredentials('redis');
+  const sessionId = getSessionId(this, itemIndex);
+  const contextWindowLength = this.getNodeParameter('contextWindowLength', itemIndex) as number;
+
+  const client = createClient({ url: credentials.url });
+  await client.connect();
+
+  const history = new RedisChatMessageHistory({
+    client,
+    sessionId,
+    sessionTTL: credentials.ttl,
+  });
+
+  const memory = new BufferWindowMemory({
+    chatHistory: history,
+    k: contextWindowLength,
+    returnMessages: true,
+    inputKey: 'input',
+    outputKey: 'output',
+    memoryKey: 'chat_history',
+  });
+
+  return {
+    response: logWrapper(memory, this),
+    closeFunction: async () => client.disconnect(),
+  };
+}
+```
+
+**After (SDK):**
+
+```typescript
+import { RedisChatMessageHistory, BufferWindowMemory, supplyMemory } from '@n8n/ai-node-sdk';
+
+async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyData> {
+  const credentials = await this.getCredentials('redis');
+  const sessionId = this.getNodeParameter('sessionId', itemIndex) as string;
+  const windowSize = this.getNodeParameter('windowSize', itemIndex) as number;
+
+  const client = createClient({ url: credentials.url });
+  await client.connect();
+
+  // SDK provides RedisChatMessageHistory - no need to implement!
+  const history = new RedisChatMessageHistory({ sessionId, client, ttl: credentials.ttl });
+  const memory = new BufferWindowMemory(history, { windowSize });
+
+  return supplyMemory(this, memory, {
+    closeFunction: () => client.disconnect(),
+  });
+}
+```
+
+---
+
+## Community Node Examples
+
+### ImaginaryDB Memory Node
+
+```typescript
+import {
+  BaseChatMessageHistory,
+  BufferWindowMemory,
+  supplyMemory,
+  type Message,
+} from '@n8n/ai-node-sdk';
+import { 
+  NodeConnectionTypes, 
+  type INodeType, 
+  type ISupplyDataFunctions, 
+  type SupplyData,
+  type IHttpRequestMethods,
+} from 'n8n-workflow';
+
+// Custom storage implementation using n8n's HTTP helpers
+class ImaginaryDbChatMessageHistory extends BaseChatMessageHistory {
+  constructor(
+    private sessionId: string,
+    private baseUrl: string,
+    private apiKey: string,
+    private httpRequest: ISupplyDataFunctions['helpers']['httpRequest'],
+  ) {
+    super();
+  }
+
+  async getMessages(): Promise<Message[]> {
+    const data = await this.httpRequest({
+      method: 'GET',
+      url: `${this.baseUrl}/sessions/${this.sessionId}/messages`,
+      headers: { Authorization: `Bearer ${this.apiKey}` },
+      json: true,
+    });
+
+    // Convert from provider format to n8n Message format
+    return data.messages.map((m: any) => ({
+      role: m.speaker === 'user' ? 'human' : m.speaker === 'bot' ? 'ai' : m.speaker,
+      content: [{ type: 'text', text: m.text }],
+    }));
+  }
+
+  async addMessage(message: Message): Promise<void> {
+    const text = message.content.find((c) => c.type === 'text')?.text ?? '';
+    await this.httpRequest({
+      method: 'POST',
+      url: `${this.baseUrl}/sessions/${this.sessionId}/messages`,
+      headers: { Authorization: `Bearer ${this.apiKey}` },
+      body: {
+        speaker: message.role === 'human' ? 'user' : message.role === 'ai' ? 'bot' : message.role,
+        text,
+      },
+      json: true,
+    });
+  }
+
+  async clear(): Promise<void> {
+    await this.httpRequest({
+      method: 'DELETE',
+      url: `${this.baseUrl}/sessions/${this.sessionId}`,
+      headers: { Authorization: `Bearer ${this.apiKey}` },
+    });
+  }
+}
+
+// The n8n node
+export class MemoryImaginaryDb implements INodeType {
+  description = {
+    displayName: 'ImaginaryDB Memory',
+    name: 'memoryImaginaryDb',
+    icon: 'file:imaginarydb.svg',
+    group: ['transform'],
+    version: 1,
+    description: 'Use ImaginaryDB for chat memory storage',
+    defaults: { name: 'ImaginaryDB Memory' },
+    codex: { categories: ['AI'], subcategories: { AI: ['Memory'] } },
+    inputs: [],
+    outputs: [NodeConnectionTypes.AiMemory],
+    outputNames: ['Memory'],
+    credentials: [{ name: 'imaginaryDbApi', required: true }],
+    properties: [
+      {
+        displayName: 'Session ID',
+        name: 'sessionId',
+        type: 'string',
+        default: '={{ $json.sessionId }}',
+        description: 'Unique identifier for the conversation session',
+      },
+      {
+        displayName: 'Window Size',
+        name: 'windowSize',
+        type: 'number',
+        default: 10,
+        description: 'Number of recent message pairs to keep in context',
+      },
+    ],
+  };
+
+  async supplyData(this: ISupplyDataFunctions, itemIndex: number): Promise<SupplyData> {
+    const credentials = await this.getCredentials<{ apiKey: string; baseUrl: string }>('imaginaryDbApi');
+    const sessionId = this.getNodeParameter('sessionId', itemIndex) as string;
+    const windowSize = this.getNodeParameter('windowSize', itemIndex) as number;
+
+    // Pass n8n's HTTP request helper directly
+    const history = new ImaginaryDbChatMessageHistory(
+      sessionId,
+      credentials.baseUrl,
+      credentials.apiKey,
+      this.helpers.httpRequest,
+    );
+    const memory = new BufferWindowMemory(history, { windowSize });
+
+    return supplyMemory(this, memory);
+  }
+}
+```
+
+> **Note:** Community nodes must use `this.helpers.httpRequest` or `this.helpers.httpRequestWithAuthentication`
+> for HTTP calls. Direct `fetch` or other global APIs are not allowed.
+
+
+---
+
 ## Summary
 
 | Before (LangChain) | After (SDK) |
 |--------------------|-------------|
 | `import { ChatOpenAI } from '@langchain/openai'` | `import { supplyModel } from '@n8n/ai-node-sdk'` |
 | `new ChatOpenAI({ ... })` | `supplyModel(this, { type: 'openai', ... })` |
-| Custom provider | `class MyModel extends BaseChatModel { ... }` |
+| Custom model provider | `class MyModel extends BaseChatModel { ... }` |
 | `return { response: model }` | `return supplyModel(this, model)` |
+| `import { BufferWindowMemory } from '@langchain/classic/memory'` | `import { BufferWindowMemory } from '@n8n/ai-node-sdk'` |
+| `import { RedisChatMessageHistory } from '@langchain/redis'` | `import { RedisChatMessageHistory } from '@n8n/ai-node-sdk'` |
+| Custom storage backend | `class MyHistory extends BaseChatMessageHistory { ... }` |
 | `return { response: logWrapper(memory, this) }` | `return supplyMemory(this, memory)` |
 | LangChain message types | `Message` with roles: `system`, `human`, `ai`, `tool` |
 | `tool_calls[].args` | `toolCalls[].arguments` |
