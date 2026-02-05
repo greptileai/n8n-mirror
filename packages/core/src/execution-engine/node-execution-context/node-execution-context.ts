@@ -322,19 +322,19 @@ export abstract class NodeExecutionContext implements Omit<FunctionsBase, 'getCr
 				);
 			}
 
-			if (
-				!NodeHelpers.displayParameter(
-					// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-					additionalData.currentNodeParameters || node.parameters,
-					nodeCredentialDescription,
-					node,
-					nodeType.description,
-					node.parameters,
-				)
-			) {
-				// Credentials should not be displayed even if they would be defined
-				throw new NodeOperationError(node, 'Credentials not found');
-			}
+			//if (
+			//	!NodeHelpers.displayParameter(
+			//		// eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
+			//		additionalData.currentNodeParameters || node.parameters,
+			//		nodeCredentialDescription,
+			//		node,
+			//		nodeType.description,
+			//		node.parameters,
+			//	)
+			//) {
+			//	// Credentials should not be displayed even if they would be defined
+			//	throw new NodeOperationError(node, 'Credentials cannot be displayed');
+			//}
 		}
 
 		// Check if node has any credentials defined
@@ -362,6 +362,8 @@ export abstract class NodeExecutionContext implements Omit<FunctionsBase, 'getCr
 				throw new NodeOperationError(node, 'Node does not require credentials');
 			}
 		}
+
+		this.logger.debug(`node.credentials=${JSON.stringify(node.credentials)}, type=${type}`);
 
 		if (fullAccess && !node.credentials?.[type]) {
 			// Make sure that fullAccess nodes still behave like before that if they

@@ -27,6 +27,7 @@ import { VectorStoreDataRepository } from '../vector-store/vector-store-data.rep
 
 import { NotFoundError } from '@/errors/response-errors/not-found.error';
 import { ChatHubExecutionService } from './chat-hub-execution.service';
+import { CredentialsService } from '@/credentials/credentials.service';
 
 @Service()
 export class ChatHubAgentService {
@@ -40,6 +41,7 @@ export class ChatHubAgentService {
 		private readonly workflowExecutionService: WorkflowExecutionService,
 		private readonly vectorStoreRepository: VectorStoreDataRepository,
 		private readonly chatHubSettingsService: ChatHubSettingsService,
+		private readonly credentialsService: CredentialsService,
 	) {
 		this.logger = this.logger.scoped('chat-hub');
 	}
@@ -244,14 +246,30 @@ export class ChatHubAgentService {
 			return;
 		}
 
+		const cred = await this.credentialsService.createManagedCredential(
+			{
+				type: 'n8nInternalBinaryDataServiceApi',
+				name: 'Temporary credential for ChatHub execution',
+				data: {
+					hello: 'from chat!',
+				},
+			},
+			user,
+		);
+
 		const { workflowData, executionData } = await this.chatAgentRepository.manager.transaction(
 			async (trx) => {
 				const project = await this.chatHubCredentialsService.findPersonalProject(user, trx);
+
 				return await this.chatHubWorkflowService.createEmbeddingsInsertionWorkflow(
 					user,
 					project.id,
 					files,
-					{ embeddingModel, memoryKey: this.getAgentMemoryKey(user.id, agentId) },
+					{
+						embeddingModel,
+						memoryKey: this.getAgentMemoryKey(user.id, agentId),
+						vectorStoreCredentialId: cred.id,
+					},
 					trx,
 				);
 			},

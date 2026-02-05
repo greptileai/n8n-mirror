@@ -1082,7 +1082,10 @@ Respond the title only:`,
 
 	private buildVectorStoreNodes(options: VectorStoreSearchOptions): INode[] {
 		const embeddingsModelNode = this.buildEmbeddingsModelNode(options);
-		const vectorStoreNode = this.buildVectorStoreNode(options.memoryKey);
+		const vectorStoreNode = this.buildVectorStoreNode(
+			options.memoryKey,
+			options.vectorStoreCredentialId,
+		);
 		const vectorStoreQuestionToolNode = this.buildVectorStoreQuestionToolNode();
 
 		return [embeddingsModelNode, vectorStoreNode, vectorStoreQuestionToolNode];
@@ -1117,7 +1120,7 @@ Respond the title only:`,
 		};
 	}
 
-	private buildVectorStoreNode(memoryKey: string): INode {
+	private buildVectorStoreNode(memoryKey: string, credentialId: string): INode {
 		return {
 			parameters: {
 				mode: 'retrieve',
@@ -1133,6 +1136,12 @@ Respond the title only:`,
 			position: [800, 496],
 			id: uuidv4(),
 			name: 'Vector Store',
+			credentials: {
+				n8nInternalBinaryDataServiceApi: {
+					id: credentialId,
+					name: 'n8nInternalBinaryDataServiceApi',
+				},
+			},
 		};
 	}
 
@@ -1196,6 +1205,12 @@ Respond the title only:`,
 				position: [208, 0],
 				id: uuidv4(),
 				name: 'Vector Store',
+				credentials: {
+					n8nInternalBinaryDataServiceApi: {
+						id: vectorStoreSearch.vectorStoreCredentialId,
+						name: 'n8nInternalBinaryDataServiceApi',
+					},
+				},
 			},
 			triggerNode,
 			embeddingsNode,

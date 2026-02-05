@@ -57,6 +57,7 @@ import { getModelMetadata } from './chat-hub.constants';
 import { inE2ETests } from '@/constants';
 import { DateTime } from 'luxon';
 import { collectChatArtifacts, parseMessage } from '@n8n/chat-hub';
+import { CredentialsService } from '@/credentials/credentials.service';
 
 @Service()
 export class ChatHubService {
@@ -75,6 +76,7 @@ export class ChatHubService {
 		private readonly chatHubTitleService: ChatHubTitleService,
 		private readonly chatHubWorkflowService: ChatHubWorkflowService,
 		private readonly globalConfig: GlobalConfig,
+		private readonly credentialsService: CredentialsService,
 	) {
 		this.logger = this.logger.scoped('chat-hub');
 	}
@@ -379,7 +381,19 @@ export class ChatHubService {
 		let processedAttachments: IBinaryData[] = [];
 		let workflow: PreparedChatWorkflow;
 		let previousMessage: ChatHubMessage | undefined;
+
 		try {
+			const cred = await this.credentialsService.createManagedCredential(
+				{
+					type: 'n8nInternalBinaryDataServiceApi',
+					name: 'Temporary credential for ChatHub execution',
+					data: {
+						hello: 'from chat!',
+					},
+				},
+				user,
+			);
+
 			const result = await this.messageRepository.manager.transaction(async (trx) => {
 				let session = await this.getChatSession(user, sessionId, trx);
 				session ??= await this.createChatSession(
@@ -424,6 +438,7 @@ export class ChatHubService {
 					tz,
 					trx,
 					executionMetadata,
+					cred.id,
 				);
 
 				return { workflow: replyWorkflow, previousMessage };
@@ -740,6 +755,7 @@ export class ChatHubService {
 		timeZone: string,
 		trx: EntityManager,
 		executionMetadata: ChatHubAuthenticationMetadata,
+		vectorStoreCredentialId?: string,
 	) {
 		if (model.provider === 'n8n') {
 			return await this.chatHubWorkflowService.prepareWorkflowAgentWorkflow(
@@ -792,7 +808,9 @@ export class ChatHubService {
 				trx,
 				agent.systemPrompt + '\n\n' + this.getSystemMessage(timeZone, history),
 				executionMetadata,
-				embeddingModel ? { memoryKey, embeddingModel } : null,
+				embeddingModel && vectorStoreCredentialId
+					? { memoryKey, embeddingModel, vectorStoreCredentialId }
+					: null,
 			);
 		}
 

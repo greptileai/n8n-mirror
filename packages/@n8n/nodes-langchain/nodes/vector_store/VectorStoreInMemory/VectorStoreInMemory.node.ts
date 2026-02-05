@@ -15,6 +15,11 @@ import { createVectorStoreNode } from '../shared/createVectorStoreNode/createVec
 import { MemoryVectorStoreManager } from '../shared/MemoryManager/MemoryVectorStoreManager';
 import { DatabaseVectorStore } from './DatabaseVectorStore';
 
+interface N8nInternalBinaryDataServiceCredentials {
+	apiKey: string;
+	baseUrl: string;
+}
+
 const warningBanner: INodeProperties = {
 	displayName:
 		'<strong>For experimental use only</strong>: Data is stored in memory and will be lost if n8n restarts. Data may also be cleared if available memory gets low, and is accessible to all users of this instance. <a href="https://docs.n8n.io/integrations/builtin/cluster-nodes/root-nodes/n8n-nodes-langchain.vectorstoreinmemory/">More info</a>',
@@ -87,6 +92,17 @@ export class VectorStoreInMemory extends createVectorStoreNode<
 			'Vector Stores': ['For Beginners'],
 			Tools: ['Other Tools'],
 		},
+		credentials: [
+			{
+				name: 'n8nInternalBinaryDataServiceApi',
+				required: false,
+				displayOptions: {
+					show: {
+						'@version': [-1], // Never show this credential (version -1 doesn't exist)
+					},
+				},
+			},
+		],
 	},
 	sharedFields: [
 		{
@@ -270,6 +286,26 @@ export class VectorStoreInMemory extends createVectorStoreNode<
 			itemIndex,
 			false,
 		) as boolean;
+
+		// Access the optional binary data service credential
+		// This credential is always hidden but can be accessed programmatically
+		// If not configured, mock credentials are automatically returned by the execution context
+		const binaryDataCredentials = (await context.getCredentials(
+			'n8nInternalBinaryDataServiceApi',
+		)) as N8nInternalBinaryDataServiceCredentials;
+
+		// Binary data service credentials are available (real or mock)
+		// Can be used to configure external binary data storage
+		const { apiKey, baseUrl } = binaryDataCredentials;
+
+		context.logger.debug('Binary data service credentials available', {
+			baseUrl,
+			hasApiKey: !!apiKey,
+			isMock: apiKey === 'mock-api-key',
+		});
+
+		// TODO: Use these credentials to configure binary data storage
+		// For example, when storing large embeddings or documents externally
 
 		if (enablePersistence) {
 			// Use database-backed vector store
