@@ -158,20 +158,28 @@ export class SessionManagerService {
 					);
 
 					// Inject answered questions that aren't in the checkpoint
-					// (Command.update messages don't persist across subgraph interrupts)
+					// (Command.update messages don't persist across subgraph interrupts).
+					// Insert after the first user message to maintain chronological order:
+					// user request → questions → answers → plan → approve → response
 					const answeredQuestions = this.getAnsweredQuestions(threadId);
-					for (const { questions, answers } of answeredQuestions) {
-						formattedMessages.push({
-							role: 'assistant',
-							type: 'questions',
-							questions: questions.questions,
-							...(questions.introMessage ? { introMessage: questions.introMessage } : {}),
-						});
-						formattedMessages.push({
-							role: 'user',
-							type: 'user_answers',
-							answers,
-						});
+					if (answeredQuestions.length > 0) {
+						const firstUserIdx = formattedMessages.findIndex((m) => m.role === 'user');
+						const insertAt = firstUserIdx !== -1 ? firstUserIdx + 1 : 0;
+						const qaMessages: Array<Record<string, unknown>> = [];
+						for (const { questions, answers } of answeredQuestions) {
+							qaMessages.push({
+								role: 'assistant',
+								type: 'questions',
+								questions: questions.questions,
+								...(questions.introMessage ? { introMessage: questions.introMessage } : {}),
+							});
+							qaMessages.push({
+								role: 'user',
+								type: 'user_answers',
+								answers,
+							});
+						}
+						formattedMessages.splice(insertAt, 0, ...qaMessages);
 					}
 
 					const pendingHitl = this.getPendingHitl(threadId);
