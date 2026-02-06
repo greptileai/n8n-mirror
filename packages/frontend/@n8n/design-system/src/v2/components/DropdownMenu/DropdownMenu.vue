@@ -1,4 +1,6 @@
 <script setup lang="ts" generic="T = string, D = never">
+import Icon from '@n8n/design-system/components/N8nIcon/Icon.vue';
+import N8nLoading from '@n8n/design-system/v2/components/Loading/Loading.vue';
 import { useDebounceFn } from '@vueuse/core';
 import {
 	DropdownMenuRoot,
@@ -7,9 +9,6 @@ import {
 	DropdownMenuContent,
 } from 'reka-ui';
 import { computed, ref, watch, useCssModule, nextTick, toRef } from 'vue';
-
-import Icon from '@n8n/design-system/components/N8nIcon/Icon.vue';
-import N8nLoading from '@n8n/design-system/v2/components/Loading/Loading.vue';
 
 import { useMenuKeyboardNavigation } from './composables/useMenuKeyboardNavigation';
 import { isAlign, isSide } from './DropdownMenu.typeguards';
@@ -249,7 +248,14 @@ defineExpose({ open, close });
 						@key:arrow-right="navigation.handleArrowRight"
 						@key:arrow-left="navigation.handleArrowLeft"
 						@key:enter="navigation.handleEnter"
-					/>
+					>
+						<template v-if="slots['search-prefix']" #search-prefix>
+							<slot name="search-prefix" />
+						</template>
+						<template v-if="slots['search-suffix']" #search-suffix>
+							<slot name="search-suffix" />
+						</template>
+					</N8nDropdownMenuSearch>
 
 					<div :class="$style['items-container']" data-menu-items>
 						<template v-if="loading">

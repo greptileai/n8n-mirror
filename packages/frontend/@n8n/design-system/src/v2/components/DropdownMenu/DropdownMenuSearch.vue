@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, useCssModule } from 'vue';
 
+import Icon from '@n8n/design-system/components/N8nIcon/Icon.vue';
+
 defineOptions({ name: 'N8nDropdownMenuSearch' });
 
 withDefaults(
@@ -21,6 +23,13 @@ const emit = defineEmits<{
 	'key:arrow-right': [];
 	'key:arrow-left': [];
 	'key:enter': [];
+}>();
+
+const slots = defineSlots<{
+	/** Icon or content before the search input (default: search icon) */
+	'search-prefix'?: () => void;
+	/** Icon or content after the search input */
+	'search-suffix'?: () => void;
 }>();
 
 const $style = useCssModule();
@@ -70,6 +79,10 @@ defineExpose({ focus, inputRef });
 
 <template>
 	<div :class="$style['search-container']">
+		<span v-if="slots['search-prefix']" :class="$style['search-prefix']">
+			<slot name="search-prefix" />
+		</span>
+		<Icon v-else icon="search" :class="$style['search-prefix']" />
 		<input
 			ref="inputRef"
 			type="text"
@@ -79,6 +92,9 @@ defineExpose({ focus, inputRef });
 			@input="handleInput"
 			@keydown.stop="handleKeydown"
 		/>
+		<span v-if="slots['search-suffix']" :class="$style['search-suffix']">
+			<slot name="search-suffix" />
+		</span>
 	</div>
 </template>
 
@@ -86,8 +102,22 @@ defineExpose({ focus, inputRef });
 .search-container {
 	display: flex;
 	align-items: center;
+	gap: var(--spacing--2xs);
 	padding: var(--spacing--4xs) var(--spacing--2xs);
 	border-bottom: var(--border);
+}
+
+.search-prefix {
+	display: flex;
+	align-items: center;
+	color: var(--color--text--tint-1);
+	flex-shrink: 0;
+}
+
+.search-suffix {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
 }
 
 .search-input {

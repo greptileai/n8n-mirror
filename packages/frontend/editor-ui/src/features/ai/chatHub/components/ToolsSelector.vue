@@ -2,7 +2,7 @@
 import NodeIcon from '@/app/components/NodeIcon.vue';
 import { useNodeTypesStore } from '@/app/stores/nodeTypes.store';
 import { computed, onMounted, ref } from 'vue';
-import { N8nButton, N8nDropdownMenu, N8nIcon } from '@n8n/design-system';
+import { N8nButton, N8nDropdownMenu, N8nIconButton } from '@n8n/design-system';
 import type { DropdownMenuItemProps } from '@n8n/design-system';
 import type { INode, INodeTypeDescription } from 'n8n-workflow';
 import { useI18n } from '@n8n/i18n';
@@ -62,7 +62,7 @@ type ToolMenuItem = DropdownMenuItemProps<
 const menuItems = computed<ToolMenuItem[]>(() => {
 	const query = searchQuery.value.toLowerCase();
 
-	const toolItems: ToolMenuItem[] = selected
+	return selected
 		.filter((tool) => {
 			if (!query) return true;
 			const nodeType = nodeTypesStore.getNodeType(tool.type, tool.typeVersion);
@@ -79,30 +79,9 @@ const menuItems = computed<ToolMenuItem[]>(() => {
 				tool,
 			},
 		}));
-
-	// Only add manage tools if not searching or if it matches search
-	const manageLabel = i18n.baseText('chatHub.toolsManager.manageTools');
-	const showManage = !query || manageLabel.toLowerCase().includes(query);
-
-	if (showManage) {
-		toolItems.push({
-			id: 'manage',
-			label: manageLabel,
-			divided: toolItems.length > 0,
-			icon: { type: 'icon', value: 'settings' },
-			data: { nodeType: null, tool: null as unknown as INode },
-		});
-	}
-
-	return toolItems;
 });
 
 function handleSelect(id: string) {
-	if (id === 'manage') {
-		openToolsManager();
-		return;
-	}
-
 	const [command, toolId] = id.split('::');
 
 	if (command === 'tool') {
@@ -172,9 +151,19 @@ onMounted(async () => {
 				</N8nButton>
 			</template>
 
+			<template #search-suffix>
+				<N8nIconButton
+					icon="settings"
+					type="tertiary"
+					size="medium"
+					text
+					:class="$style.settingsButton"
+					@click.stop="openToolsManager"
+				/>
+			</template>
+
 			<template #item-leading="{ item }">
 				<NodeIcon v-if="item.data?.nodeType" :node-type="item.data.nodeType" :size="16" />
-				<N8nIcon v-else-if="item.icon?.type === 'icon'" icon="settings" size="medium" />
 			</template>
 		</N8nDropdownMenu>
 	</div>
@@ -214,6 +203,15 @@ onMounted(async () => {
 
 .iconOverlap {
 	margin-left: -6px;
+}
+
+.settingsButton {
+	color: var(--button--color--text--secondary);
+	margin-right: -2px;
+
+	&:hover {
+		color: var(--button--color--text--secondary--hover-active-focus);
+	}
 }
 </style>
 
