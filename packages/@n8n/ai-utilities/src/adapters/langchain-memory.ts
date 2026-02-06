@@ -9,25 +9,25 @@ import type { ChatHistory, ChatMemory } from '../types/memory';
 class LangchainHistoryAdapter extends BaseListChatMessageHistory {
 	lc_namespace = ['n8n', 'ai-utilities'];
 
-	constructor(private readonly n8nHistory: ChatHistory) {
+	constructor(private readonly history: ChatHistory) {
 		super();
 	}
 
 	async getMessages(): Promise<BaseMessage[]> {
-		const messages = await this.n8nHistory.getMessages();
+		const messages = await this.history.getMessages();
 		return messages.map(toLcMessage);
 	}
 
 	async addMessage(message: BaseMessage): Promise<void> {
-		await this.n8nHistory.addMessage(fromLcMessage(message));
+		await this.history.addMessage(fromLcMessage(message));
 	}
 
 	async addMessages(messages: BaseMessage[]): Promise<void> {
-		await this.n8nHistory.addMessages(messages.map(fromLcMessage));
+		await this.history.addMessages(messages.map(fromLcMessage));
 	}
 
 	async clear(): Promise<void> {
-		await this.n8nHistory.clear();
+		await this.history.clear();
 	}
 }
 
