@@ -3,7 +3,7 @@ import { Service } from '@n8n/di';
 import { ensureError } from 'n8n-workflow';
 
 import { ExternalSecretsProviders } from './external-secrets-providers.ee';
-import type { SecretsProvider, SecretsProviderSettings } from './types';
+import type { ConnectResult, SecretsProvider, SecretsProviderSettings } from './types';
 
 interface ProviderInitResult {
 	success: boolean;
@@ -11,10 +11,7 @@ interface ProviderInitResult {
 	error?: Error;
 }
 
-export interface ProviderConnectResult {
-	success: boolean;
-	error?: Error;
-}
+export type ProviderConnectResult = ConnectResult;
 
 /**
  * Handles provider initialization and connection lifecycle
@@ -76,34 +73,20 @@ export class ExternalSecretsProviderLifecycle {
 	 * Provider manages its own state during connection
 	 */
 	async connect(provider: SecretsProvider): Promise<ProviderConnectResult> {
-		try {
-			this.logger.debug(`Connecting secrets provider ${provider.displayName} (${provider.name})`);
+		this.logger.debug(`Connecting secrets provider ${provider.displayName} (${provider.name})`);
 
-			provider.setState('connecting');
-			await provider.connect();
+		const result = await provider.connect();
 
-			if (provider.state === 'error') {
-				return {
-					success: false,
-					error: new Error('Provider entered error state during connection'),
-				};
-			}
-
+		if (result.success) {
 			this.logger.debug(`Successfully connected secrets provider ${provider.displayName}`);
-			return { success: true };
-		} catch (e) {
-			const error = ensureError(e);
+		} else {
 			this.logger.error(
 				`Connection error for secrets provider ${provider.displayName} (${provider.name})`,
-				{ error },
+				{ error: result.error },
 			);
-			provider.setState('error', error);
-
-			return {
-				success: false,
-				error,
-			};
 		}
+
+		return result;
 	}
 
 	/**

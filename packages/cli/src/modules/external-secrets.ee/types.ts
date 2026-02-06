@@ -19,10 +19,8 @@ export type SecretsProviderState =
 	| 'error'
 	| 'retrying';
 
-interface StateTransition {
-	from: SecretsProviderState;
-	to: SecretsProviderState;
-	at: Date;
+export interface ConnectResult {
+	success: boolean;
 	error?: Error;
 }
 
@@ -43,22 +41,21 @@ export abstract class SecretsProvider {
 
 	state: SecretsProviderState = 'initializing';
 
-	protected stateHistory: StateTransition[] = [];
-
 	/**
 	 * Template method for connecting - manages state transitions
 	 * Subclasses implement doConnect() with their connection logic
 	 */
-	async connect(): Promise<void> {
+	async connect(): Promise<ConnectResult> {
 		this.setState('connecting');
 
 		try {
 			await this.doConnect();
 			this.setState('connected');
+			return { success: true };
 		} catch (error) {
 			const typedError = error instanceof Error ? error : new Error(String(error));
 			this.setState('error', typedError);
-			// Don't rethrow - state tells the story
+			return { success: false, error: typedError };
 		}
 	}
 
@@ -69,28 +66,12 @@ export abstract class SecretsProvider {
 	protected abstract doConnect(): Promise<void>;
 
 	/**
-	 * Transitions to a new state with logging and history tracking
-	 * Public so that manager can update state (for 'retrying')
+	 * Transitions to a new state
+	 * Public so that external code can update state
 	 */
-	setState(newState: SecretsProviderState, error?: Error): void {
-		const oldState = this.state;
-		if (oldState === newState) return;
-
-		this.stateHistory.push({
-			from: oldState,
-			to: newState,
-			at: new Date(),
-			error,
-		});
-
+	setState(newState: SecretsProviderState, _error?: Error): void {
+		if (this.state === newState) return;
 		this.state = newState;
-	}
-
-	/**
-	 * Check if this provider has ever been successfully connected
-	 */
-	get hasEverBeenConnected(): boolean {
-		return this.stateHistory.some((t) => t.to === 'connected');
 	}
 
 	/**

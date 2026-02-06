@@ -204,49 +204,90 @@ export class ExternalSecretsManager implements IExternalSecretsManager {
 		this.broadcastReload();
 	}
 
+	/**
+	 * Test provider settings by initializing, connecting, and running provider.test()
+	 * Returns 'connected' or 'error' only
+	 */
 	async testProviderSettings(provider: string, data: IDataObject) {
-		const testSettings: SecretsProviderSettings = {
+		const initResult = await this.providerLifecycle.initialize(provider, {
 			connected: true,
 			connectedAt: new Date(),
 			settings: data,
-		};
+		});
 
-		const errorState = {
-			success: false,
-			testState: 'error',
-		} as const;
-
-		const result = await this.providerLifecycle.initialize(provider, testSettings);
-
-		if (!result.success || !result.provider) {
-			return errorState;
+		if (!initResult.success || !initResult.provider) {
+			return { success: false, testState: 'error' as const, error: initResult.error?.message };
 		}
 
+		const testProvider = initResult.provider;
+
 		try {
-			// Connect the provider to authenticate before testing
-			const connectResult = await this.providerLifecycle.connect(result.provider);
+			const connectResult = await this.providerLifecycle.connect(testProvider);
 			if (!connectResult.success) {
 				return {
-					...errorState,
+					success: false,
+					testState: 'error' as const,
 					error: connectResult.error?.message,
 				};
 			}
 
-			const [success, error] = await result.provider.test();
+			const [testPassed, testError] = await testProvider.test();
+			if (!testPassed) {
+				return { success: false, testState: 'error' as const, error: testError };
+			}
 
-			// This mostly forces the "typing" to work correctly
-			if (!success) {
-				return { success: false, testState: 'error', error };
+			return {
+				success: true,
+				testState: 'connected' as const,
+			};
+		} finally {
+			await testProvider.disconnect();
+		}
+	}
+
+	/**
+	 * Legacy implementation: Returns 'tested' vs 'connected' for auto-connect behavior
+	 * Used by the old external secrets UI
+	 * @deprecated Remove when externalSecretsForProjects flag is removed
+	 */
+	async testProviderSettingsLegacy(provider: string, data: IDataObject) {
+		const initResult = await this.providerLifecycle.initialize(provider, {
+			connected: true,
+			connectedAt: new Date(),
+			settings: data,
+		});
+
+		if (!initResult.success || !initResult.provider) {
+			return { success: false, testState: 'error' as const, error: initResult.error?.message };
+		}
+
+		const testProvider = initResult.provider;
+
+		try {
+			const connectResult = await this.providerLifecycle.connect(testProvider);
+			if (!connectResult.success) {
+				return {
+					success: false,
+					testState: 'error' as const,
+					error: connectResult.error?.message,
+				};
+			}
+
+			const [testPassed, testError] = await testProvider.test();
+			if (!testPassed) {
+				return { success: false, testState: 'error' as const, error: testError };
 			}
 
 			const currentSettings = await this.settingsStore.getProvider(provider);
-			const testState: 'connected' | 'tested' = currentSettings?.connected ? 'connected' : 'tested';
+			const isAlreadyConnected = currentSettings?.connected ?? false;
 
-			return { success: true, testState };
-		} catch {
-			return errorState;
+			return {
+				success: true,
+				testState: isAlreadyConnected ? ('connected' as const) : ('tested' as const),
+				error: testError,
+			};
 		} finally {
-			await result.provider?.disconnect();
+			await testProvider.disconnect();
 		}
 	}
 

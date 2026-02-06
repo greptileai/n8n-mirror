@@ -84,20 +84,24 @@ describe('ProviderLifecycle', () => {
 			expect(provider.state).toBe('connected');
 		});
 
-		it('should set provider state to connecting before connection', async () => {
+		it('should set provider state to connecting during connection', async () => {
 			const provider = new DummyProvider();
 			await provider.init(providerSettings);
 
-			let stateBeforeConnect: string | undefined;
-			const originalConnect = provider.connect.bind(provider);
-			jest.spyOn(provider, 'connect').mockImplementation(async function (this: DummyProvider) {
-				stateBeforeConnect = this.state;
-				return originalConnect();
-			});
+			let stateAtStartOfDoConnect: string | undefined;
+			const originalDoConnect = (
+				provider as unknown as { doConnect: () => Promise<void> }
+			).doConnect.bind(provider);
+			jest
+				.spyOn(provider as unknown as { doConnect: () => Promise<void> }, 'doConnect')
+				.mockImplementation(async function (this: DummyProvider) {
+					stateAtStartOfDoConnect = this.state;
+					return originalDoConnect();
+				});
 
 			await lifecycle.connect(provider);
 
-			expect(stateBeforeConnect).toBe('connecting');
+			expect(stateAtStartOfDoConnect).toBe('connecting');
 		});
 
 		it('should handle connection failure', async () => {
@@ -111,19 +115,20 @@ describe('ProviderLifecycle', () => {
 			expect(provider.state).toBe('error');
 		});
 
-		it('should return error if provider enters error state during connection', async () => {
+		it('should return error when provider connection fails', async () => {
 			const provider = new DummyProvider();
 			await provider.init(providerSettings);
 
-			// Mock connect to set state to error
-			jest.spyOn(provider, 'connect').mockImplementation(async function (this: DummyProvider) {
-				this.setState('error', new Error('Connection failed'));
-			});
+			const connectionError = new Error('Connection failed');
+			jest
+				.spyOn(provider as unknown as { doConnect: () => Promise<void> }, 'doConnect')
+				.mockRejectedValue(connectionError);
 
 			const result = await lifecycle.connect(provider);
 
 			expect(result.success).toBe(false);
-			expect(result.error).toEqual(new Error('Provider entered error state during connection'));
+			expect(result.error).toEqual(connectionError);
+			expect(provider.state).toBe('error');
 		});
 	});
 

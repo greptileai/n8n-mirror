@@ -71,7 +71,7 @@ export class ExternalSecretsService {
 		const providerAndSettings = this.externalSecretsManager.getProviderWithSettings(providerName);
 		const { settings } = providerAndSettings;
 		const newData = this.unredact(data, settings.settings);
-		return await this.externalSecretsManager.testProviderSettings(providerName, newData);
+		return await this.externalSecretsManager.testProviderSettingsLegacy(providerName, newData);
 	}
 
 	async updateProvider(providerName: string) {
