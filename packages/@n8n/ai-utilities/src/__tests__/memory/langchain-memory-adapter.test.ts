@@ -20,7 +20,7 @@ describe('LangchainMemoryAdapter', () => {
 
 		return {
 			loadMessages: jest.fn().mockResolvedValue([...messages]),
-			saveContext: jest.fn().mockResolvedValue(undefined),
+			saveTurn: jest.fn().mockResolvedValue(undefined),
 			clear: jest.fn().mockResolvedValue(undefined),
 			chatHistory: mockHistory,
 		};
@@ -90,13 +90,13 @@ describe('LangchainMemoryAdapter', () => {
 	});
 
 	describe('saveContext', () => {
-		it('should call memory.saveContext with input and output', async () => {
+		it('should call memory.saveTurn with input and output', async () => {
 			const memory = createMockMemory();
 			const adapter = new LangchainMemoryAdapter(memory);
 
 			await adapter.saveContext({ input: 'Hello!' }, { output: 'Hi there!' });
 
-			expect(memory.saveContext).toHaveBeenCalledWith('Hello!', 'Hi there!');
+			expect(memory.saveTurn).toHaveBeenCalledWith('Hello!', 'Hi there!');
 		});
 	});
 

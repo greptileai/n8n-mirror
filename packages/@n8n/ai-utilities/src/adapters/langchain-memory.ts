@@ -6,16 +6,13 @@ import { toLcMessage } from '../converters/message';
 import type { ChatMemory } from '../types/memory';
 
 export class LangchainMemoryAdapter extends LangchainBaseChatMemory {
-	private readonly memory: ChatMemory;
-
-	constructor(memory: ChatMemory) {
+	constructor(private readonly memory: ChatMemory) {
 		super({
 			chatHistory: new LangchainHistoryAdapter(memory.chatHistory),
 			returnMessages: true,
 			inputKey: 'input',
 			outputKey: 'output',
 		});
-		this.memory = memory;
 	}
 
 	get memoryKeys(): string[] {
@@ -32,7 +29,7 @@ export class LangchainMemoryAdapter extends LangchainBaseChatMemory {
 	async saveContext(inputValues: InputValues, outputValues: OutputValues): Promise<void> {
 		const input = String(inputValues.input ?? '');
 		const output = String(outputValues.output ?? '');
-		await this.memory.saveContext(input, output);
+		await this.memory.saveTurn(input, output);
 	}
 
 	async clear(): Promise<void> {

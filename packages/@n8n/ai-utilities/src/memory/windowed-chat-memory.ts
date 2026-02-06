@@ -38,7 +38,7 @@ export class WindowedChatMemory extends BaseChatMemory {
 		return allMessages.slice(-maxMessages);
 	}
 
-	async saveContext(input: string, output: string): Promise<void> {
+	async saveTurn(input: string, output: string): Promise<void> {
 		const humanMessage: Message = {
 			role: 'human',
 			content: [{ type: 'text', text: input }],

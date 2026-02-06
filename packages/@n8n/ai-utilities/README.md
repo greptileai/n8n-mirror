@@ -309,7 +309,7 @@ class MyCustomChatMemory extends BaseChatMemory {
     return messages;
   }
 
-  async saveContext(input: string, output: string): Promise<void> {
+  async saveTurn(input: string, output: string): Promise<void> {
     await this._chatHistory.addMessages([
       { role: 'human', content: [{ type: 'text', text: input }] },
       { role: 'ai', content: [{ type: 'text', text: output }] },

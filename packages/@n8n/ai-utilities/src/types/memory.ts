@@ -14,7 +14,7 @@ export interface MemoryConfig {
 
 export interface ChatMemory {
 	loadMessages(): Promise<Message[]>;
-	saveContext(input: string, output: string): Promise<void>;
+	saveTurn(input: string, output: string): Promise<void>;
 	clear(): Promise<void>;
 	readonly chatHistory: ChatHistory;
 }

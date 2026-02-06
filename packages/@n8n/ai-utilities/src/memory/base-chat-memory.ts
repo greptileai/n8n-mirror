@@ -6,7 +6,7 @@ export abstract class BaseChatMemory implements ChatMemory {
 
 	abstract loadMessages(): Promise<Message[]>;
 
-	abstract saveContext(input: string, output: string): Promise<void>;
+	abstract saveTurn(input: string, output: string): Promise<void>;
 
 	abstract clear(): Promise<void>;
 }

@@ -87,12 +87,12 @@ describe('WindowedChatMemory', () => {
 		});
 	});
 
-	describe('saveContext', () => {
+	describe('saveTurn', () => {
 		it('should add human and AI message pair', async () => {
 			const history = createMockHistory();
 			const memory = new WindowedChatMemory(history, { windowSize: 5 });
 
-			await memory.saveContext('Hello!', 'Hi there!');
+			await memory.saveTurn('Hello!', 'Hi there!');
 
 			expect(history.addMessages).toHaveBeenCalledWith([
 				{ role: 'human', content: [{ type: 'text', text: 'Hello!' }] },
