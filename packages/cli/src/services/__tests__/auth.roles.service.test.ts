@@ -421,8 +421,8 @@ describe('AuthRolesService', () => {
 			scopeRepository.find.mockResolvedValue(allScopes);
 			// syncScopes calls roleRepository.find({ relations: ['scopes'], ... }); syncRoles calls it with select/where.
 			// Return [] for the obsolete-scopes lookup so syncScopes does not save; return correctRoles for syncRoles.
-			roleRepository.find.mockImplementation((opts?: { relations?: string[] }) =>
-				Promise.resolve(opts?.relations?.includes('scopes') ? [] : correctRoles),
+			roleRepository.find.mockImplementation(async (opts?: { relations?: string[] }) =>
+				opts?.relations?.includes('scopes') ? [] : correctRoles,
 			);
 			roleRepository.save.mockImplementation(async (entities) => entities as any);
 
