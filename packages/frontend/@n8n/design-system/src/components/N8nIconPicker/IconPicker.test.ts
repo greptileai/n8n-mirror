@@ -224,24 +224,32 @@ describe('IconPicker', () => {
 		const emojis = queryAllByTestId('icon-picker-emoji');
 		const emojiTexts = emojis.map((e) => e.textContent);
 		expect(emojiTexts).toMatchInlineSnapshot(`
-				[
-				  "😁",
-				  "😃",
-				  "😄",
-				  "😅",
-				  "😆",
-				  "😈",
-				  "😊",
-				  "😋",
-				  "😍",
-				  "😙",
-				  "😸",
-				  "😺",
-				  "😻",
-				  "😼",
-				  "🙂",
-				]
-			`);
+			[
+			  "😀",
+			  "😁",
+			  "😃",
+			  "😄",
+			  "😅",
+			  "😆",
+			  "😇",
+			  "😈",
+			  "😊",
+			  "😋",
+			  "😍",
+			  "😎",
+			  "😙",
+			  "😬",
+			  "😸",
+			  "😺",
+			  "😻",
+			  "😼",
+			  "🙂",
+			  "🙃",
+			  "🤩",
+			  "🥰",
+			  "🥲",
+			]
+		`);
 	});
 
 	it('selects random icon from search results when random button is clicked', async () => {
