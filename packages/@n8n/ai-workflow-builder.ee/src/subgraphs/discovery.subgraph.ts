@@ -123,6 +123,12 @@ export const DiscoverySubgraphState = Annotation.Root({
 		default: () => null,
 	}),
 
+	// Plan Mode: Number of modify iterations (capped to prevent infinite loops)
+	planModifyCount: Annotation<number>({
+		reducer: (x, y) => y ?? x,
+		default: () => 0,
+	}),
+
 	// Internal: Conversation within this subgraph
 	messages: Annotation<BaseMessage[]>({
 		reducer: (x, y) => x.concat(y),
@@ -327,7 +333,7 @@ export class DiscoverySubgraph extends BaseSubgraph<
 			return {};
 		}
 
-		return await invokePlannerNode(
+		const result = await invokePlannerNode(
 			this.plannerAgent,
 			{
 				userRequest: state.userRequest || 'Build a workflow',
@@ -341,6 +347,12 @@ export class DiscoverySubgraph extends BaseSubgraph<
 			},
 			runnableConfig,
 		);
+
+		if (result.planDecision === 'modify') {
+			return { ...result, planModifyCount: state.planModifyCount + 1 };
+		}
+
+		return result;
 	}
 
 	private shouldPlan(state: typeof DiscoverySubgraphState.State): 'planner' | typeof END {
@@ -349,10 +361,19 @@ export class DiscoverySubgraph extends BaseSubgraph<
 		return state.planOutput ? END : 'planner';
 	}
 
+	private static readonly MAX_PLAN_MODIFY_ITERATIONS = 5;
+
 	private shouldLoopPlanner(
 		state: typeof DiscoverySubgraphState.State,
 	): 'discovery_agent' | typeof END {
-		return state.planDecision === 'modify' ? 'discovery_agent' : END;
+		if (state.planDecision !== 'modify') return END;
+		if (state.planModifyCount >= DiscoverySubgraph.MAX_PLAN_MODIFY_ITERATIONS) {
+			this.logger?.warn(
+				`[Discovery] Plan modify limit reached (${DiscoverySubgraph.MAX_PLAN_MODIFY_ITERATIONS}), proceeding with last plan`,
+			);
+			return END;
+		}
+		return 'discovery_agent';
 	}
 
 	/**

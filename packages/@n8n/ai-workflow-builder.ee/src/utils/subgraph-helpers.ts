@@ -84,6 +84,24 @@ export async function executeSubgraphTools(
 		return {};
 	}
 
+	// If submit_questions is among the tool calls, execute it alone.
+	// It calls interrupt() (throws GraphInterrupt) to pause for user input,
+	// so running other tools alongside it in Promise.all would drop their results.
+	const interruptToolCall = lastMessage.tool_calls.find((tc) => tc.name === 'submit_questions');
+	if (interruptToolCall) {
+		const tool = toolMap.get(interruptToolCall.name);
+		if (tool) {
+			await tool.invoke(interruptToolCall.args ?? {}, {
+				toolCall: {
+					id: interruptToolCall.id,
+					name: interruptToolCall.name,
+					args: interruptToolCall.args ?? {},
+				},
+			});
+		}
+		// If tool wasn't found or didn't interrupt, fall through to normal execution
+	}
+
 	// Execute all tools in parallel
 	const toolResults = await Promise.all(
 		lastMessage.tool_calls.map(async (toolCall) => {

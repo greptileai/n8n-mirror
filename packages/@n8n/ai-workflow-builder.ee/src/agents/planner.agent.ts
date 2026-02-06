@@ -6,7 +6,7 @@
  */
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import type { BaseMessage } from '@langchain/core/messages';
-import { SystemMessage } from '@langchain/core/messages';
+import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import type { RunnableConfig } from '@langchain/core/runnables';
 import type { StructuredTool } from '@langchain/core/tools';
 import { createAgent } from 'langchain';
@@ -128,6 +128,8 @@ export function parsePlanDecision(value: unknown): { action: PlanDecision; feedb
  * Invoke the planner agent: build context, call LLM, interrupt for user decision,
  * and return the appropriate state update.
  */
+const MAX_PLANNER_RETRIES = 1;
+
 export async function invokePlannerNode(
 	agent: PlannerAgentType,
 	input: PlannerNodeInput,
@@ -141,13 +143,35 @@ export async function invokePlannerNode(
 		planFeedback: input.planFeedback,
 	});
 	const contextMessage = createContextMessage([contextContent]);
-	const output = await agent.invoke({ messages: [contextMessage] }, config);
-	const parsedPlan = plannerOutputSchema.safeParse(output.structuredResponse);
-	if (!parsedPlan.success) {
-		throw new Error(`Planner produced invalid output: ${parsedPlan.error.message}`);
+
+	let lastError: string | undefined;
+	let plan: PlannerOutput | undefined;
+
+	for (let attempt = 0; attempt <= MAX_PLANNER_RETRIES; attempt++) {
+		const messages =
+			attempt === 0
+				? [contextMessage]
+				: [
+						contextMessage,
+						new HumanMessage(
+							`Your previous output was invalid: ${lastError}. Please output a valid JSON plan with summary, trigger, and steps fields.`,
+						),
+					];
+
+		const output = await agent.invoke({ messages }, config);
+		const parsedPlan = plannerOutputSchema.safeParse(output.structuredResponse);
+		if (parsedPlan.success) {
+			plan = parsedPlan.data;
+			break;
+		}
+		lastError = parsedPlan.error.message;
 	}
 
-	const plan = parsedPlan.data;
+	if (!plan) {
+		throw new Error(
+			`Planner produced invalid output after ${MAX_PLANNER_RETRIES + 1} attempts: ${lastError}`,
+		);
+	}
 	const decisionValue: unknown = interrupt({ type: 'plan', plan });
 	const decision = parsePlanDecision(decisionValue);
 
