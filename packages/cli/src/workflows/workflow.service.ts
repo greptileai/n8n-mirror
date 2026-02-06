@@ -488,7 +488,6 @@ export class WorkflowService {
 				activeVersionId: null,
 				activeVersion: null,
 			};
-			const previouslyActiveId = workflow.activeVersionId;
 			await this.workflowRepository.update(workflowId, rollbackPayload);
 
 			// Also set it in the returned data
@@ -496,28 +495,10 @@ export class WorkflowService {
 			workflow.activeVersionId = rollbackPayload.activeVersionId;
 			workflow.activeVersion = rollbackPayload.activeVersion;
 
-			if (!workflow.activeVersionId) {
-				// Emit deactivation event since activation failed
-				assert(previouslyActiveId !== null);
-				this.eventService.emit('workflow-deactivated', {
-					user,
-					workflowId,
-					workflow,
-					publicApi,
-					deactivatedVersionId: previouslyActiveId,
-				});
-				await this.workflowPublishHistoryRepository.addRecord({
-					workflowId,
-					versionId: previouslyActiveId,
-					event: 'deactivated',
-					userId: user.id,
-				});
-			}
-			let message;
-			if (error instanceof NodeApiError) message = error.description;
-			message = message ?? (error as Error).message;
-
-			// Now return the original error for UI to display
+			const message =
+				error instanceof NodeApiError
+					? (error.description ?? error.message)
+					: (error as Error).message;
 			throw new BadRequestError(message);
 		} finally {
 			if (didPublish) {
@@ -527,6 +508,13 @@ export class WorkflowService {
 					versionId: workflow.activeVersionId,
 					event: 'activated',
 					userId: user.id,
+				});
+
+				this.eventService.emit('workflow-activated', {
+					user,
+					workflowId,
+					workflow,
+					publicApi,
 				});
 			}
 		}
@@ -608,7 +596,7 @@ export class WorkflowService {
 		}
 
 		const versionIdToActivate = options?.versionId ?? workflow.versionId;
-		const wasActive = workflow.activeVersionId !== null;
+		const previousActiveVersionId = workflow.activeVersionId;
 
 		let versionToActivate: WorkflowHistory;
 		try {
@@ -636,11 +624,26 @@ export class WorkflowService {
 		this._validateNodes(workflowId, versionToActivate.nodes);
 		await this._validateSubWorkflowReferences(workflowId, versionToActivate.nodes);
 
-		if (wasActive) {
+		if (previousActiveVersionId) {
 			await this.activeWorkflowManager.remove(workflowId);
+
+			assert(previousActiveVersionId !== null);
+			this.eventService.emit('workflow-deactivated', {
+				user,
+				workflowId,
+				workflow,
+				publicApi,
+				deactivatedVersionId: previousActiveVersionId,
+			});
+			await this.workflowPublishHistoryRepository.addRecord({
+				workflowId,
+				versionId: previousActiveVersionId,
+				event: 'deactivated',
+				userId: user.id,
+			});
 		}
 
-		const activationMode = wasActive ? 'update' : 'activate';
+		const activationMode = previousActiveVersionId ? 'update' : 'activate';
 
 		await this.workflowRepository.update(workflowId, {
 			activeVersionId: versionIdToActivate,
@@ -657,13 +660,6 @@ export class WorkflowService {
 		if (!workflowForActivation) {
 			throw new NotFoundError(`Workflow with ID "${workflowId}" could not be found.`);
 		}
-
-		this.eventService.emit('workflow-activated', {
-			user,
-			workflowId,
-			workflow: workflowForActivation,
-			publicApi,
-		});
 
 		await this._addToActiveWorkflowManager(
 			user,
