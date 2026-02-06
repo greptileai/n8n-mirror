@@ -25,6 +25,7 @@ class TestNodeTypes implements INodeTypes {
 				inputs: ['main'],
 				outputs: ['main'],
 				properties: [],
+				description: '',
 			} as INodeTypeDescription,
 			execute: async () => [[{ json: {} }]],
 		};
@@ -101,23 +102,23 @@ const largeData = [
 	},
 ];
 
-const evaluate = (expr: string, data = smallData) =>
+const evaluate = (expr: string, data: typeof smallData | typeof largeData) =>
 	workflow.expression.getParameterValue(expr, null, 0, 0, 'node', data, 'manual', {});
 
 describe('Hot Path', () => {
 	// Baseline: simplest possible expression
 	bench('simple property access', () => {
-		evaluate('={{ $json.name }}');
+		evaluate('={{ $json.name }}', smallData);
 	});
 
 	// Typical: array transform
 	bench('array map (100 items)', () => {
-		evaluate('={{ $json.items.map(i => i.value) }}');
+		evaluate('={{ $json.items.map(i => i.value) }}', smallData);
 	});
 
 	// Complex: chained operations
 	bench('method chain', () => {
-		evaluate('={{ $json.items.filter(i => i.active).map(i => i.id) }}');
+		evaluate('={{ $json.items.filter(i => i.active).map(i => i.id) }}', smallData);
 	});
 });
 
@@ -139,7 +140,7 @@ describe('Cold Start', () => {
 
 	// Answers: "Should we pool expression workers?"
 	bench('reused workflow', () => {
-		evaluate('={{ $json.name }}');
+		evaluate('={{ $json.name }}', smallData);
 	});
 });
 
