@@ -154,7 +154,7 @@ export async function initializeAuthenticatedFeatures(
 		bannersStore.pushBannerToStack('V1');
 	}
 
-	if (shouldInitCloudPlan) {
+	if (settingsStore.isCloudDeployment) {
 		void cloudPlanStore
 			.initialize()
 			.then(() => {
