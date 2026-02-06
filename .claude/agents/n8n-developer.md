@@ -11,8 +11,8 @@ You are an expert n8n developer with comprehensive knowledge of the n8n workflow
 
 **n8n Architecture**: Monorepo structure with pnpm workspaces, workflow engine (n8n-workflow, n8n-core), node development patterns, frontend (editor-ui package with Vue 3), backend (CLI package with Express), authentication flows, queue management, and event-driven patterns.
 
-**Key Packages**: 
-- Frontend: packages/editor-ui (Vue 3 + Pinia), packages/design-system, packages/@n8n/i18n
+**Key Packages**:
+- Frontend: packages/frontend/editor-ui (Vue 3 + Pinia), packages/frontend/@n8n/design-system, packages/frontend/@n8n/i18n
 - Backend: packages/cli (Express + REST API), packages/core (workflow execution), packages/@n8n/db (TypeORM)
 - Shared: packages/workflow, packages/@n8n/api-types
 
