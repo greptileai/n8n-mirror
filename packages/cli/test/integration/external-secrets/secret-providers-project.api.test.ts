@@ -7,6 +7,7 @@ import {
 } from '@n8n/db';
 import { Container } from '@n8n/di';
 import { mock } from 'jest-mock-extended';
+import { Cipher } from 'n8n-core';
 import type { Response } from 'superagent';
 
 import { ExternalSecretsProviders } from '@/modules/external-secrets.ee/external-secrets-providers.ee';
@@ -68,11 +69,15 @@ describe('Secret Providers Project API', () => {
 		providerKey: string,
 		projectIds: string[] = [],
 	): Promise<number> {
+		const cipher = Container.get(Cipher);
+		const mockSettings = { region: 'us-east-1', accessKeyId: 'test-key' };
+		const encryptedSettings = cipher.encrypt(mockSettings);
+
 		const connection = await connectionRepository.save(
 			connectionRepository.create({
 				providerKey,
-				type: 'awsSecretsManager',
-				encryptedSettings: JSON.stringify({ mocked: 'encrypted' }),
+				type: 'dummy',
+				encryptedSettings,
 				isEnabled: true,
 			}),
 		);
@@ -147,7 +152,7 @@ describe('Secret Providers Project API', () => {
 
 				expect(globalConnection1).toMatchObject({
 					name: 'global-connection1',
-					type: 'awsSecretsManager',
+					type: 'dummy',
 					projects: [],
 				});
 			});
@@ -199,7 +204,7 @@ describe('Secret Providers Project API', () => {
 
 					expect(connection1).toMatchObject({
 						name: 'connection1',
-						type: 'awsSecretsManager',
+						type: 'dummy',
 						projects: [{ id: teamProject1.id, name: teamProject1.name }],
 					});
 				});
