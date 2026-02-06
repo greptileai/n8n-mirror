@@ -36,6 +36,17 @@ vi.mock('@/app/composables/usePageRedirectionHelper', () => ({
 	})),
 }));
 
+const routerPushMock = vi.fn();
+vi.mock('vue-router', async (importOriginal) => {
+	const actual = await importOriginal();
+	return {
+		...(actual as object),
+		useRouter: vi.fn(() => ({
+			push: routerPushMock,
+		})),
+	};
+});
+
 const renderComponent = createComponentRenderer(TrialBanner, {
 	global: {
 		stubs: {
@@ -156,12 +167,6 @@ describe('TrialBanner', () => {
 	});
 
 	it('should navigate to internal URL when CTA has internal href', () => {
-		const originalHref = window.location.href;
-		Object.defineProperty(window, 'location', {
-			value: { href: originalHref },
-			writable: true,
-		});
-
 		cloudPlanStore.state.data = {
 			bannerConfig: {
 				cta: {
@@ -175,6 +180,6 @@ describe('TrialBanner', () => {
 		const button = getByText('Go to Settings');
 		button.click();
 
-		expect(window.location.href).toBe('/settings/usage');
+		expect(routerPushMock).toHaveBeenCalledWith('/settings/usage');
 	});
 });

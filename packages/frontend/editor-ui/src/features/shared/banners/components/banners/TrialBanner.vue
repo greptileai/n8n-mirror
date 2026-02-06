@@ -3,6 +3,7 @@ import BaseBanner from './BaseBanner.vue';
 import { i18n as locale } from '@n8n/i18n';
 import { useCloudPlanStore } from '@/app/stores/cloudPlan.store';
 import { computed } from 'vue';
+import { useRouter } from 'vue-router';
 import type { CloudPlanAndUsageData } from '@/Interface';
 import { usePageRedirectionHelper } from '@/app/composables/usePageRedirectionHelper';
 import { N8nButton, N8nText, type IconName, type ButtonType } from '@n8n/design-system';
@@ -11,6 +12,7 @@ const PROGRESS_BAR_MINIMUM_THRESHOLD = 8;
 
 const cloudPlanStore = useCloudPlanStore();
 const pageRedirectionHelper = usePageRedirectionHelper();
+const router = useRouter();
 
 // Banner config from backend
 const bannerTimeLeft = computed(() => cloudPlanStore.bannerTimeLeft);
@@ -76,23 +78,17 @@ const currentExecutions = computed(() => {
 });
 
 function onCtaClick() {
-	cloudPlanStore.dismissBanner();
 	if (bannerCta.value.href) {
-		// Use provided href - external URLs open in new tab, internal routes navigate
+		// Use provided href - external URLs open in new tab, internal routes use router
 		if (bannerCta.value.href.startsWith('http')) {
 			window.open(bannerCta.value.href, '_blank');
 		} else {
-			window.location.href = bannerCta.value.href;
+			void router.push(bannerCta.value.href);
 		}
 	} else {
 		// No href provided - use upgrade flow
 		void pageRedirectionHelper.goToUpgrade('canvas-nav', 'upgrade-canvas-nav', 'redirect');
 	}
-}
-
-function onBannerClose() {
-	// Also update cloudPlan store so banner stays dismissed on next page load
-	cloudPlanStore.dismissBanner();
 }
 </script>
 
@@ -101,8 +97,8 @@ function onBannerClose() {
 		name="TRIAL"
 		theme="custom"
 		:dismissible="cloudPlanStore.bannerDismissible"
+		dismiss-permanently
 		:custom-icon="bannerIcon"
-		@close="onBannerClose"
 	>
 		<template #mainContent>
 			<div :class="$style.content">

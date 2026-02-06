@@ -8,10 +8,12 @@ vi.mock('@n8n/stores/useRootStore', () => ({
 	})),
 }));
 
+const mockPermanentlyDismissedBanners: string[] = [];
 vi.mock('@/app/stores/settings.store', () => ({
 	useSettingsStore: vi.fn(() => ({
 		settings: { n8nMetadata: { userId: 'test-user-id' } },
 		isCloudDeployment: true,
+		permanentlyDismissedBanners: mockPermanentlyDismissedBanners,
 	})),
 }));
 
@@ -131,6 +133,11 @@ describe('cloudPlan.store', () => {
 	});
 
 	describe('shouldShowBanner', () => {
+		beforeEach(() => {
+			// Reset dismissed banners array before each test
+			mockPermanentlyDismissedBanners.length = 0;
+		});
+
 		it('should return false when bannerConfig is not set', () => {
 			setActivePinia(createPinia());
 			const store = useCloudPlanStore();
@@ -139,7 +146,7 @@ describe('cloudPlan.store', () => {
 			expect(store.shouldShowBanner).toBe(false);
 		});
 
-		it('should return true when bannerConfig is set and not dismissed', () => {
+		it('should return true when bannerConfig is set and banner not dismissed', () => {
 			setActivePinia(createPinia());
 			const store = useCloudPlanStore();
 			store.state.data = { bannerConfig: { showExecutions: true } } as never;
@@ -147,14 +154,115 @@ describe('cloudPlan.store', () => {
 			expect(store.shouldShowBanner).toBe(true);
 		});
 
-		it('should return true when forceShow is true even if dismissed', () => {
-			localStorage.setItem('n8n-dynamic-trial-banner-dismissed', 'true');
+		it('should return false when bannerConfig is set but banner was dismissed', () => {
+			mockPermanentlyDismissedBanners.push('TRIAL');
+			setActivePinia(createPinia());
+			const store = useCloudPlanStore();
+			store.state.data = { bannerConfig: { showExecutions: true } } as never;
+
+			expect(store.shouldShowBanner).toBe(false);
+		});
+
+		it('should return false when TRIAL_OVER was dismissed', () => {
+			mockPermanentlyDismissedBanners.push('TRIAL_OVER');
+			setActivePinia(createPinia());
+			const store = useCloudPlanStore();
+			store.state.data = { bannerConfig: { showExecutions: true } } as never;
+
+			expect(store.shouldShowBanner).toBe(false);
+		});
+
+		it('should return true when banner was dismissed but forceShow is true', () => {
+			mockPermanentlyDismissedBanners.push('TRIAL');
+			setActivePinia(createPinia());
+			const store = useCloudPlanStore();
+			store.state.data = { bannerConfig: { showExecutions: true, forceShow: true } } as never;
+
+			expect(store.shouldShowBanner).toBe(true);
+		});
+
+		it('should return true when not dismissible, even if banner was previously dismissed', () => {
+			mockPermanentlyDismissedBanners.push('TRIAL');
+			setActivePinia(createPinia());
+			const store = useCloudPlanStore();
+			store.state.data = {
+				bannerConfig: { showExecutions: true, dismissible: false },
+			} as never;
+
+			expect(store.shouldShowBanner).toBe(true);
+		});
+
+		it('should return true when not dismissible and banner was never dismissed', () => {
+			setActivePinia(createPinia());
+			const store = useCloudPlanStore();
+			store.state.data = {
+				bannerConfig: { showExecutions: true, dismissible: false },
+			} as never;
+
+			expect(store.shouldShowBanner).toBe(true);
+		});
+	});
+
+	describe('bannerForceShow', () => {
+		it('should return false when forceShow is not set', () => {
+			setActivePinia(createPinia());
+			const store = useCloudPlanStore();
+			store.state.data = { bannerConfig: {} } as never;
+
+			expect(store.bannerForceShow).toBe(false);
+		});
+
+		it('should return true when forceShow is true', () => {
 			setActivePinia(createPinia());
 			const store = useCloudPlanStore();
 			store.state.data = { bannerConfig: { forceShow: true } } as never;
 
-			expect(store.shouldShowBanner).toBe(true);
-			localStorage.removeItem('n8n-dynamic-trial-banner-dismissed');
+			expect(store.bannerForceShow).toBe(true);
+		});
+
+		it('should return false when forceShow is false', () => {
+			setActivePinia(createPinia());
+			const store = useCloudPlanStore();
+			store.state.data = { bannerConfig: { forceShow: false } } as never;
+
+			expect(store.bannerForceShow).toBe(false);
+		});
+	});
+
+	describe('isBannerDismissed', () => {
+		beforeEach(() => {
+			mockPermanentlyDismissedBanners.length = 0;
+		});
+
+		it('should return false when no banners are dismissed', () => {
+			setActivePinia(createPinia());
+			const store = useCloudPlanStore();
+
+			expect(store.isBannerDismissed).toBe(false);
+		});
+
+		it('should return true when TRIAL is dismissed', () => {
+			mockPermanentlyDismissedBanners.push('TRIAL');
+			setActivePinia(createPinia());
+			const store = useCloudPlanStore();
+
+			expect(store.isBannerDismissed).toBe(true);
+		});
+
+		it('should return true when TRIAL_OVER is dismissed', () => {
+			mockPermanentlyDismissedBanners.push('TRIAL_OVER');
+			setActivePinia(createPinia());
+			const store = useCloudPlanStore();
+
+			expect(store.isBannerDismissed).toBe(true);
+		});
+
+		it('should return false when other banners are dismissed', () => {
+			mockPermanentlyDismissedBanners.push('V1', 'EMAIL_CONFIRMATION');
+			setActivePinia(createPinia());
+			const store = useCloudPlanStore();
+
+			expect(store.isBannerDismissed).toBe(false);
 		});
 	});
 
@@ -265,30 +373,6 @@ describe('cloudPlan.store', () => {
 			store.state.data = { bannerConfig: { dismissible: false } } as never;
 
 			expect(store.bannerDismissible).toBe(false);
-		});
-	});
-
-	describe('dismissBanner', () => {
-		it('should set localStorage when banner is dismissible', () => {
-			setActivePinia(createPinia());
-			const store = useCloudPlanStore();
-			store.state.data = { bannerConfig: { dismissible: true } } as never;
-
-			store.dismissBanner();
-
-			expect(localStorage.getItem('n8n-dynamic-trial-banner-dismissed')).toBe('true');
-			localStorage.removeItem('n8n-dynamic-trial-banner-dismissed');
-		});
-
-		it('should not set localStorage when banner is not dismissible', () => {
-			localStorage.removeItem('n8n-dynamic-trial-banner-dismissed');
-			setActivePinia(createPinia());
-			const store = useCloudPlanStore();
-			store.state.data = { bannerConfig: { dismissible: false } } as never;
-
-			store.dismissBanner();
-
-			expect(localStorage.getItem('n8n-dynamic-trial-banner-dismissed')).toBeNull();
 		});
 	});
 });
