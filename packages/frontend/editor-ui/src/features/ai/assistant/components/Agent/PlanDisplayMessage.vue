@@ -86,6 +86,7 @@ function approve() {
 
 <style module lang="scss">
 .message {
+	margin-bottom: var(--spacing--sm);
 	line-height: var(--line-height--xl);
 	font-size: var(--font-size--sm);
 }
