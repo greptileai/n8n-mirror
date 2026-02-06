@@ -38,12 +38,11 @@ interface RoleScopeRow {
 describe('AddWorkflowUnpublishScopeToCustomRoles Migration', () => {
 	let dataSource: DataSource;
 
-	beforeAll(async () => {
+	beforeEach(async () => {
 		const dbConnection = Container.get(DbConnection);
 		await dbConnection.init();
 
 		dataSource = Container.get(DataSource);
-
 		const context = createTestMigrationContext(dataSource);
 		await context.queryRunner.clearDatabase();
 		await context.queryRunner.release();
@@ -51,7 +50,7 @@ describe('AddWorkflowUnpublishScopeToCustomRoles Migration', () => {
 		await initDbUpToMigration(MIGRATION_NAME);
 	});
 
-	afterAll(async () => {
+	afterEach(async () => {
 		const dbConnection = Container.get(DbConnection);
 		await dbConnection.close();
 	});
@@ -128,8 +127,9 @@ describe('AddWorkflowUnpublishScopeToCustomRoles Migration', () => {
 		const roleSlugColumn = context.escape.columnName('roleSlug');
 		const scopeSlugColumn = context.escape.columnName('scopeSlug');
 
+		// Use double-quoted aliases so PostgreSQL returns camelCase keys (otherwise lowercases to roleslug/scopeslug)
 		const scopes = await context.runQuery<Array<{ roleSlug: string; scopeSlug: string }>>(
-			`SELECT ${roleSlugColumn} as roleSlug, ${scopeSlugColumn} as scopeSlug FROM ${tableName} WHERE ${roleSlugColumn} = :roleSlug`,
+			`SELECT ${roleSlugColumn} AS "roleSlug", ${scopeSlugColumn} AS "scopeSlug" FROM ${tableName} WHERE ${roleSlugColumn} = :roleSlug`,
 			{ roleSlug },
 		);
 
@@ -144,8 +144,9 @@ describe('AddWorkflowUnpublishScopeToCustomRoles Migration', () => {
 		const roleSlugColumn = context.escape.columnName('roleSlug');
 		const scopeSlugColumn = context.escape.columnName('scopeSlug');
 
+		// Use double-quoted aliases so PostgreSQL returns camelCase keys
 		const rows = await context.runQuery<Array<{ roleSlug: string; scopeSlug: string }>>(
-			`SELECT ${roleSlugColumn} as roleSlug, ${scopeSlugColumn} as scopeSlug FROM ${tableName} WHERE ${scopeSlugColumn} = :scopeSlug`,
+			`SELECT ${roleSlugColumn} AS "roleSlug", ${scopeSlugColumn} AS "scopeSlug" FROM ${tableName} WHERE ${scopeSlugColumn} = :scopeSlug`,
 			{ scopeSlug },
 		);
 
@@ -207,6 +208,7 @@ describe('AddWorkflowUnpublishScopeToCustomRoles Migration', () => {
 			expect(unpublishScopesBefore).toHaveLength(0);
 
 			await runSingleMigration(MIGRATION_NAME);
+			dataSource = Container.get(DataSource);
 
 			await context.queryRunner.release();
 
@@ -263,6 +265,7 @@ describe('AddWorkflowUnpublishScopeToCustomRoles Migration', () => {
 			expect(scopesBefore).toHaveLength(2);
 
 			await runSingleMigration(MIGRATION_NAME);
+			dataSource = Container.get(DataSource);
 
 			await context.queryRunner.release();
 
@@ -283,22 +286,47 @@ describe('AddWorkflowUnpublishScopeToCustomRoles Migration', () => {
 
 	describe('down migration', () => {
 		it('removes workflow:unpublish from all roles', async () => {
-			// Migration was already run in the first up test, so workflow:unpublish entries exist
+			// beforeEach gives a clean DB; insert data and run migration so we have workflow:unpublish to remove
 			const context = createTestMigrationContext(dataSource);
 
-			const unpublishScopesBefore = await getRoleScopesByScope(context, 'workflow:unpublish');
-			expect(unpublishScopesBefore.length).toBeGreaterThan(0);
+			await insertTestScope(context, {
+				slug: 'workflow:publish',
+				displayName: 'Publish Workflow',
+				description: 'Allows publishing workflows.',
+			});
+			await insertTestRole(context, {
+				slug: 'test-down-role',
+				displayName: 'Test Down Role',
+				roleType: 'project',
+				systemRole: false,
+			});
+			await insertTestRoleScope(context, {
+				roleSlug: 'test-down-role',
+				scopeSlug: 'workflow:publish',
+			});
 
 			await context.queryRunner.release();
 
+			await runSingleMigration(MIGRATION_NAME);
+			dataSource = Container.get(DataSource);
+
+			const postUpContext = createTestMigrationContext(dataSource);
+			const unpublishScopesBefore = await getRoleScopesByScope(postUpContext, 'workflow:unpublish');
+			expect(unpublishScopesBefore.length).toBeGreaterThan(0);
+
+			await postUpContext.queryRunner.release();
+
 			await undoLastSingleMigration();
+			dataSource = Container.get(DataSource);
 
-			const postContext = createTestMigrationContext(dataSource);
-
-			const unpublishScopesAfter = await getRoleScopesByScope(postContext, 'workflow:unpublish');
+			const postDownContext = createTestMigrationContext(dataSource);
+			const unpublishScopesAfter = await getRoleScopesByScope(
+				postDownContext,
+				'workflow:unpublish',
+			);
 			expect(unpublishScopesAfter).toHaveLength(0);
 
-			await postContext.queryRunner.release();
+			await postDownContext.queryRunner.release();
 		});
 	});
 });
