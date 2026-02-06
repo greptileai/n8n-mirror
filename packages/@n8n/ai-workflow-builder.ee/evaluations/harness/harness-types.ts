@@ -207,7 +207,19 @@ export interface ExampleResult {
 	/** Subgraph timing and workflow metrics */
 	subgraphMetrics?: SubgraphMetrics;
 	workflow?: SimpleWorkflow;
+	/** Subgraph output (e.g., responder text). Present in subgraph eval mode. */
+	subgraphOutput?: SubgraphExampleOutput;
 	error?: string;
+}
+
+/**
+ * Output from a subgraph evaluation example.
+ */
+export interface SubgraphExampleOutput {
+	/** The text response from the subgraph (e.g., responder output) */
+	response?: string;
+	/** The workflow produced by the subgraph (for builder/configurator) */
+	workflow?: SimpleWorkflow;
 }
 
 /**
