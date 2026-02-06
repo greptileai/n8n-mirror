@@ -7,6 +7,11 @@ export default defineConfig({
 			// Run each benchmark longer for more stable results
 			// Default is 500ms - we use 1000ms for ~2x more samples
 			time: 1000,
+			// Warmup: ensure JIT compilation is complete before measuring
+			// Default is 16 iterations - we use 100 for more thorough warmup
+			warmupIterations: 100,
+			// Default warmup time is 250ms - we use 500ms for stability
+			warmupTime: 500,
 		},
 	},
 });

@@ -104,11 +104,6 @@ const largeData = [
 const evaluate = (expr: string, data = smallData) =>
 	workflow.expression.getParameterValue(expr, null, 0, 0, 'node', data, 'manual', {});
 
-// Warmup
-for (let i = 0; i < 1000; i++) {
-	evaluate('={{ $json.name }}');
-}
-
 describe('Hot Path', () => {
 	// Baseline: simplest possible expression
 	bench('simple property access', () => {
