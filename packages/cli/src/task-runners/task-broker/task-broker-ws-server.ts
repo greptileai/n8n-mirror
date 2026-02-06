@@ -190,9 +190,9 @@ export class TaskBrokerWsServer {
 	}
 
 	private async drainActiveTasks() {
-		const drainTimeoutMs =
-			Math.floor(this.globalConfig.generic.gracefulShutdownTimeout * 0.8) *
-			Time.seconds.toMilliseconds;
+		const drainTimeout = Math.floor(this.globalConfig.generic.gracefulShutdownTimeout * 0.8);
+
+		const drainTimeoutMs = drainTimeout * Time.seconds.toMilliseconds;
 
 		this.taskBroker.startDraining();
 
