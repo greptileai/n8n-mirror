@@ -2,7 +2,7 @@ import type { ServerTool } from '@langchain/core/tools';
 import { ChatOpenAI, type ClientOptions } from '@langchain/openai';
 import type { ISupplyDataFunctions } from 'n8n-workflow';
 
-import { LangchainAdapter } from '../adapters/langchain';
+import { LangchainAdapter } from '../adapters/langchain-chat-model';
 import type { ChatModel } from '../types/chat-model';
 import type { OpenAIModelOptions } from '../types/openai';
 import { makeN8nLlmFailedAttemptHandler } from '../utils/failed-attempt-handler/n8nLlmFailedAttemptHandler';

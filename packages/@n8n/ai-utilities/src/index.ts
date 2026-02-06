@@ -50,7 +50,7 @@ export type {
 export type { JSONArray, JSONObject, JSONValue } from './types/json';
 export type { ServerSentEventMessage } from './utils/sse';
 
-export { LangchainAdapter } from './adapters/langchain';
+export { LangchainAdapter } from './adapters/langchain-chat-model';
 
 export { BaseChatModel } from './chat-model/base';
 
