@@ -5,14 +5,8 @@ exports[`ConnectionTracker > should not render error when connected and online 1
   <span
     data-v-f4a2fe1d=""
   >
-    <!--v-if-->
-    <span
-      class="slot-wrapper"
-      data-v-f4a2fe1d=""
-    >
-      
-      
-    </span>
+    
+    
   </span>
 </div>
 `;
@@ -22,14 +16,19 @@ exports[`ConnectionTracker > should not render error when push connected and con
   <span
     data-v-f4a2fe1d=""
   >
-    <!--v-if-->
-    <span
-      class="slot-wrapper"
-      data-v-f4a2fe1d=""
-    >
-      
-      
-    </span>
+    
+    
+  </span>
+</div>
+`;
+
+exports[`ConnectionTracker > should not render error when push is connecting 1`] = `
+<div>
+  <span
+    data-v-f4a2fe1d=""
+  >
+    
+    
   </span>
 </div>
 `;
@@ -80,14 +79,6 @@ exports[`ConnectionTracker > should render network error when both offline and p
       
       
     </div>
-    <span
-      class="slot-wrapper"
-      data-v-f4a2fe1d=""
-      style="display: none;"
-    >
-      
-      
-    </span>
   </span>
 </div>
 `;
@@ -138,14 +129,6 @@ exports[`ConnectionTracker > should render network error when offline 1`] = `
       
       
     </div>
-    <span
-      class="slot-wrapper"
-      data-v-f4a2fe1d=""
-      style="display: none;"
-    >
-      
-      
-    </span>
   </span>
 </div>
 `;
@@ -196,14 +179,6 @@ exports[`ConnectionTracker > should render push error when push disconnected and
       
       
     </div>
-    <span
-      class="slot-wrapper"
-      data-v-f4a2fe1d=""
-      style="display: none;"
-    >
-      
-      
-    </span>
   </span>
 </div>
 `;
