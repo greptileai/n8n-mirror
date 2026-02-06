@@ -11,20 +11,15 @@ import type { INodeCredentials, MessageEventBusDestinationOptions } from 'n8n-wo
 import { MessageEventBusDestinationTypeNames } from 'n8n-workflow';
 import { v4 as uuid } from 'uuid';
 
-import type { EventMessageTypes } from '@/eventbus';
 import type { AbstractEventMessage } from '@/eventbus/event-message-classes/abstract-event-message';
-import type { EventMessageConfirmSource } from '@/eventbus/event-message-classes/event-message-confirm';
+import { eventMessageGenericDestinationTestEvent } from '@/eventbus/event-message-classes/event-message-generic';
 import type {
 	MessageEventBus,
-	MessageEventBusDestinationType,
 	MessageWithCallback,
 } from '@/eventbus/message-event-bus/message-event-bus';
-import { License } from '@/license';
 import { CircuitBreaker } from '@/utils/circuit-breaker';
 
-export abstract class MessageEventBusDestination
-	implements MessageEventBusDestinationOptions, MessageEventBusDestinationType
-{
+export abstract class MessageEventBusDestination implements MessageEventBusDestinationOptions {
 	// Since you can't have static abstract functions - this just serves as a reminder that you need to implement these. Please.
 	// static abstract deserialize(): MessageEventBusDestination | null;
 	readonly id: string;
@@ -32,8 +27,6 @@ export abstract class MessageEventBusDestination
 	readonly eventBusInstance: MessageEventBus;
 
 	protected readonly logger: Logger;
-
-	protected readonly license: License;
 
 	protected circuitBreakerInstance: CircuitBreaker;
 
@@ -52,7 +45,6 @@ export abstract class MessageEventBusDestination
 	constructor(eventBusInstance: MessageEventBus, options: MessageEventBusDestinationOptions) {
 		// @TODO: Use DI
 		this.logger = Container.get(Logger);
-		this.license = Container.get(License);
 
 		const timeout = options.circuitBreaker?.maxDuration ?? LOGSTREAMING_CB_DEFAULT_MAX_DURATION_MS;
 		const maxFailures = options.circuitBreaker?.maxFailures ?? LOGSTREAMING_CB_DEFAULT_MAX_FAILURES;
@@ -83,44 +75,6 @@ export abstract class MessageEventBusDestination
 		this.logger.debug(`${this.__type}(${this.id}) event destination constructed`);
 	}
 
-	startListening() {
-		if (this.enabled) {
-			this.eventBusInstance.on(
-				this.getId(),
-				async (
-					msg: EventMessageTypes,
-					confirmCallback: (message: EventMessageTypes, src: EventMessageConfirmSource) => void,
-				) => {
-					try {
-						await this.circuitBreakerInstance.execute(async () => {
-							await this.receiveFromEventBus({ msg, confirmCallback });
-						});
-					} catch (error) {
-						this.logger.error(
-							`${this.__type}(${this.id}) event destination ${this.label} failed to send message`,
-							{ error },
-						);
-					}
-				},
-			);
-			this.logger.debug(`${this.id} listener started`);
-		}
-	}
-
-	stopListening() {
-		this.eventBusInstance.removeAllListeners(this.getId());
-	}
-
-	enable() {
-		this.enabled = true;
-		this.startListening();
-	}
-
-	disable() {
-		this.enabled = false;
-		this.stopListening();
-	}
-
 	getId() {
 		return this.id;
 	}
@@ -148,11 +102,29 @@ export abstract class MessageEventBusDestination
 
 	abstract receiveFromEventBus(emitterPayload: MessageWithCallback): Promise<boolean>;
 
+	/**
+	 * Send a message to this destination with circuit breaker protection
+	 * Includes filtering logic for event subscription checks
+	 * Note: License check is done at module level via @BackendModule decorator
+	 */
+	async sendMessage(emitterPayload: MessageWithCallback): Promise<boolean> {
+		const { msg } = emitterPayload;
+
+		// Skip checks for test events
+		if (msg.eventName !== eventMessageGenericDestinationTestEvent) {
+			if (!this.hasSubscribedToEvent(msg)) return false;
+		}
+
+		return await this.circuitBreakerInstance.execute(async () => {
+			return await this.receiveFromEventBus(emitterPayload);
+		});
+	}
+
 	toString() {
 		return JSON.stringify(this.serialize());
 	}
 
 	async close(): Promise<void> {
-		this.stopListening();
+		this.enabled = false;
 	}
 }

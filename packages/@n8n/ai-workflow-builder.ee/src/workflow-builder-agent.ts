@@ -20,6 +20,7 @@ import { MAX_AI_BUILDER_PROMPT_LENGTH, MAX_MULTI_AGENT_STREAM_ITERATIONS } from 
 import { ValidationError } from './errors';
 import { createMultiAgentWorkflowWithSubgraphs } from './multi-agent-workflow-subgraphs';
 import { SessionManagerService } from './session-manager.service';
+import type { ResourceLocatorCallback } from './types/callbacks';
 import type { SimpleWorkflow } from './types/workflow';
 import { createStreamProcessor, type StreamEvent } from './utils/stream-processor';
 import type { WorkflowState } from './workflow-state';
@@ -37,10 +38,22 @@ export type TypedStateSnapshot = Omit<StateSnapshot, 'values'> & {
 	values: typeof WorkflowState.State;
 };
 
+/**
+ * Per-stage LLM configuration for the workflow builder.
+ * All stages must be configured with an LLM instance.
+ */
+export interface StageLLMs {
+	supervisor: BaseChatModel;
+	responder: BaseChatModel;
+	discovery: BaseChatModel;
+	builder: BaseChatModel;
+	parameterUpdater: BaseChatModel;
+}
+
 export interface WorkflowBuilderAgentConfig {
 	parsedNodeTypes: INodeTypeDescription[];
-	llmSimpleTask: BaseChatModel;
-	llmComplexTask: BaseChatModel;
+	/** Per-stage LLM configuration */
+	stageLLMs: StageLLMs;
 	logger?: Logger;
 	checkpointer: MemorySaver;
 	tracer?: LangChainTracer;
@@ -51,6 +64,8 @@ export interface WorkflowBuilderAgentConfig {
 	featureFlags?: BuilderFeatureFlags;
 	/** Callback when generation completes successfully (not aborted) */
 	onGenerationSuccess?: () => Promise<void>;
+	/** Callback for fetching resource locator options */
+	resourceLocatorCallback?: ResourceLocatorCallback;
 }
 
 export interface ExpressionValue {
@@ -80,24 +95,24 @@ export interface ChatPayload {
 export class WorkflowBuilderAgent {
 	private checkpointer: MemorySaver;
 	private parsedNodeTypes: INodeTypeDescription[];
-	private llmSimpleTask: BaseChatModel;
-	private llmComplexTask: BaseChatModel;
+	private stageLLMs: StageLLMs;
 	private logger?: Logger;
 	private tracer?: LangChainTracer;
 	private instanceUrl?: string;
 	private runMetadata?: Record<string, unknown>;
 	private onGenerationSuccess?: () => Promise<void>;
+	private resourceLocatorCallback?: ResourceLocatorCallback;
 
 	constructor(config: WorkflowBuilderAgentConfig) {
 		this.parsedNodeTypes = config.parsedNodeTypes;
-		this.llmSimpleTask = config.llmSimpleTask;
-		this.llmComplexTask = config.llmComplexTask;
+		this.stageLLMs = config.stageLLMs;
 		this.logger = config.logger;
 		this.checkpointer = config.checkpointer;
 		this.tracer = config.tracer;
 		this.instanceUrl = config.instanceUrl;
 		this.runMetadata = config.runMetadata;
 		this.onGenerationSuccess = config.onGenerationSuccess;
+		this.resourceLocatorCallback = config.resourceLocatorCallback;
 	}
 
 	/**
@@ -107,13 +122,13 @@ export class WorkflowBuilderAgent {
 	private createWorkflow(featureFlags?: BuilderFeatureFlags) {
 		return createMultiAgentWorkflowWithSubgraphs({
 			parsedNodeTypes: this.parsedNodeTypes,
-			llmSimpleTask: this.llmSimpleTask,
-			llmComplexTask: this.llmComplexTask,
+			stageLLMs: this.stageLLMs,
 			logger: this.logger,
 			instanceUrl: this.instanceUrl,
 			checkpointer: this.checkpointer,
 			featureFlags,
 			onGenerationSuccess: this.onGenerationSuccess,
+			resourceLocatorCallback: this.resourceLocatorCallback,
 		});
 	}
 
