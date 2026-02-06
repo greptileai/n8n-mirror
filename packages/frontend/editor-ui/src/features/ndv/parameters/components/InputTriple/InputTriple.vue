@@ -48,6 +48,7 @@ const isStacked = computed(() => width.value > 0 && width.value <= STACKED_BREAK
 
 .item {
 	position: relative;
+	z-index: 0;
 	flex: 1;
 	min-width: 0;
 
