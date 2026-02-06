@@ -114,9 +114,13 @@ export class SecretsProvidersConnectionsService {
 			throw new NotFoundError(`Connection with key "${providerKey}" not found`);
 		}
 
+		// Pull out the connectionId as this is removed when we delete it.
+		const connectionId = connection.id;
+
 		await this.projectAccessRepository.deleteByConnectionId(connection.id);
 		await this.repository.remove(connection);
 
+		connection.id = connectionId;
 		return connection;
 	}
 

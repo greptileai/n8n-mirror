@@ -356,6 +356,7 @@ describe('Secret Providers Connections API', () => {
 				.delete('/secret-providers/connections/delete-test')
 				.expect(200);
 
+			expect(response.body.data.id).toBe(connectionId);
 			expect(response.body.data.name).toBe('delete-test');
 			expect(response.body.data.projects).toHaveLength(2);
 
