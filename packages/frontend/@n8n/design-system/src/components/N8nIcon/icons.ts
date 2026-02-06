@@ -117,6 +117,7 @@ import IconLucideFileOutput from '~icons/lucide/file-output';
 import IconLucideFileText from '~icons/lucide/file-text';
 import IconLucideFiles from '~icons/lucide/files';
 import IconLucideFingerprint from '~icons/lucide/fingerprint';
+import IconLucideFlame from '~icons/lucide/flame';
 import IconLucideFlaskConical from '~icons/lucide/flask-conical';
 import IconLucideFolder from '~icons/lucide/folder';
 import IconLucideFolderOpen from '~icons/lucide/folder-open';
@@ -450,6 +451,7 @@ export const deprecatedIconSet = {
 	'power-off': IconLucidePower,
 	'paper-plane': IconLucideSend,
 	bell: IconLucideBell,
+	'quick-connect': IconLucideFlame,
 } as const;
 
 export const updatedIconSet = {

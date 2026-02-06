@@ -1,10 +1,11 @@
 import { QUICK_CONNECT_EXPERIMENT } from '@/app/constants';
 import { usePostHog } from '@/app/stores/posthog.store';
 import { useSettingsStore } from '@/app/stores/settings.store';
+import { computed, type Ref, toRef } from 'vue';
 
 type UseQuickConnectParams = {
-	packageName?: string;
-	credentialType?: string;
+	packageName?: string | Ref<string>;
+	credentialType?: string | Ref<string>;
 };
 
 export function useQuickConnect({ credentialType, packageName }: UseQuickConnectParams) {
@@ -14,13 +15,18 @@ export function useQuickConnect({ credentialType, packageName }: UseQuickConnect
 		QUICK_CONNECT_EXPERIMENT.name,
 		QUICK_CONNECT_EXPERIMENT.variant,
 	);
-	if (quickConnectEnabled && settingsStore.moduleSettings['quick-connect']?.options.length) {
-		const quickConnectOption = settingsStore.moduleSettings['quick-connect']?.options.find(
-			(option) => option.credentialType === credentialType || option.packageName === packageName,
-		);
 
-		return quickConnectOption;
-	}
+	return computed(() => {
+		if (quickConnectEnabled && settingsStore.moduleSettings['quick-connect']?.options.length) {
+			const quickConnectOption = settingsStore.moduleSettings['quick-connect']?.options.find(
+				(option) =>
+					option.credentialType === toRef(credentialType).value ||
+					option.packageName === toRef(packageName).value,
+			);
 
-	return;
+			return quickConnectOption;
+		}
+
+		return undefined;
+	});
 }

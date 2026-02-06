@@ -129,9 +129,6 @@ onMounted(async () => {
 				}}</template>
 				<div>
 					<ShieldIcon :class="$style.tooltipIcon" />
-					<N8nText color="text-light" size="xsmall" bold data-test-id="verified-tag">
-						{{ i18n.baseText('communityNodeInfo.approved.label') }}
-					</N8nText>
 				</div>
 			</N8nTooltip>
 
@@ -139,9 +136,6 @@ onMounted(async () => {
 				<template #content>{{ i18n.baseText('communityNodeInfo.unverified') }}</template>
 				<div>
 					<N8nIcon :class="$style.tooltipIcon" icon="box" />
-					<N8nText color="text-light" size="xsmall" bold>
-						{{ i18n.baseText('communityNodeInfo.unverified.label') }}
-					</N8nText>
 				</div>
 			</N8nTooltip>
 
@@ -156,6 +150,13 @@ onMounted(async () => {
 				<N8nIcon :class="$style.tooltipIcon" icon="user" />
 				<N8nText color="text-light" size="xsmall" bold data-test-id="publisher-name">
 					{{ i18n.baseText('communityNodeInfo.publishedBy', { interpolate: { publisherName } }) }}
+				</N8nText>
+			</div>
+
+			<div v-if="quickConnect">
+				<N8nIcon :class="$style.tooltipIcon" icon="quick-connect" />
+				<N8nText color="text-light" size="xsmall" bold data-test-id="quick-connect-tag">
+					{{ i18n.baseText('communityNodeInfo.quickConnect') }}
 				</N8nText>
 			</div>
 		</div>
@@ -192,7 +193,7 @@ onMounted(async () => {
 	display: flex;
 	align-items: center;
 	justify-content: left;
-	gap: var(--spacing--md);
+	gap: var(--spacing--2xs);
 	margin-bottom: var(--spacing--md);
 	flex-wrap: wrap;
 }
