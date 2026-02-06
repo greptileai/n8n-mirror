@@ -189,7 +189,7 @@ export class ExportWorkflowsCommand extends BaseCommand<z.infer<typeof flagsSche
 		}
 	}
 
-	async catch(error: Error) {
+	async catch(_error: Error) {
 		this.logger.error('Error exporting workflows. See log messages for details.');
 	}
 }
