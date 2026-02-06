@@ -10,7 +10,6 @@ import { useMessage } from '@/app/composables/useMessage';
 import { useToast } from '@/app/composables/useToast';
 import { useSettingsStore } from '@/app/stores/settings.store';
 import { useUIStore } from '@/app/stores/ui.store';
-import { useUsersStore } from '@/features/settings/users/users.store';
 import { useWorkflowsStore } from '@/app/stores/workflows.store';
 import { useWorkflowsListStore } from '@/app/stores/workflowsList.store';
 import { useWorkflowsEEStore } from '@/app/stores/workflows.ee.store';
@@ -40,7 +39,6 @@ const workflowsStore = useWorkflowsStore();
 const workflowsListStore = useWorkflowsListStore();
 const settingsStore = useSettingsStore();
 const uiStore = useUIStore();
-const usersStore = useUsersStore();
 const workflowsEEStore = useWorkflowsEEStore();
 const projectsStore = useProjectsStore();
 const rolesStore = useRolesStore();
@@ -90,6 +88,10 @@ const modalTitle = computed(() => {
 });
 
 const workflowPermissions = computed(() => getResourcePermissions(workflow.value?.scopes).workflow);
+
+const isPersonalSpace = computed(
+	() => projectsStore.currentProject?.type === ProjectTypes.Personal,
+);
 
 const workflowOwnerName = computed(() =>
 	workflowsEEStore.getWorkflowOwnerName(`${workflow.value.id}`),
@@ -209,7 +211,7 @@ const goToUpgrade = () => {
 
 const initialize = async () => {
 	if (isSharingEnabled.value) {
-		await Promise.all([usersStore.fetchUsers(), projectsStore.getAllProjects()]);
+		await projectsStore.getAllProjects();
 
 		// Fetch workflow if it exists and is not new
 		if (workflowsStore.isWorkflowSaved[workflow.value.id]) {
@@ -263,11 +265,16 @@ watch(
 					:bold="false"
 					class="mb-s"
 				>
-					{{
-						i18n.baseText('workflows.shareModal.info.sharee', {
-							interpolate: { workflowOwnerName },
-						})
-					}}
+					<template v-if="isPersonalSpace">
+						{{ i18n.baseText('workflows.shareModal.info.personalSpaceRestricted') }}
+					</template>
+					<template v-else>
+						{{
+							i18n.baseText('workflows.shareModal.info.sharee', {
+								interpolate: { workflowOwnerName },
+							})
+						}}
+					</template>
 				</N8nInfoTip>
 				<EnterpriseEdition :features="[EnterpriseEditionFeature.Sharing]" :class="$style.content">
 					<div>

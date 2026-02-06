@@ -15,7 +15,8 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-	edit: [connectionId: string];
+	edit: [providerKey: string];
+	share: [providerKey: string];
 }>();
 
 const provider = toRef(props, 'provider');
@@ -40,18 +41,21 @@ const actionDropdownOptions = computed(() => {
 			label: i18n.baseText('generic.edit'),
 			value: 'edit',
 		},
+		{
+			label: i18n.baseText('settings.secretsProviderConnections.actions.share'),
+			value: 'share',
+		},
 	];
 });
 
 function onAction(action: string) {
-	if (action === 'edit') {
-		emit('edit', provider.value.id);
-	}
+	if (action !== 'edit' && action !== 'share') return;
+	emit(action as keyof typeof emit, provider.value.name);
 }
 </script>
 
 <template>
-	<N8nCard hoverable>
+	<N8nCard :class="$style.card" hoverable>
 		<template v-if="providerTypeInfo" #prepend>
 			<SecretsProviderImage
 				:class="$style.providerImage"
@@ -61,19 +65,27 @@ function onAction(action: string) {
 		</template>
 		<template #header>
 			<div :class="$style.headerContainer">
-				<N8nHeading tag="h2" bold>{{ provider.name }}</N8nHeading>
-				<N8nBadge v-if="showDisconnectedBadge" theme="warning" :bold="false" size="small">
+				<N8nHeading tag="h2" bold data-test-id="secrets-provider-name">{{
+					provider.name
+				}}</N8nHeading>
+				<N8nBadge
+					v-if="showDisconnectedBadge"
+					theme="warning"
+					:bold="false"
+					size="xsmall"
+					data-test-id="disconnected-badge"
+				>
 					{{ i18n.baseText('settings.secretsProviderConnections.state.disconnected') }}
 				</N8nBadge>
 			</div>
 		</template>
 		<template #default>
-			<N8nText color="text-light" size="small">
-				<span>
+			<N8nText class="pb-4xs" color="text-light" size="small">
+				<span data-test-id="secrets-provider-display-name">
 					{{ providerTypeInfo?.displayName ?? provider.type }}
 				</span>
 				|
-				<span>
+				<span data-test-id="secrets-provider-secrets-count">
 					{{
 						provider.secretsCount === 1
 							? i18n.baseText('settings.externalSecrets.card.secretCount', {
@@ -89,7 +101,7 @@ function onAction(action: string) {
 					}}
 				</span>
 				|
-				<span>
+				<span data-test-id="secrets-provider-created-at">
 					{{
 						i18n.baseText('settings.secretsProviderConnections.card.createdAt', {
 							interpolate: {
@@ -101,12 +113,21 @@ function onAction(action: string) {
 			</N8nText>
 		</template>
 		<template #append>
-			<N8nActionToggle :actions="actionDropdownOptions" @action="onAction" />
+			<N8nActionToggle
+				:actions="actionDropdownOptions"
+				data-test-id="secrets-provider-action-toggle"
+				@action="onAction"
+			/>
 		</template>
 	</N8nCard>
 </template>
 
 <style lang="css" module>
+.card {
+	--card--padding: var(--spacing--2xs);
+	padding-left: var(--spacing--sm);
+}
+
 .providerImage {
 	width: 100%;
 	height: 100%;
