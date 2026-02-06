@@ -271,6 +271,8 @@ export class E2EController {
 	@Post('/gc', { skipAuth: true })
 	triggerGarbageCollection() {
 		if (typeof global.gc === 'function') {
+			// Call GC twice to allow for more reclaimation
+			global.gc();
 			global.gc();
 			return { success: true, message: 'Garbage collection triggered' };
 		}

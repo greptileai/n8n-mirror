@@ -12,7 +12,7 @@ const N8N_IMAGE = TEST_CONTAINER_IMAGES.n8n;
 const BASE_ENV: Record<string, string> = {
 	N8N_LOG_LEVEL: 'debug',
 	N8N_ENCRYPTION_KEY: process.env.N8N_ENCRYPTION_KEY ?? 'test-encryption-key',
-	E2E_TESTS: 'true',
+	E2E_TESTS: 'false',
 	QUEUE_HEALTH_CHECK_ACTIVE: 'true',
 	N8N_DIAGNOSTICS_ENABLED: 'false',
 	N8N_METRICS: 'true',
