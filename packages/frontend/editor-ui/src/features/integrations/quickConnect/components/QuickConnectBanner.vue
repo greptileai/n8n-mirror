@@ -7,7 +7,7 @@ const { text } = defineProps<{
 </script>
 
 <template>
-	<N8nCallout theme="secondary" iconless>
+	<N8nCallout theme="secondary" iconless data-test-id="quick-connect-banner">
 		{{ text }}
 	</N8nCallout>
 </template>
