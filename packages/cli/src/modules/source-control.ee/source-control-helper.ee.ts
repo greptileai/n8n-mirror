@@ -58,18 +58,6 @@ function isPlainObject(value: unknown): value is ICredentialDataDecryptedObject 
 }
 
 /**
- * Compares two credential data objects using deep equality.
- */
-export function hasCredentialDataChanged(
-	data1: ICredentialDataDecryptedObject | undefined,
-	data2: ICredentialDataDecryptedObject | undefined,
-): boolean {
-	if (!data1 && !data2) return false;
-	if (!data1 || !data2) return true;
-	return !isEqual(data1, data2);
-}
-
-/**
  * Merges remote credential data into local data.
  * Remote expressions overwrite local values; empty strings are ignored (preserves local secrets).
  */
@@ -358,6 +346,16 @@ export function areSameCredentials(
 		credA.name === credB.name &&
 		credA.type === credB.type &&
 		!hasOwnerChanged(credA.ownedBy, credB.ownedBy) &&
-		Boolean(credA.isGlobal) === Boolean(credB.isGlobal)
+		Boolean(credA.isGlobal) === Boolean(credB.isGlobal) &&
+		!hasCredentialDataChanged(credA.data, credB.data)
 	);
+}
+
+function hasCredentialDataChanged(
+	data1: ICredentialDataDecryptedObject | undefined,
+	data2: ICredentialDataDecryptedObject | undefined,
+): boolean {
+	if (!data1 && !data2) return false;
+	if (!data1 || !data2) return true;
+	return !isEqual(data1, data2);
 }
