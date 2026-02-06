@@ -80,14 +80,14 @@ const hasUnconfirmedNodes = computed(() => unconfirmedNodes.value.length > 0);
 const confirmedCount = computed(() => confirmedNodes.value.length);
 const unconfirmedCount = computed(() => unconfirmedNodes.value.length);
 
-// Bundling logic: show bundled chip when 2+ nodes
-const shouldBundleConfirmed = computed(() => confirmedCount.value >= 2);
-const shouldBundleUnconfirmed = computed(() => unconfirmedCount.value >= 2);
-const singleConfirmedNode = computed(() =>
-	confirmedCount.value === 1 ? confirmedNodes.value[0] : null,
+// Bundling logic: show bundled chip when 4+ nodes, individual chips for 1-3
+const shouldBundleConfirmed = computed(() => confirmedCount.value >= 4);
+const shouldBundleUnconfirmed = computed(() => unconfirmedCount.value >= 4);
+const individualConfirmedNodes = computed(() =>
+	confirmedCount.value >= 1 && confirmedCount.value <= 3 ? confirmedNodes.value : [],
 );
-const singleUnconfirmedNode = computed(() =>
-	unconfirmedCount.value === 1 ? unconfirmedNodes.value[0] : null,
+const individualUnconfirmedNodes = computed(() =>
+	unconfirmedCount.value >= 1 && unconfirmedCount.value <= 3 ? unconfirmedNodes.value : [],
 );
 
 function handleChipClick(nodeId: string) {
@@ -207,15 +207,16 @@ defineExpose({
 		>
 			<!-- Confirmed chips - inline with text input (only when feature enabled) -->
 			<template v-if="isFeatureEnabled && hasConfirmedNodes" #inline-chips>
-				<!-- Single confirmed: show individual chip -->
+				<!-- Individual confirmed chips (1-3 nodes) -->
 				<FocusedNodeChip
-					v-if="singleConfirmedNode"
-					:node="singleConfirmedNode"
-					@click="handleChipClick(singleConfirmedNode.nodeId)"
-					@remove="handleRemove(singleConfirmedNode.nodeId)"
+					v-for="node in individualConfirmedNodes"
+					:key="node.nodeId"
+					:node="node"
+					@click="handleChipClick(node.nodeId)"
+					@remove="handleRemove(node.nodeId)"
 				/>
-				<!-- Multiple confirmed: show bundled chip -->
-				<span v-else-if="shouldBundleConfirmed" :class="$style.bundledConfirmedChip">
+				<!-- Bundled confirmed chip (4+ nodes) -->
+				<span v-if="shouldBundleConfirmed" :class="$style.bundledConfirmedChip">
 					<N8nIcon icon="layers" size="small" :class="$style.bundledConfirmedIcon" />
 					<span>{{
 						i18n.baseText('focusedNodes.nodesCount', { interpolate: { count: confirmedCount } })
@@ -240,16 +241,17 @@ defineExpose({
 
 			<!-- Unconfirmed chips - in bottom actions row (only when feature enabled) -->
 			<template v-if="isFeatureEnabled && hasUnconfirmedNodes" #bottom-actions-chips>
-				<!-- Single unconfirmed: show individual chip -->
+				<!-- Individual unconfirmed chips (1-3 nodes) -->
 				<FocusedNodeChip
-					v-if="singleUnconfirmedNode"
-					:node="singleUnconfirmedNode"
-					@click="handleChipClick(singleUnconfirmedNode.nodeId)"
-					@remove="handleRemove(singleUnconfirmedNode.nodeId)"
+					v-for="node in individualUnconfirmedNodes"
+					:key="node.nodeId"
+					:node="node"
+					@click="handleChipClick(node.nodeId)"
+					@remove="handleRemove(node.nodeId)"
 				/>
-				<!-- Multiple unconfirmed: show bundled chip -->
+				<!-- Bundled unconfirmed chip (4+ nodes) -->
 				<button
-					v-else-if="shouldBundleUnconfirmed"
+					v-if="shouldBundleUnconfirmed"
 					type="button"
 					:class="$style.bundledUnconfirmedChip"
 					@click="confirmAllUnconfirmed"

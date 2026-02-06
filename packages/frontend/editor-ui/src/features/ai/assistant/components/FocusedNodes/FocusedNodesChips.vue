@@ -18,16 +18,18 @@ const shouldCollapse = computed(() => focusedNodesStore.shouldCollapseChips);
 const confirmedCount = computed(() => focusedNodesStore.confirmedNodes.length);
 const unconfirmedCount = computed(() => focusedNodesStore.unconfirmedNodes.length);
 
-// Show bundled chip when 2+ nodes of each type
-const shouldBundleConfirmed = computed(() => confirmedCount.value >= 2);
-const shouldBundleUnconfirmed = computed(() => unconfirmedCount.value >= 2);
+// Show bundled chip when 4+ nodes, individual chips for 1-3
+const shouldBundleConfirmed = computed(() => confirmedCount.value >= 4);
+const shouldBundleUnconfirmed = computed(() => unconfirmedCount.value >= 4);
 
-// Get single nodes for individual display
-const singleConfirmedNode = computed(() =>
-	confirmedCount.value === 1 ? focusedNodesStore.confirmedNodes[0] : null,
+// Get individual nodes for display (1-3 nodes)
+const individualConfirmedNodes = computed(() =>
+	confirmedCount.value >= 1 && confirmedCount.value <= 3 ? focusedNodesStore.confirmedNodes : [],
 );
-const singleUnconfirmedNode = computed(() =>
-	unconfirmedCount.value === 1 ? focusedNodesStore.unconfirmedNodes[0] : null,
+const individualUnconfirmedNodes = computed(() =>
+	unconfirmedCount.value >= 1 && unconfirmedCount.value <= 3
+		? focusedNodesStore.unconfirmedNodes
+		: [],
 );
 
 function handleChipClick(nodeId: string) {
@@ -71,16 +73,17 @@ function handleRemoveAllConfirmed() {
 		<template v-else>
 			<!-- Confirmed nodes section -->
 			<template v-if="confirmedCount > 0">
-				<!-- Single confirmed: show individual chip -->
+				<!-- Individual confirmed chips (1-3 nodes) -->
 				<FocusedNodeChip
-					v-if="singleConfirmedNode"
-					:node="singleConfirmedNode"
-					@click="handleChipClick(singleConfirmedNode.nodeId)"
-					@remove="handleRemove(singleConfirmedNode.nodeId)"
+					v-for="node in individualConfirmedNodes"
+					:key="node.nodeId"
+					:node="node"
+					@click="handleChipClick(node.nodeId)"
+					@remove="handleRemove(node.nodeId)"
 				/>
 
-				<!-- Multiple confirmed: show bundled chip -->
-				<span v-else-if="shouldBundleConfirmed" :class="$style.bundledChip">
+				<!-- Bundled confirmed chip (4+ nodes) -->
+				<span v-if="shouldBundleConfirmed" :class="$style.bundledChip">
 					<N8nIcon icon="layers" size="small" :class="$style.bundledIcon" />
 					<span :class="$style.label">{{
 						i18n.baseText('focusedNodes.nodesCount', { interpolate: { count: confirmedCount } })
@@ -93,17 +96,18 @@ function handleRemoveAllConfirmed() {
 
 			<!-- Unconfirmed nodes section -->
 			<template v-if="unconfirmedCount > 0">
-				<!-- Single unconfirmed: show individual chip -->
+				<!-- Individual unconfirmed chips (1-3 nodes) -->
 				<FocusedNodeChip
-					v-if="singleUnconfirmedNode"
-					:node="singleUnconfirmedNode"
-					@click="handleChipClick(singleUnconfirmedNode.nodeId)"
-					@remove="handleRemove(singleUnconfirmedNode.nodeId)"
+					v-for="node in individualUnconfirmedNodes"
+					:key="node.nodeId"
+					:node="node"
+					@click="handleChipClick(node.nodeId)"
+					@remove="handleRemove(node.nodeId)"
 				/>
 
-				<!-- Multiple unconfirmed: show bundled chip -->
+				<!-- Bundled unconfirmed chip (4+ nodes) -->
 				<button
-					v-else-if="shouldBundleUnconfirmed"
+					v-if="shouldBundleUnconfirmed"
 					type="button"
 					:class="$style.bundledUnconfirmedChip"
 					@click="handleConfirmAll"
