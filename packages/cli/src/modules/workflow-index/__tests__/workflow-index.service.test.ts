@@ -3,7 +3,7 @@
 import { Logger } from '@n8n/backend-common';
 import { mockInstance } from '@n8n/backend-test-utils';
 import { WorkflowDependencyRepository, WorkflowEntity, WorkflowRepository } from '@n8n/db';
-import { ErrorReporter } from 'n8n-core';
+import { ErrorReporter, Tracing } from 'n8n-core';
 import type { INode, IWorkflowBase } from 'n8n-workflow';
 
 import { WorkflowIndexService } from '../workflow-index.service';
@@ -16,9 +16,15 @@ describe('WorkflowIndexService', () => {
 	const mockLogger = mockInstance(Logger);
 	const mockErrorReporter = mockInstance(ErrorReporter);
 	const mockEventService = mockInstance(EventService);
+	const mockTracing = mockInstance(Tracing);
 
 	beforeEach(() => {
 		jest.resetAllMocks();
+
+		// Make startSpan execute the callback directly
+		mockTracing.startSpan.mockImplementation(
+			async (_opts, cb) => await cb({ setStatus: jest.fn() }),
+		);
 
 		service = new WorkflowIndexService(
 			mockWorkflowDependencyRepository,
@@ -26,6 +32,7 @@ describe('WorkflowIndexService', () => {
 			mockEventService,
 			mockLogger,
 			mockErrorReporter,
+			mockTracing,
 		);
 	});
 
@@ -519,6 +526,7 @@ describe('WorkflowIndexService', () => {
 				mockEventService,
 				mockLogger,
 				mockErrorReporter,
+				mockTracing,
 				batchSize,
 			);
 
