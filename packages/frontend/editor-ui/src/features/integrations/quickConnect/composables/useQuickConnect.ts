@@ -3,10 +3,15 @@ import { usePostHog } from '@/app/stores/posthog.store';
 import { useSettingsStore } from '@/app/stores/settings.store';
 import { computed, type Ref, toRef } from 'vue';
 
-type UseQuickConnectParams = {
-	packageName?: string | Ref<string | undefined>;
-	credentialType?: string | Ref<string | undefined>;
-};
+type UseQuickConnectParams =
+	| {
+			packageName: string | Ref<string | undefined>;
+			credentialType?: never;
+	  }
+	| {
+			packageName?: never;
+			credentialType: string | Ref<string | undefined>;
+	  };
 
 export function useQuickConnect({ credentialType, packageName }: UseQuickConnectParams) {
 	const settingsStore = useSettingsStore();
