@@ -185,7 +185,6 @@ export function useWorkflowInitialization(workflowState: WorkflowState) {
 				void nodeTypesStore.fetchCommunityNodePreviews();
 			}
 			await Promise.all(loadPromises);
-			void nodeTypesStore.fetchCommunityNodePreviews();
 		} catch (error) {
 			toast.showError(
 				error,
