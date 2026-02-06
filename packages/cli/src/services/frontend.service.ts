@@ -91,6 +91,8 @@ export type PublicFrontendSettings = {
 			loginUrl: FrontendSettings['sso']['oidc']['loginUrl'];
 		};
 	};
+	/** Used to fetch community nodes on preview instance */
+	communityNodesEnabled: FrontendSettings['communityNodesEnabled'];
 
 	mfa?: {
 		enabled: boolean;
@@ -546,6 +548,7 @@ export class FrontendService {
 			previewMode,
 			enterprise: { saml, ldap, oidc },
 			mfa,
+			communityNodesEnabled,
 		} = await this.getSettings();
 
 		const publicSettings: PublicFrontendSettings = {
@@ -570,6 +573,7 @@ export class FrontendService {
 			authCookie,
 			previewMode,
 			enterprise: { saml, ldap, oidc },
+			communityNodesEnabled,
 		};
 		if (includeMfaSettings) {
 			publicSettings.mfa = mfa;
