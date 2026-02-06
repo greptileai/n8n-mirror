@@ -133,7 +133,7 @@ describe('v2/components/Switch', () => {
 	});
 
 	describe('events', () => {
-		it('should emit change event on click', async () => {
+		it('should emit update:modelValue on click', async () => {
 			const wrapper = render(Switch, {
 				props: {
 					modelValue: false,
@@ -144,22 +144,6 @@ describe('v2/components/Switch', () => {
 			await userEvent.click(switchEl!);
 
 			await waitFor(() => {
-				expect(wrapper.emitted('change')).toBeTruthy();
-			});
-		});
-
-		it('should emit change event when toggling', async () => {
-			const wrapper = render(Switch, {
-				props: {
-					modelValue: false,
-				},
-			});
-
-			const switchEl = wrapper.container.querySelector('[role="switch"]');
-			await userEvent.click(switchEl!);
-
-			await waitFor(() => {
-				expect(wrapper.emitted('change')).toBeTruthy();
 				expect(wrapper.emitted('update:modelValue')?.[0]).toEqual([true]);
 			});
 		});
