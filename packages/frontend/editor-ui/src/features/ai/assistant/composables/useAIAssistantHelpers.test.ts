@@ -776,14 +776,13 @@ describe('Simplify assistant payloads', () => {
 		expect(simplifiedResultData.runData.TestNode[1].inputOverride).toBeUndefined();
 	});
 
-	it('simplifyResultData: Should keep simplified error when removeParameterValues is true', () => {
+	it('simplifyResultData: Should keep full error when removeParameterValues is true', () => {
 		const executionData: IRunExecutionData['resultData'] = {
 			runData: {},
 			error: {
 				name: 'NodeOperationError',
 				message: 'Something went wrong',
 				stack: 'Error: Something went wrong\n    at someFunction',
-				// These fields should be removed
 				node: {
 					id: 'node1',
 					name: 'Test Node',
@@ -801,15 +800,11 @@ describe('Simplify assistant payloads', () => {
 			removeParameterValues: true,
 		});
 
-		// Error should be present but simplified to safe fields only
+		// Full error should be present for debugging context
 		expect(simplifiedResultData.error).toBeDefined();
 		expect(simplifiedResultData.error?.name).toBe('NodeOperationError');
 		expect(simplifiedResultData.error?.message).toBe('Something went wrong');
-		expect(simplifiedResultData.error?.stack).toBe(
-			'Error: Something went wrong\n    at someFunction',
-		);
-		// Node info should not be present (it can contain parameter values)
-		expect((simplifiedResultData.error as unknown as { node?: unknown })?.node).toBeUndefined();
+		expect((simplifiedResultData.error as unknown as { node?: unknown })?.node).toBeDefined();
 
 		// Metadata and lastNodeExecuted should still be present
 		expect(simplifiedResultData.lastNodeExecuted).toBe('Test Node');
@@ -849,7 +844,7 @@ describe('Simplify assistant payloads', () => {
 		expect(simplifiedResultData.runData.TestNode[0].executionStatus).toBe('success');
 	});
 
-	it('simplifyResultData: Should simplify error in task data when removeParameterValues is true', () => {
+	it('simplifyResultData: Should keep full error in task data when removeParameterValues is true', () => {
 		const executionData: IRunExecutionData['resultData'] = {
 			runData: {
 				TestNode: [
@@ -864,7 +859,6 @@ describe('Simplify assistant payloads', () => {
 							name: 'NodeApiError',
 							message: 'API call failed',
 							stack: 'Error: API call failed\n    at apiCall',
-							// Extra fields that might contain sensitive data
 							httpCode: '401',
 							description: 'Unauthorized',
 						} as unknown as IRunExecutionData['resultData']['runData'][string][number]['error'],
@@ -881,15 +875,13 @@ describe('Simplify assistant payloads', () => {
 			removeParameterValues: true,
 		});
 
-		// Error should be simplified to safe fields
+		// Full error should be preserved for debugging context
 		const taskError = simplifiedResultData.runData.TestNode[0].error;
 		expect(taskError).toBeDefined();
 		expect(taskError?.name).toBe('NodeApiError');
 		expect(taskError?.message).toBe('API call failed');
-		expect(taskError?.stack).toBe('Error: API call failed\n    at apiCall');
-		// Extra fields should not be present
-		expect((taskError as unknown as { httpCode?: string })?.httpCode).toBeUndefined();
-		expect((taskError as unknown as { description?: string })?.description).toBeUndefined();
+		expect((taskError as unknown as { httpCode?: string })?.httpCode).toBe('401');
+		expect((taskError as unknown as { description?: string })?.description).toBe('Unauthorized');
 	});
 
 	it('simplifyResultData: Should keep full error when removeParameterValues is false', () => {
@@ -921,7 +913,7 @@ describe('Simplify assistant payloads', () => {
 	});
 });
 
-describe('processNodeForAssistant - trimParameterValues', () => {
+describe('processNodeForAssistant - excludeParameterValues', () => {
 	let aiAssistantHelpers: ReturnType<typeof useAIAssistantHelpers>;
 
 	beforeEach(() => {
@@ -961,7 +953,7 @@ describe('processNodeForAssistant - trimParameterValues', () => {
 		};
 
 		const processed = await aiAssistantHelpers.processNodeForAssistant(node, [], {
-			trimParameterValues: true,
+			excludeParameterValues: true,
 		});
 
 		expect(processed.parameters).toEqual({
@@ -1058,7 +1050,7 @@ describe('processNodeForAssistant - trimParameterValues', () => {
 		};
 
 		const processed = await aiAssistantHelpers.processNodeForAssistant(node, [], {
-			trimParameterValues: true,
+			excludeParameterValues: true,
 		});
 
 		expect(processed.parameters).toEqual({

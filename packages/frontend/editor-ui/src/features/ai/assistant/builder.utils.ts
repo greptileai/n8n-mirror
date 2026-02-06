@@ -34,13 +34,13 @@ export async function createBuilderPayload(
 	const posthogStore = usePostHog();
 	const workflowContext: ChatRequest.WorkflowContext = {};
 
-	// When privacy is OFF (allowSendingParameterValues=false), trim parameter values from workflow
-	const shouldTrimParameterValues = options.allowSendingParameterValues === false;
+	// When privacy is OFF (allowSendingParameterValues=false), exclude parameter values from workflow
+	const shouldExcludeParameterValues = options.allowSendingParameterValues === false;
 
 	if (options.workflow) {
 		workflowContext.currentWorkflow = {
 			...(await assistantHelpers.simplifyWorkflowForAssistant(options.workflow, {
-				trimParameterValues: shouldTrimParameterValues,
+				excludeParameterValues: shouldExcludeParameterValues,
 			})),
 			id: options.workflow.id,
 		};
@@ -49,10 +49,10 @@ export async function createBuilderPayload(
 	if (options.executionData) {
 		workflowContext.executionData = assistantHelpers.simplifyResultData(options.executionData, {
 			compact: true,
-			removeParameterValues: shouldTrimParameterValues,
+			removeParameterValues: shouldExcludeParameterValues,
 		});
 
-		if (options.workflow && !shouldTrimParameterValues) {
+		if (options.workflow && !shouldExcludeParameterValues) {
 			// Extract and include expression values with their resolved values
 			// Pass execution data to only extract from nodes that have executed
 			workflowContext.expressionValues = await assistantHelpers.extractExpressionsFromWorkflow(
@@ -66,7 +66,7 @@ export async function createBuilderPayload(
 	if (options.nodesForSchema?.length) {
 		workflowContext.executionSchema = assistantHelpers.getNodesSchemas(
 			options.nodesForSchema,
-			shouldTrimParameterValues, // excludeValues: true when privacy OFF, false when privacy ON
+			shouldExcludeParameterValues, // excludeValues: true when privacy OFF, false when privacy ON
 		);
 	}
 

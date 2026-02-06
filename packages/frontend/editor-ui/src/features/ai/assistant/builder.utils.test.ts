@@ -370,7 +370,7 @@ describe('builder.utils', () => {
 			});
 
 			expect(mockSimplifyWorkflowForAssistant).toHaveBeenCalledWith(mockWorkflow, {
-				trimParameterValues: false,
+				excludeParameterValues: false,
 			});
 			expect(mockSimplifyResultData).toHaveBeenCalledWith(mockExecutionData, {
 				compact: true,
@@ -391,7 +391,7 @@ describe('builder.utils', () => {
 			});
 
 			expect(mockSimplifyWorkflowForAssistant).toHaveBeenCalledWith(mockWorkflow, {
-				trimParameterValues: false,
+				excludeParameterValues: false,
 			});
 			expect(mockSimplifyResultData).toHaveBeenCalledWith(mockExecutionData, {
 				compact: true,
@@ -413,7 +413,7 @@ describe('builder.utils', () => {
 			});
 
 			expect(mockSimplifyWorkflowForAssistant).toHaveBeenCalledWith(mockWorkflow, {
-				trimParameterValues: true,
+				excludeParameterValues: true,
 			});
 			// executionData is sent but with removeParameterValues flag
 			expect(mockSimplifyResultData).toHaveBeenCalledWith(mockExecutionData, {
@@ -445,7 +445,7 @@ describe('builder.utils', () => {
 			});
 
 			expect(mockSimplifyWorkflowForAssistant).toHaveBeenCalledWith(mockWorkflow, {
-				trimParameterValues: true,
+				excludeParameterValues: true,
 			});
 			expect(result.workflowContext?.currentWorkflow).toBeDefined();
 		});
