@@ -179,7 +179,7 @@ const onAddCustomRoleClick = () => {
 					<N8nInput
 						v-model="searchQuery"
 						:placeholder="i18n.baseText('generic.search')"
-						size="small"
+						size="medium"
 						:class="$style.searchInput"
 						@click.stop
 						@keydown.stop
@@ -273,12 +273,10 @@ const onAddCustomRoleClick = () => {
 
 .searchInput {
 	width: 100%;
-
-	:global(.el-input__wrapper) {
-		border: none;
-		border-radius: 0;
-		box-shadow: none;
-	}
+	--input--radius--bottom-right: 0;
+	--input--radius--bottom-left: 0;
+	--input--border-color: transparent;
+	--input--border-color--hover: transparent;
 }
 
 .roleSelect {
@@ -299,7 +297,10 @@ const onAddCustomRoleClick = () => {
 }
 
 .selectItem {
+	display: flex;
+	align-items: center;
 	width: 100%;
+	height: var(--spacing--xl);
 }
 
 .upgradeBadge {
