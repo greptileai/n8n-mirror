@@ -69,7 +69,9 @@ function getOpenAiModel(ctx: ISupplyDataFunctions, model: OpenAiModel) {
 			...openAiModel.metadata,
 			// Tools in metadata are read by ToolAgent and added to a list of all agent tools.
 			tools: model.providerTools.map<ServerTool>((tool) => ({
-				type: tool.type,
+				// openai format requires type to be the name of the tool
+				// langchain simply passes the tool object to openai as is
+				type: tool.name,
 				...tool.args,
 			})),
 		};
