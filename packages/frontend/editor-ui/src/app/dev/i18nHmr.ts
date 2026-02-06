@@ -8,13 +8,12 @@ import enMessages from '@n8n/i18n/locales/en.json';
 const hot = import.meta.hot;
 const DEFAULT_LOCALE = 'en';
 
-const staticLocales: Record<string, LocaleMessages> = {
-	en: enMessages as unknown as LocaleMessages,
-};
-
-for (const [locale, messages] of Object.entries(staticLocales)) {
-	if (messages) updateLocaleMessages(locale, messages);
+// Adds numberFormats property required by LocaleMessages type
+function toLocaleMessages(json: typeof enMessages): LocaleMessages {
+	return { ...json, numberFormats: {} };
 }
+
+updateLocaleMessages('en', toLocaleMessages(enMessages));
 
 if (hot) {
 	// Eagerly import locale JSONs so this module becomes their HMR owner

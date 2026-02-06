@@ -18,8 +18,9 @@ describe('i18nHmr production locale loading', () => {
 		const ifHotPosition = ifHotMatch!.index!;
 		const beforeIfHot = i18nHmrSource.slice(0, ifHotPosition);
 
+		// Both checks must verify the pre-if(hot) section to ensure production builds work
 		const hasStaticLocaleImport =
-			/import\s+\w+\s+from\s+['"]@n8n\/i18n\/locales\/\w+\.json['"]/.test(i18nHmrSource);
+			/import\s+\w+\s+from\s+['"]@n8n\/i18n\/locales\/\w+\.json['"]/.test(beforeIfHot);
 		const hasUpdateCallBeforeIfHot = /updateLocaleMessages\s*\(/.test(beforeIfHot);
 
 		expect(hasStaticLocaleImport).toBe(true);
