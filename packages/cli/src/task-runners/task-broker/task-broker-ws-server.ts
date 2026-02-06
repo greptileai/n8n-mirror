@@ -179,6 +179,17 @@ export class TaskBrokerWsServer {
 	}
 
 	private async stopConnectedRunners() {
+		await this.drainActiveTasks();
+
+		await Promise.all(
+			Array.from(this.runnerConnections.keys()).map(
+				async (id) =>
+					await this.removeConnection(id, 'shutting-down', WsStatusCodes.CloseGoingAway),
+			),
+		);
+	}
+
+	private async drainActiveTasks() {
 		const drainTimeoutMs =
 			Math.floor(this.globalConfig.generic.gracefulShutdownTimeout * 0.8) *
 			Time.seconds.toMilliseconds;
@@ -203,12 +214,5 @@ export class TaskBrokerWsServer {
 				`Drain timeout reached after ${drainTimeout}s, will force-shutdown with active tasks...`,
 			);
 		}
-
-		await Promise.all(
-			Array.from(this.runnerConnections.keys()).map(
-				async (id) =>
-					await this.removeConnection(id, 'shutting-down', WsStatusCodes.CloseGoingAway),
-			),
-		);
 	}
 }
