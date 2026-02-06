@@ -12,9 +12,7 @@ import { setupDefaultInterceptors } from '../config/intercepts';
 import { observabilityFixtures, type ObservabilityTestFixtures } from '../fixtures/observability';
 import { n8nPage } from '../pages/n8nPage';
 import { ApiHelpers } from '../services/api-helper';
-import { ProxyServer } from '../services/proxy-server';
 import { TestError, type TestRequirements } from '../Types';
-import { createLocalServiceHelpers } from '../utils/local-services';
 import { setupTestRequirements } from '../utils/requirements';
 import { getBackendUrl, getFrontendUrl } from '../utils/url-helper';
 
@@ -23,11 +21,7 @@ type TestFixtures = {
 	api: ApiHelpers;
 	baseURL: string;
 	setupRequirements: (requirements: TestRequirements) => Promise<void>;
-	proxyServer: ProxyServer;
-	/**
-	 * Type-safe service helpers (mailpit, gitea, observability, etc.).
-	 * Works in both container mode (from n8nContainer) and local mode (from .services.json).
-	 */
+	/** Type-safe service helpers (mailpit, gitea, proxy, observability, etc.) */
 	services: ServiceHelpers;
 	/**
 	 * Direct URLs to each main instance (bypasses load balancer).
@@ -287,35 +281,8 @@ export const test = base.extend<
 		await use(setupFunction);
 	},
 
-	// Service helpers — delegates to container stack or .services.json in local mode
 	services: async ({ n8nContainer }, use) => {
-		if (getBackendUrl()) {
-			const local = createLocalServiceHelpers();
-			await use(local ?? ({} as ServiceHelpers));
-		} else {
-			await use(n8nContainer.services);
-		}
-	},
-
-	proxyServer: async ({ n8nContainer }, use) => {
-		if (!n8nContainer) {
-			throw new TestError(
-				'Testing with Proxy server is not supported when using N8N_BASE_URL environment variable. Remove N8N_BASE_URL to use containerized testing.',
-			);
-		}
-
-		const proxyServerContainer = n8nContainer.containers.find((container) =>
-			container.getName().endsWith('proxyserver'),
-		);
-
-		if (!proxyServerContainer) {
-			throw new TestError('Proxy server container not initialized. Cannot initialize client.');
-		}
-
-		const serverUrl = `http://${proxyServerContainer?.getHost()}:${proxyServerContainer?.getFirstMappedPort()}`;
-		const proxyServer = new ProxyServer(serverUrl);
-
-		await use(proxyServer);
+		await use(n8nContainer.services);
 	},
 });
 
@@ -326,10 +293,8 @@ Fixture Dependency Graph:
 Worker: capability + project.containerConfig → n8nContainer → [backendUrl, frontendUrl, dbSetup]
 Test:   frontendUrl + dbSetup → baseURL → n8n (uses backendUrl for API calls)
         backendUrl → api
-        n8nContainer → services (or .services.json in local mode)
+        n8nContainer → services
 
-services: Type-safe helpers (mailpit, gitea, observability, etc.)
-  - Container mode: delegates to n8nContainer.services
-  - Local mode: reads .services.json written by `pnpm services`
+services: Type-safe helpers (mailpit, gitea, proxy, observability, etc.)
 n8nContainer: Container lifecycle (stop, containers, mainUrls, etc.)
 */

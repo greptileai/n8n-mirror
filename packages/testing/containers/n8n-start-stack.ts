@@ -7,9 +7,7 @@ import { DockerImageNotFoundError } from './docker-image-not-found-error';
 import { BASE_PERFORMANCE_PLANS, isValidPerformancePlan } from './performance-plans';
 import { createServiceStack } from './service-stack';
 import type { CloudflaredResult } from './services/cloudflared';
-import type { KafkaResult } from './services/kafka';
 import type { KeycloakResult } from './services/keycloak';
-import type { LocalStackResult } from './services/localstack';
 import type { MailpitResult } from './services/mailpit';
 import type { NgrokResult } from './services/ngrok';
 import { services as SERVICE_REGISTRY } from './services/registry';
@@ -306,30 +304,6 @@ async function main() {
 				log.success(`Wrote ${Object.keys(envVars).length} env vars to packages/cli/bin/.env`);
 			}
 
-			// Write .services.json for Playwright local mode (service helpers need connection details)
-			const servicesJson: Record<string, Record<string, unknown>> = {};
-			const mailpitResult = stack.serviceResults.mailpit as MailpitResult | undefined;
-			if (mailpitResult) {
-				servicesJson.mailpit = {
-					apiBaseUrl: mailpitResult.meta.apiBaseUrl,
-					smtpHost: mailpitResult.container.getHost(),
-					smtpPort: mailpitResult.container.getMappedPort(1025),
-				};
-			}
-			const localstackResult = stack.serviceResults.localstack as LocalStackResult | undefined;
-			if (localstackResult) {
-				servicesJson.localstack = { endpoint: localstackResult.meta.endpoint };
-			}
-			const kafkaResult = stack.serviceResults.kafka as KafkaResult | undefined;
-			if (kafkaResult) {
-				servicesJson.kafka = { broker: kafkaResult.meta.externalBroker };
-			}
-			if (Object.keys(servicesJson).length > 0) {
-				const servicesJsonPath = resolve(__dirname, '../playwright/.services.json');
-				writeFileSync(servicesJsonPath, JSON.stringify(servicesJson, null, '\t') + '\n');
-				log.success('Wrote .services.json for Playwright local mode');
-			}
-
 			// Print summary
 			log.header('Services running');
 			for (const name of services) {
@@ -348,6 +322,7 @@ async function main() {
 			}
 
 			// Print mailpit UI URL if running
+			const mailpitResult = stack.serviceResults.mailpit as MailpitResult | undefined;
 			if (mailpitResult) {
 				console.log('');
 				log.info(`Mailpit UI: ${colors.cyan}${mailpitResult.meta.apiBaseUrl}${colors.reset}`);
