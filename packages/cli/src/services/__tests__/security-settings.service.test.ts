@@ -1,5 +1,10 @@
 import { mockInstance } from '@n8n/backend-test-utils';
-import { SettingsRepository, WorkflowRepository } from '@n8n/db';
+import {
+	SettingsRepository,
+	SharedCredentialsRepository,
+	SharedWorkflowRepository,
+	WorkflowRepository,
+} from '@n8n/db';
 import {
 	PERSONAL_SPACE_PUBLISHING_SETTING,
 	PERSONAL_SPACE_SHARING_SETTING,
@@ -12,10 +17,14 @@ describe('SecuritySettingsService', () => {
 	const settingsRepository = mockInstance(SettingsRepository);
 	const roleService = mockInstance(RoleService);
 	const workflowRepository = mockInstance(WorkflowRepository);
+	const sharedWorkflowRepository = mockInstance(SharedWorkflowRepository);
+	const sharedCredentialsRepository = mockInstance(SharedCredentialsRepository);
 	const securitySettingsService = new SecuritySettingsService(
 		settingsRepository,
 		roleService,
 		workflowRepository,
+		sharedWorkflowRepository,
+		sharedCredentialsRepository,
 	);
 
 	const PERSONAL_OWNER_ROLE_SLUG = 'project:personalOwner';
@@ -208,6 +217,44 @@ describe('SecuritySettingsService', () => {
 			workflowRepository.getPublishedPersonalWorkflowsCount.mockResolvedValue(0);
 
 			const result = await securitySettingsService.getPublishedPersonalWorkflowsCount();
+
+			expect(result).toBe(0);
+		});
+	});
+
+	describe('getSharedPersonalWorkflowsCount', () => {
+		test('should delegate to sharedWorkflowRepository.getSharedPersonalWorkflowsCount', async () => {
+			sharedWorkflowRepository.getSharedPersonalWorkflowsCount.mockResolvedValue(12);
+
+			const result = await securitySettingsService.getSharedPersonalWorkflowsCount();
+
+			expect(sharedWorkflowRepository.getSharedPersonalWorkflowsCount).toHaveBeenCalled();
+			expect(result).toBe(12);
+		});
+
+		test('should return 0 when repository returns 0', async () => {
+			sharedWorkflowRepository.getSharedPersonalWorkflowsCount.mockResolvedValue(0);
+
+			const result = await securitySettingsService.getSharedPersonalWorkflowsCount();
+
+			expect(result).toBe(0);
+		});
+	});
+
+	describe('getSharedPersonalCredentialsCount', () => {
+		test('should delegate to sharedCredentialsRepository.getSharedPersonalCredentialsCount', async () => {
+			sharedCredentialsRepository.getSharedPersonalCredentialsCount.mockResolvedValue(5);
+
+			const result = await securitySettingsService.getSharedPersonalCredentialsCount();
+
+			expect(sharedCredentialsRepository.getSharedPersonalCredentialsCount).toHaveBeenCalled();
+			expect(result).toBe(5);
+		});
+
+		test('should return 0 when repository returns 0', async () => {
+			sharedCredentialsRepository.getSharedPersonalCredentialsCount.mockResolvedValue(0);
+
+			const result = await securitySettingsService.getSharedPersonalCredentialsCount();
 
 			expect(result).toBe(0);
 		});

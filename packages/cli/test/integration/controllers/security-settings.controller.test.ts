@@ -26,12 +26,14 @@ describe('SecuritySettingsController', () => {
 	});
 
 	describe('GET /settings/security', () => {
-		it('should return security settings and publishedPersonalWorkflowsCount', async () => {
+		it('should return security settings and all counts', async () => {
 			securitySettingsService.arePersonalSpaceSettingsEnabled.mockResolvedValue({
 				personalSpacePublishing: true,
 				personalSpaceSharing: false,
 			});
 			securitySettingsService.getPublishedPersonalWorkflowsCount.mockResolvedValue(5);
+			securitySettingsService.getSharedPersonalWorkflowsCount.mockResolvedValue(12);
+			securitySettingsService.getSharedPersonalCredentialsCount.mockResolvedValue(3);
 
 			const response = await ownerAgent.get('/settings/security').expect(200);
 
@@ -40,22 +42,30 @@ describe('SecuritySettingsController', () => {
 					personalSpacePublishing: true,
 					personalSpaceSharing: false,
 					publishedPersonalWorkflowsCount: 5,
+					sharedPersonalWorkflowsCount: 12,
+					sharedPersonalCredentialsCount: 3,
 				},
 			});
 			expect(securitySettingsService.arePersonalSpaceSettingsEnabled).toHaveBeenCalledTimes(1);
 			expect(securitySettingsService.getPublishedPersonalWorkflowsCount).toHaveBeenCalledTimes(1);
+			expect(securitySettingsService.getSharedPersonalWorkflowsCount).toHaveBeenCalledTimes(1);
+			expect(securitySettingsService.getSharedPersonalCredentialsCount).toHaveBeenCalledTimes(1);
 		});
 
-		it('should return 0 for publishedPersonalWorkflowsCount when no published workflows', async () => {
+		it('should return 0 for all counts when no resources exist', async () => {
 			securitySettingsService.arePersonalSpaceSettingsEnabled.mockResolvedValue({
 				personalSpacePublishing: true,
 				personalSpaceSharing: true,
 			});
 			securitySettingsService.getPublishedPersonalWorkflowsCount.mockResolvedValue(0);
+			securitySettingsService.getSharedPersonalWorkflowsCount.mockResolvedValue(0);
+			securitySettingsService.getSharedPersonalCredentialsCount.mockResolvedValue(0);
 
 			const response = await ownerAgent.get('/settings/security').expect(200);
 
 			expect(response.body.data.publishedPersonalWorkflowsCount).toBe(0);
+			expect(response.body.data.sharedPersonalWorkflowsCount).toBe(0);
+			expect(response.body.data.sharedPersonalCredentialsCount).toBe(0);
 		});
 
 		it('should handle service errors gracefully', async () => {
