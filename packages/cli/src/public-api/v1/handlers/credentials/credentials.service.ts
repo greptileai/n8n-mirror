@@ -18,6 +18,7 @@ import {
 } from 'n8n-workflow';
 
 import { CredentialsService } from '@/credentials/credentials.service';
+import { validateExternalSecretsPermissions } from '@/credentials/validation';
 import { EventService } from '@/events/event.service';
 import { ExternalHooks } from '@/external-hooks';
 import type { CredentialRequest } from '@/requests';
@@ -54,10 +55,16 @@ export async function createCredential(
 }
 
 export async function saveCredential(
-	credential: CredentialsEntity,
+	payload: { type: string; name: string; data: ICredentialDataDecryptedObject },
 	user: User,
-	encryptedData: ICredentialsDb,
 ): Promise<CredentialsEntity> {
+	const credential = await createCredential(payload);
+
+	validateExternalSecretsPermissions(user, payload.data);
+
+	const encryptedData = await encryptCredential(credential);
+	Object.assign(credential, encryptedData);
+
 	const projectRepository = Container.get(ProjectRepository);
 	const { manager: dbManager } = projectRepository;
 	const result = await dbManager.transaction(async (transactionManager) => {
@@ -96,6 +103,7 @@ export async function saveCredential(
 		projectId: project?.id,
 		projectType: project?.type,
 		publicApi: true,
+		isDynamic: credential.isResolvable ?? false,
 	});
 
 	return result;
@@ -103,6 +111,7 @@ export async function saveCredential(
 
 export async function updateCredential(
 	credentialId: string,
+	user: User,
 	updateData: {
 		type?: string;
 		name?: string;
@@ -134,15 +143,12 @@ export async function updateCredential(
 
 	// If data is provided, encrypt it
 	if (updateData.data !== undefined) {
-		// Never allow changing oauthTokenData via API
-		if (updateData.data?.oauthTokenData) {
-			delete updateData.data.oauthTokenData;
-		}
-
 		const credentialsService = Container.get(CredentialsService);
 
 		// Decrypt existing data to access oauthTokenData
 		const decryptedData = credentialsService.decrypt(existingCredential as CredentialsEntity, true);
+
+		validateExternalSecretsPermissions(user, updateData.data, decryptedData);
 
 		let dataToEncrypt: ICredentialDataDecryptedObject;
 
@@ -160,11 +166,6 @@ export async function updateCredential(
 		} else {
 			// isPartialData is false or undefined (default): replace entire data object
 			dataToEncrypt = updateData.data;
-		}
-
-		// Preserve oauthTokenData from existing credential
-		if (decryptedData.oauthTokenData) {
-			dataToEncrypt.oauthTokenData = decryptedData.oauthTokenData;
 		}
 
 		const newCredential = new CredentialsEntity();

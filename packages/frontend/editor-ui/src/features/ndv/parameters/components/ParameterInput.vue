@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, inject, nextTick, onBeforeUnmount, onMounted, onUpdated, ref, watch } from 'vue';
+import { computedAsync, useDebounceFn } from '@vueuse/core';
 
 import get from 'lodash/get';
 
@@ -60,7 +61,9 @@ import {
 	APP_MODALS_ELEMENT_ID,
 	CORE_NODES_CATEGORY,
 	CUSTOM_API_CALL_KEY,
+	DEBOUNCE_TIME,
 	ExpressionLocalResolveContextSymbol,
+	getDebounceTime,
 	HTML_NODE_TYPE,
 	NODES_USING_CODE_NODE_EDITOR,
 } from '@/app/constants';
@@ -78,6 +81,7 @@ import { useNDVStore } from '@/features/ndv/shared/ndv.store';
 import { useNodeTypesStore } from '@/app/stores/nodeTypes.store';
 import { useSettingsStore } from '@/app/stores/settings.store';
 import { useWorkflowsStore } from '@/app/stores/workflows.store';
+import { useWorkflowsListStore } from '@/app/stores/workflowsList.store';
 import { useUIStore } from '@/app/stores/ui.store';
 import type { EventBus } from '@n8n/utils/event-bus';
 import { createEventBus } from '@n8n/utils/event-bus';
@@ -171,6 +175,7 @@ const telemetry = useTelemetry();
 const credentialsStore = useCredentialsStore();
 const ndvStore = useNDVStore();
 const workflowsStore = useWorkflowsStore();
+const workflowsListStore = useWorkflowsListStore();
 const workflowState = injectWorkflowState();
 const settingsStore = useSettingsStore();
 const nodeTypesStore = useNodeTypesStore();
@@ -392,7 +397,7 @@ const displayValue = computed(() => {
 	if (returnValue !== undefined && returnValue !== null && props.parameter.type === 'string') {
 		const rows = editorRows.value;
 		if (rows === undefined || rows === 1) {
-			returnValue = (returnValue as string).toString().replace(/\n/, '|');
+			returnValue = (returnValue as string).toString().replace(/\n/g, '|');
 		}
 	}
 
@@ -414,7 +419,12 @@ const expressionDisplayValue = computed(() => {
 	return `${displayValue.value ?? ''}`;
 });
 
-const dependentParametersValues = computed<string | null>(() => {
+const dependentParametersValues = computedAsync(async () => {
+	// Reference dependencies to ensure reactivity tracking
+	void ndvStore.activeNode?.parameters;
+	void props.parameter;
+	void props.path;
+
 	const loadOptionsDependsOn = getTypeOption('loadOptionsDependsOn');
 
 	if (loadOptionsDependsOn === undefined) {
@@ -424,7 +434,7 @@ const dependentParametersValues = computed<string | null>(() => {
 	// Get the resolved parameter values of the current node
 	const currentNodeParameters = ndvStore.activeNode?.parameters;
 	try {
-		const resolvedNodeParameters = workflowHelpers.resolveParameter(currentNodeParameters);
+		const resolvedNodeParameters = await workflowHelpers.resolveParameter(currentNodeParameters);
 
 		const returnValues: string[] = [];
 		for (let parameterPath of loadOptionsDependsOn) {
@@ -437,7 +447,7 @@ const dependentParametersValues = computed<string | null>(() => {
 	} catch {
 		return null;
 	}
-});
+}, null);
 
 const getStringInputType = computed(() => {
 	if (getTypeOption('password') === true) {
@@ -521,7 +531,7 @@ const getIssues = computed<string[]>(() => {
 	} else if (props.parameter.type === 'workflowSelector') {
 		const selected = modelValueResourceLocator.value?.value;
 		if (selected) {
-			const isSelectedArchived = workflowsStore.allWorkflows.some(
+			const isSelectedArchived = workflowsListStore.allWorkflows.some(
 				(resource) => resource.id === selected && resource.isArchived,
 			);
 
@@ -721,10 +731,10 @@ async function loadRemoteParameterOptions() {
 
 	try {
 		const currentNodeParameters = (ndvStore.activeNode as INodeUi).parameters;
-		const resolvedNodeParameters = workflowHelpers.resolveRequiredParameters(
+		const resolvedNodeParameters = (await workflowHelpers.resolveRequiredParameters(
 			props.parameter,
 			currentNodeParameters,
-		) as INodeParameters;
+		)) as INodeParameters;
 		const loadOptionsMethod = getTypeOption('loadOptionsMethod');
 		const loadOptions = getTypeOption('loadOptions');
 
@@ -824,13 +834,13 @@ function selectInput() {
 	}
 }
 
-function trackBuilderPlaceholders() {
+const trackBuilderPlaceholders = useDebounceFn(() => {
 	if (node.value && isPlaceholderValue(props.modelValue) && builderStore.isAIBuilderEnabled) {
 		builderStore.trackWorkflowBuilderJourney('field_focus_placeholder_in_ndv', {
 			node_type: node.value.type,
 		});
 	}
-}
+}, getDebounceTime(DEBOUNCE_TIME.INPUT.VALIDATION));
 
 async function setFocus(fromModeSwitch: boolean | FocusEvent = false) {
 	// When called from template @focus="setFocus", the first arg is a FocusEvent, not a boolean
@@ -876,7 +886,7 @@ async function setFocus(fromModeSwitch: boolean | FocusEvent = false) {
 	}
 
 	emit('focus');
-	trackBuilderPlaceholders();
+	void trackBuilderPlaceholders();
 }
 
 function rgbaToHex(value: string): string | null {
@@ -1054,6 +1064,12 @@ function onResourceLocatorDrop(data: string) {
 }
 
 function onUpdateTextInput(value: string) {
+	if (
+		props.parameter.type === 'string' &&
+		(editorRows.value === undefined || editorRows.value === 1)
+	) {
+		value = value.replace(/\|/g, '\n');
+	}
 	valueChanged(value);
 	onTextInputChange(value);
 }
@@ -1934,11 +1950,11 @@ onUpdated(async () => {
 }
 
 .droppable {
-	--input--border-color: transparent;
-	--input--border-right-color: transparent;
+	--input--border-color: var(--ndv--droppable-parameter--color);
+	--input--border-right-color: var(--ndv--droppable-parameter--color);
+	--input--border-style: dashed;
+	--input--border-width: 1.5px;
 
-	textarea,
-	input,
 	.cm-editor {
 		border-color: transparent;
 		outline: 1.5px dashed var(--ndv--droppable-parameter--color);
@@ -1952,15 +1968,12 @@ onUpdated(async () => {
 	--input--border-right-color: var(--color--success);
 	--input--color--background: var(--color--foreground--tint-2);
 	--input--border-style: solid;
+	--input--border-width: 1px;
 
 	textarea,
 	input,
 	.cm-editor {
 		cursor: grabbing !important;
-		border-color: var(--color--success);
-		border-width: 1px;
-		outline: none;
-		transition: none;
 	}
 }
 
