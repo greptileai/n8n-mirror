@@ -18,6 +18,7 @@ export interface UseNodeMentionReturn {
 	highlightedIndex: Ref<number>;
 	dropdownPosition: Ref<{ top: number; left?: number; right?: number }>;
 	filteredNodes: Ref<INodeUi[]>;
+	openedViaButton: Ref<boolean>;
 	handleInput: (event: InputEvent, inputElement: HTMLInputElement | HTMLTextAreaElement) => void;
 	handleKeyDown: (event: KeyboardEvent) => boolean;
 	selectNode: (node: INodeUi) => void;
@@ -29,7 +30,7 @@ export interface UseNodeMentionReturn {
 }
 
 export function useNodeMention(options: UseNodeMentionOptions = {}): UseNodeMentionReturn {
-	const { maxResults = 10 } = options;
+	const { maxResults = 50 } = options;
 
 	const focusedNodesStore = useFocusedNodesStore();
 	const workflowsStore = useWorkflowsStore();
@@ -41,6 +42,7 @@ export function useNodeMention(options: UseNodeMentionOptions = {}): UseNodeMent
 	const dropdownPosition = ref<{ top: number; left?: number; right?: number }>({ top: 0, left: 0 });
 	const mentionStartIndex = ref(-1);
 	const inputElementRef = ref<HTMLInputElement | HTMLTextAreaElement | null>(null);
+	const openedViaButton = ref(false);
 
 	// Computed
 	const filteredNodes = computed(() => {
@@ -59,10 +61,7 @@ export function useNodeMention(options: UseNodeMentionOptions = {}): UseNodeMent
 		return result.slice(0, maxResults);
 	});
 
-	function calculateDropdownPosition(
-		inputElement: HTMLElement,
-		options: OpenDropdownOptions = {},
-	) {
+	function calculateDropdownPosition(inputElement: HTMLElement, options: OpenDropdownOptions = {}) {
 		const rect = inputElement.getBoundingClientRect();
 		// Position above the input
 		if (options.alignRight) {
@@ -83,6 +82,7 @@ export function useNodeMention(options: UseNodeMentionOptions = {}): UseNodeMent
 		inputElement: HTMLInputElement | HTMLTextAreaElement | HTMLElement,
 		options: OpenDropdownOptions = {},
 	) {
+		openedViaButton.value = options.viaButton ?? false;
 		// When opened via button, we don't have a text input to track
 		if (options.viaButton) {
 			inputElementRef.value = null;
@@ -221,6 +221,7 @@ export function useNodeMention(options: UseNodeMentionOptions = {}): UseNodeMent
 		highlightedIndex,
 		dropdownPosition,
 		filteredNodes,
+		openedViaButton,
 		handleInput,
 		handleKeyDown,
 		selectNode,

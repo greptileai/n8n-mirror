@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, nextTick } from 'vue';
 import { N8nPromptInput, N8nIconButton, N8nIcon } from '@n8n/design-system';
 import { useI18n } from '@n8n/i18n';
 import { useNodeMention } from '../../composables/useNodeMention';
@@ -64,6 +64,7 @@ const {
 	highlightedIndex,
 	dropdownPosition,
 	filteredNodes,
+	openedViaButton,
 	handleInput,
 	handleKeyDown,
 	selectNode,
@@ -149,6 +150,9 @@ function handleDropdownKeyDown(event: KeyboardEvent) {
 
 function handleDropdownSelect(node: { id: string; name: string; type: string }) {
 	selectNode(node as Parameters<typeof selectNode>[0]);
+	void nextTick(() => {
+		focusInput();
+	});
 }
 
 function handleSearchQueryUpdate(query: string) {
@@ -265,6 +269,7 @@ defineExpose({
 			:highlighted-index="highlightedIndex"
 			:position="dropdownPosition"
 			:search-query="searchQuery"
+			:via-button="openedViaButton"
 			@select="handleDropdownSelect"
 			@highlight="highlightedIndex = $event"
 			@keydown="handleDropdownKeyDown"
@@ -307,13 +312,14 @@ defineExpose({
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	min-width: 24px;
+	min-height: 24px;
 	padding: 0;
 	margin-left: var(--spacing--4xs);
 	background: none;
 	border: none;
 	cursor: pointer;
 	color: var(--color--green-800);
-	transition: color 0.15s ease;
 
 	&:hover {
 		color: var(--color--green-800);
@@ -333,7 +339,6 @@ defineExpose({
 	font-weight: var(--font-weight--regular);
 	color: var(--color--text--tint-1);
 	cursor: pointer;
-	transition: background-color 0.15s ease;
 	white-space: nowrap;
 
 	&:hover {

@@ -12,6 +12,7 @@ interface Props {
 	highlightedIndex: number;
 	position: { top: number; left?: number; right?: number };
 	searchQuery: string;
+	viaButton?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -93,9 +94,11 @@ watch(
 );
 
 onMounted(() => {
-	void nextTick(() => {
-		inputRef.value?.focus();
-	});
+	if (props.viaButton) {
+		void nextTick(() => {
+			inputRef.value?.focus();
+		});
+	}
 	document.addEventListener('click', handleClickOutside);
 });
 
@@ -107,8 +110,8 @@ onUnmounted(() => {
 <template>
 	<Teleport to="body">
 		<div data-node-mention-dropdown :class="$style.dropdown" :style="positionStyle">
-			<!-- Search input -->
-			<div :class="$style.searchWrapper">
+			<!-- Search input (only shown when opened via button) -->
+			<div v-if="viaButton" :class="$style.searchWrapper">
 				<N8nIcon icon="search" size="small" :class="$style.searchIcon" />
 				<input
 					ref="inputRef"
