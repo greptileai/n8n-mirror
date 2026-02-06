@@ -266,6 +266,7 @@ export class Webhook extends Node {
 
 		const response: INodeExecutionData = {
 			json: {
+				method: requestMethod,
 				headers: req.headers,
 				params: req.params,
 				query: req.query,
@@ -326,6 +327,7 @@ export class Webhook extends Node {
 
 			const returnItem: INodeExecutionData = {
 				json: {
+					method: req.method,
 					headers: req.headers,
 					params: req.params,
 					query: req.query,
