@@ -158,5 +158,121 @@ describe('AgentIterationHandler', () => {
 				expect(mockLlmWithTools.invoke).toHaveBeenCalled();
 			});
 		});
+
+		describe('per-iteration callbacks override', () => {
+			it('should use per-iteration callbacks when provided instead of constructor callbacks', async () => {
+				const constructorCallbacks = [{ handleLLMStart: jest.fn() }];
+				const iterationCallbacks = [{ handleLLMStart: jest.fn() }];
+
+				handler = new AgentIterationHandler({
+					debugLog: mockDebugLog,
+					callbacks: constructorCallbacks,
+				});
+
+				const mockResponse = new AIMessage({
+					content: 'Hello',
+					response_metadata: {},
+				});
+
+				const mockLlmWithTools = {
+					invoke: jest.fn().mockResolvedValue(mockResponse),
+				};
+
+				const messages = [new HumanMessage('Test')];
+
+				const generator = handler.invokeLlm({
+					llmWithTools: mockLlmWithTools as never,
+					messages,
+					iteration: 1,
+					callbacks: iterationCallbacks,
+				});
+
+				for await (const _chunk of generator) {
+					// consume chunks
+				}
+
+				// Verify the LLM was invoked with the per-iteration callbacks, not the constructor ones
+				expect(mockLlmWithTools.invoke).toHaveBeenCalledWith(
+					expect.anything(),
+					expect.objectContaining({ callbacks: iterationCallbacks }),
+				);
+			});
+
+			it('should fall back to constructor callbacks when per-iteration callbacks are not provided', async () => {
+				const constructorCallbacks = [{ handleLLMStart: jest.fn() }];
+
+				handler = new AgentIterationHandler({
+					debugLog: mockDebugLog,
+					callbacks: constructorCallbacks,
+				});
+
+				const mockResponse = new AIMessage({
+					content: 'Hello',
+					response_metadata: {},
+				});
+
+				const mockLlmWithTools = {
+					invoke: jest.fn().mockResolvedValue(mockResponse),
+				};
+
+				const messages = [new HumanMessage('Test')];
+
+				const generator = handler.invokeLlm({
+					llmWithTools: mockLlmWithTools as never,
+					messages,
+					iteration: 1,
+				});
+
+				for await (const _chunk of generator) {
+					// consume chunks
+				}
+
+				// Verify the LLM was invoked with the constructor callbacks
+				expect(mockLlmWithTools.invoke).toHaveBeenCalledWith(
+					expect.anything(),
+					expect.objectContaining({ callbacks: constructorCallbacks }),
+				);
+			});
+		});
+	});
+
+	describe('getCallbacks', () => {
+		it('should return the configured callbacks', () => {
+			const callbacks = [{ handleLLMStart: jest.fn() }];
+			handler = new AgentIterationHandler({
+				debugLog: mockDebugLog,
+				callbacks,
+			});
+
+			expect(handler.getCallbacks()).toBe(callbacks);
+		});
+
+		it('should return undefined when no callbacks configured', () => {
+			handler = new AgentIterationHandler({
+				debugLog: mockDebugLog,
+			});
+
+			expect(handler.getCallbacks()).toBeUndefined();
+		});
+	});
+
+	describe('getRunMetadata', () => {
+		it('should return the configured run metadata', () => {
+			const runMetadata = { sessionId: 'test-123' };
+			handler = new AgentIterationHandler({
+				debugLog: mockDebugLog,
+				runMetadata,
+			});
+
+			expect(handler.getRunMetadata()).toBe(runMetadata);
+		});
+
+		it('should return undefined when no run metadata configured', () => {
+			handler = new AgentIterationHandler({
+				debugLog: mockDebugLog,
+			});
+
+			expect(handler.getRunMetadata()).toBeUndefined();
+		});
 	});
 });

@@ -58,6 +58,8 @@ export interface IterationParams {
 	abortSignal?: AbortSignal;
 	/** Current iteration number */
 	iteration: number;
+	/** Per-iteration child callbacks (overrides constructor callbacks when provided) */
+	callbacks?: Callbacks;
 }
 
 /**
@@ -106,6 +108,16 @@ export class AgentIterationHandler {
 		this.runMetadata = config.runMetadata;
 	}
 
+	/** Get the configured callbacks (for creating parent runs) */
+	getCallbacks(): Callbacks | undefined {
+		return this.callbacks;
+	}
+
+	/** Get the configured run metadata (for creating parent runs) */
+	getRunMetadata(): Record<string, unknown> | undefined {
+		return this.runMetadata;
+	}
+
 	/**
 	 * Invoke the LLM and process the initial response.
 	 *
@@ -123,7 +135,13 @@ export class AgentIterationHandler {
 	async *invokeLlm(
 		params: IterationParams,
 	): AsyncGenerator<StreamOutput, LlmInvocationResult, unknown> {
-		const { llmWithTools, messages, abortSignal, iteration } = params;
+		const {
+			llmWithTools,
+			messages,
+			abortSignal,
+			iteration,
+			callbacks: iterationCallbacks,
+		} = params;
 
 		this.debugLog('ITERATION', `========== ITERATION ${iteration} ==========`);
 
@@ -148,7 +166,7 @@ export class AgentIterationHandler {
 		const llmStartTime = Date.now();
 		const response = await llmWithTools.invoke(messages, {
 			signal: abortSignal,
-			callbacks: this.callbacks,
+			callbacks: iterationCallbacks ?? this.callbacks,
 			metadata: this.runMetadata,
 		});
 		const llmDurationMs = Date.now() - llmStartTime;

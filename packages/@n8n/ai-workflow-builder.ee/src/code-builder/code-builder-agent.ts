@@ -8,6 +8,8 @@
  * discovery and code generation in a single, context-preserving agent.
  */
 
+import type { CallbackManagerForChainRun } from '@langchain/core/callbacks/manager';
+import { CallbackManager } from '@langchain/core/callbacks/manager';
 import type { AIMessage, BaseMessage } from '@langchain/core/messages';
 import type { StructuredToolInterface } from '@langchain/core/tools';
 import type { Logger } from '@n8n/backend-common';
@@ -549,31 +551,66 @@ ${'='.repeat(50)}
 			warningTracker: new WarningTracker(),
 		};
 
-		while (state.iteration < MAX_AGENT_ITERATIONS) {
-			this.checkConsecutiveParseErrors(state.consecutiveParseErrors);
-			state.iteration++;
+		// Create a parent run to group all LLM invocations under a single trace
+		const callbackManager = CallbackManager.configure(
+			this.iterationHandler.getCallbacks(),
+			undefined,
+			undefined,
+			undefined,
+			this.iterationHandler.getRunMetadata(),
+		);
+		let parentRunManager: CallbackManagerForChainRun | undefined;
+		if (callbackManager) {
+			parentRunManager = await callbackManager.handleChainStart(
+				{ lc: 1, type: 'not_implemented' as const, id: ['CodeBuilderAgent'] },
+				{ messageCount: messages.length },
+				undefined,
+				undefined,
+				undefined,
+				this.iterationHandler.getRunMetadata(),
+				'CodeBuilderAgentLoop',
+			);
+		}
 
-			// Invoke LLM and stream response
-			const llmResult = yield* this.iterationHandler.invokeLlm({
-				llmWithTools,
-				messages,
-				abortSignal,
-				iteration: state.iteration,
-			});
+		try {
+			while (state.iteration < MAX_AGENT_ITERATIONS) {
+				this.checkConsecutiveParseErrors(state.consecutiveParseErrors);
+				state.iteration++;
 
-			const iterationResult = yield* this.processIteration({
-				llmResult,
-				messages,
-				currentWorkflow,
-				textEditorEnabled,
-				textEditorHandler,
-				textEditorToolHandler,
-				state,
-			});
+				// Derive child callbacks for this iteration so the LLM call is nested under the parent run
+				const childCallbacks = parentRunManager?.getChild(`iteration_${state.iteration}`);
 
-			if (iterationResult.shouldBreak) {
-				break;
+				// Invoke LLM and stream response
+				const llmResult = yield* this.iterationHandler.invokeLlm({
+					llmWithTools,
+					messages,
+					abortSignal,
+					iteration: state.iteration,
+					callbacks: childCallbacks,
+				});
+
+				const iterationResult = yield* this.processIteration({
+					llmResult,
+					messages,
+					currentWorkflow,
+					textEditorEnabled,
+					textEditorHandler,
+					textEditorToolHandler,
+					state,
+				});
+
+				if (iterationResult.shouldBreak) {
+					break;
+				}
 			}
+
+			await parentRunManager?.handleChainEnd({
+				iterations: state.iteration,
+				hasWorkflow: !!state.workflow,
+			});
+		} catch (error) {
+			await parentRunManager?.handleChainError(error);
+			throw error;
 		}
 
 		return {
