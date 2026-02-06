@@ -21,7 +21,6 @@ describe('WorkflowIndexService', () => {
 	beforeEach(() => {
 		jest.resetAllMocks();
 
-		// Make startSpan execute the callback directly
 		mockTracing.startSpan.mockImplementation(
 			async (_opts, cb) => await cb({ setStatus: jest.fn() }),
 		);
