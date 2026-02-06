@@ -50,3 +50,23 @@ export interface PlanInterruptValue {
 export type HITLInterruptValue = QuestionsInterruptValue | PlanInterruptValue;
 
 export type PlanDecision = 'approve' | 'reject' | 'modify';
+
+/**
+ * A single HITL interaction stored for session replay.
+ * Command.update messages don't survive in the parent checkpoint when
+ * a subgraph node interrupts multiple times, so we store them here.
+ */
+export type HITLHistoryEntry =
+	| {
+			type: 'questions_answered';
+			afterMessageId?: string;
+			interrupt: QuestionsInterruptValue;
+			answers: unknown;
+	  }
+	| {
+			type: 'plan_decided';
+			afterMessageId?: string;
+			plan: PlanOutput;
+			decision: PlanDecision;
+			feedback?: string;
+	  };
