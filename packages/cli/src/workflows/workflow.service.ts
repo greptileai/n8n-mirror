@@ -730,12 +730,9 @@ export class WorkflowService {
 		workflowId: string,
 		options?: { expectedChecksum?: string; publicApi?: boolean },
 	): Promise<WorkflowEntity> {
-		const workflow = await this.workflowFinderService.findWorkflowForUser(
-			workflowId,
-			user,
-			['workflow:unpublish'],
-			{ includeActiveVersion: true },
-		);
+		const workflow = await this.workflowFinderService.findWorkflowForUser(workflowId, user, [
+			'workflow:unpublish',
+		]);
 
 		if (!workflow) {
 			this.logger.warn('User attempted to deactivate a workflow without permissions', {

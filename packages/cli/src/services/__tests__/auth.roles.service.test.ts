@@ -59,12 +59,7 @@ describe('AuthRolesService', () => {
 	}
 
 	function createAllScopes(): Scope[] {
-		const scopes = ALL_SCOPES.map((slug) => createScope(slug));
-		// Ensure workflow:unpublish exists so personal-owner publishing tests pass (scope is in RESOURCES; add if missing from ALL_SCOPES)
-		if (!scopes.some((s) => s.slug === 'workflow:unpublish')) {
-			scopes.push(createScope('workflow:unpublish'));
-		}
-		return scopes;
+		return ALL_SCOPES.map((slug) => createScope(slug));
 	}
 
 	function createObsoleteScope(slug: string): Scope {

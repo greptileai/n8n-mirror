@@ -20,7 +20,7 @@ function isMySQLOrMariaDB(dbType: string): boolean {
  * Compatible with SQLite, PostgreSQL, MySQL, and MariaDB.
  */
 export class AddWorkflowUnpublishScopeToCustomRoles1769900001000 implements ReversibleMigration {
-	async up({ escape, runQuery, logger, dbType }: MigrationContext) {
+	async up({ escape, runQuery, dbType }: MigrationContext) {
 		const scopeTableName = escape.tableName('scope');
 		const scopeSlugColumn = escape.columnName('slug');
 		const displayNameColumn = escape.columnName('displayName');
@@ -49,8 +49,6 @@ export class AddWorkflowUnpublishScopeToCustomRoles1769900001000 implements Reve
 			description: 'Allows unpublishing workflows.',
 		});
 
-		logger.debug('Ensured workflow:unpublish scope exists');
-
 		// Step 2: Add workflow:unpublish to roles that have workflow:publish, excluding project:personalOwner
 		const batchInsertBase = `
 		INSERT ${useInsertIgnore ? 'IGNORE ' : ''}INTO ${roleScopeTableName} (${roleScopeRoleSlugColumn}, ${roleScopeScopeSlugColumn})
@@ -72,15 +70,10 @@ export class AddWorkflowUnpublishScopeToCustomRoles1769900001000 implements Reve
 			publishScope: 'workflow:publish',
 			unpublishScope: 'workflow:unpublish',
 		});
-
-		logger.info(
-			'Added workflow:unpublish scope to roles (except project:personalOwner) that have workflow:publish',
-		);
 	}
 
-	async down({ escape, runQuery, logger }: MigrationContext) {
+	async down({ escape, runQuery }: MigrationContext) {
 		const roleScopeTableName = escape.tableName('role_scope');
-		const roleScopeRoleSlugColumn = escape.columnName('roleSlug');
 		const roleScopeScopeSlugColumn = escape.columnName('scopeSlug');
 
 		// Remove workflow:unpublish only from roles that are not project:personalOwner
@@ -88,14 +81,11 @@ export class AddWorkflowUnpublishScopeToCustomRoles1769900001000 implements Reve
 		const deleteQuery = `
 			DELETE FROM ${roleScopeTableName}
 			WHERE ${roleScopeScopeSlugColumn} = :unpublishScope
-				AND ${roleScopeRoleSlugColumn} != :personalOwnerSlug
 		`;
 
 		await runQuery(deleteQuery, {
 			unpublishScope: 'workflow:unpublish',
 			personalOwnerSlug: PERSONAL_OWNER_ROLE_SLUG,
 		});
-
-		logger.info('Removed workflow:unpublish scope from roles except project:personalOwner');
 	}
 }
