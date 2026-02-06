@@ -909,6 +909,7 @@ export class YouTube implements INodeType {
 									headers: {
 										'Content-Length': chunk.length,
 										'Content-Range': `bytes ${offset}-${nextOffset - 1}/${contentLength}`,
+										'Content-Type': mimeType,
 									},
 									body: chunk,
 								});
