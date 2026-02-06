@@ -60,11 +60,19 @@ describe('AddWorkflowUnpublishScopeToCustomRoles Migration', () => {
 		const dbConnection = Container.get(DbConnection);
 		await dbConnection.init();
 
-		await initDbUpToMigration(MIGRATION_NAME);
+		dataSource = Container.get(DataSource);
 	});
 
-	beforeEach(() => {
-		// Refresh DataSource so we use the current connection after runSingleMigration's reinitializeDataConnection()
+	beforeEach(async () => {
+		// Clear database and re-run migrations up to (but not including) target so each test
+		// has an isolated state and uses a fresh connection (avoids Postgres pool timeout after runSingleMigration).
+		const context = createTestMigrationContext(dataSource);
+		await context.queryRunner.clearDatabase();
+		await context.queryRunner.release();
+
+		await initDbUpToMigration(MIGRATION_NAME);
+
+		// Refresh DataSource after reinitializeDataConnection() so we use the current connection
 		dataSource = Container.get(DataSource);
 	});
 
@@ -306,28 +314,55 @@ describe('AddWorkflowUnpublishScopeToCustomRoles Migration', () => {
 
 	describe('down migration', () => {
 		it('removes workflow:unpublish from all roles except project:personalOwner', async () => {
-			// Up migration was already run in beforeAll (initDbUpToMigration runs before our migration).
-			// Run our migration to add workflow:unpublish to some roles.
-			await runSingleMigration(MIGRATION_NAME);
-
+			// With beforeEach we have a clean DB. Insert a role with workflow:publish so the up migration
+			// will add workflow:unpublish to it, then we can test that down removes it.
 			const context = createTestMigrationContext(dataSource);
 
-			const unpublishScopesBefore = await getRoleScopesByScope(context, 'workflow:unpublish');
-			expect(unpublishScopesBefore.length).toBeGreaterThan(0);
+			await insertTestScope(context, {
+				slug: 'workflow:publish',
+				displayName: 'Publish Workflow',
+				description: 'Allows publishing workflows.',
+			});
+			await insertTestScope(context, {
+				slug: 'workflow:unpublish',
+				displayName: 'Unpublish Workflow',
+				description: 'Allows unpublishing workflows.',
+			});
+			await insertTestRole(context, {
+				slug: 'test-down-role',
+				displayName: 'Test Down Role',
+				roleType: 'project',
+				systemRole: false,
+			});
+			await insertTestRoleScope(context, {
+				roleSlug: 'test-down-role',
+				scopeSlug: 'workflow:publish',
+			});
 
 			await context.queryRunner.release();
 
-			await undoLastSingleMigration();
+			await runSingleMigration(MIGRATION_NAME);
+			dataSource = Container.get(DataSource);
 
-			const postContext = createTestMigrationContext(dataSource);
+			const postUpContext = createTestMigrationContext(dataSource);
+			const unpublishScopesBefore = await getRoleScopesByScope(postUpContext, 'workflow:unpublish');
+			expect(unpublishScopesBefore.length).toBeGreaterThan(0);
+
+			await postUpContext.queryRunner.release();
+
+			await undoLastSingleMigration();
+			dataSource = Container.get(DataSource);
+
+			const postDownContext = createTestMigrationContext(dataSource);
 
 			// Down removes workflow:unpublish only from non-personal-owner roles.
-			// In our test we did not add workflow:unpublish to project:personalOwner (migration excludes them),
-			// so after down there should be no workflow:unpublish entries.
-			const unpublishScopesAfter = await getRoleScopesByScope(postContext, 'workflow:unpublish');
+			const unpublishScopesAfter = await getRoleScopesByScope(
+				postDownContext,
+				'workflow:unpublish',
+			);
 			expect(unpublishScopesAfter).toHaveLength(0);
 
-			await postContext.queryRunner.release();
+			await postDownContext.queryRunner.release();
 		});
 	});
 });
