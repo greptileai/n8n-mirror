@@ -373,7 +373,7 @@ describe('ProjectExternalSecrets', () => {
 			vi.mocked(useToast).mockReturnValue({
 				showError: showErrorSpy,
 				showMessage: vi.fn(),
-			} as any);
+			} as unknown as ReturnType<typeof useToast>);
 
 			vi.spyOn(projectsStore, 'getProjectSecretProviders').mockRejectedValue(
 				new Error('API Error'),
@@ -394,7 +394,7 @@ describe('ProjectExternalSecrets', () => {
 				check: {
 					value: vi.fn(() => false),
 				},
-			} as any);
+			} as unknown as ReturnType<typeof useEnvFeatureFlag>);
 
 			const fetchSpy = vi.spyOn(projectsStore, 'getProjectSecretProviders');
 

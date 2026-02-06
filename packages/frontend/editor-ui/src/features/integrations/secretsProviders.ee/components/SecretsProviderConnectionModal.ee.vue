@@ -157,8 +157,10 @@ onMounted(async () => {
 	if (providerTypes.value.length === 0) return;
 
 	if (modal.isEditMode.value) {
-		await Promise.all([modal.loadConnection(), projectsStore.getAllProjects()]);
+		await Promise.all([modal.loadConnection()]);
 	}
+
+	await projectsStore.getAllProjects();
 });
 
 const nameRef = useTemplateRef('nameRef');
