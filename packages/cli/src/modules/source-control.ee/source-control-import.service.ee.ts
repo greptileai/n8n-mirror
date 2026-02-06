@@ -62,7 +62,7 @@ import {
 	getProjectExportPath,
 	getWorkflowExportPath,
 	mergeCredentialData,
-	sanitizeCredentialData,
+	getCredentialSynchableData,
 } from './source-control-helper.ee';
 import { SourceControlScopedService } from './source-control-scoped.service';
 import type {
@@ -429,6 +429,7 @@ export class SourceControlImportService {
 			const remoteOwnerProject = local.shared?.find((s) => s.role === 'credential:owner')?.project;
 
 			let sanitizedData: ExportableCredential['data'] | undefined;
+
 			if (local.data) {
 				try {
 					const credentials = new Credentials(
@@ -437,12 +438,7 @@ export class SourceControlImportService {
 						local.data,
 					);
 
-					const decryptedData = credentials.getData();
-					// Remove oauthTokenData as it's excluded from export
-					const { oauthTokenData, ...rest } = decryptedData;
-					// Decrypt and sanitize credential data with the same logic as export
-					// to ensure valid comparison between local and remote data
-					sanitizedData = sanitizeCredentialData({ ...rest });
+					sanitizedData = getCredentialSynchableData(credentials);
 				} catch (error) {
 					this.logger.warn(
 						`Failed to decrypt credential "${local.name}" (ID: ${local.id}) for status comparison`,
