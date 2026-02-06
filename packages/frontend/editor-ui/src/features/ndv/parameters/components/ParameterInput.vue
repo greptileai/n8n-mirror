@@ -2139,6 +2139,7 @@ onUpdated(async () => {
 
 .tipVisible {
 	--input--radius--bottom-left: 0;
+	--input--radius--bottom-right: 0;
 	--input-triple--radius--bottom-right: 0;
 }
 
