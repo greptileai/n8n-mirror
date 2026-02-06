@@ -60,9 +60,12 @@ describe('AddWorkflowUnpublishScopeToCustomRoles Migration', () => {
 		const dbConnection = Container.get(DbConnection);
 		await dbConnection.init();
 
-		dataSource = Container.get(DataSource);
-
 		await initDbUpToMigration(MIGRATION_NAME);
+	});
+
+	beforeEach(() => {
+		// Refresh DataSource so we use the current connection after runSingleMigration's reinitializeDataConnection()
+		dataSource = Container.get(DataSource);
 	});
 
 	afterAll(async () => {
