@@ -168,7 +168,7 @@ export class WorkflowHistoryService {
 
 		await this.updateVersion(workflowId, versionId, updateData);
 
-		if (updateData.name || updateData.description) {
+		if (updateData.name !== undefined || updateData.description !== undefined) {
 			this.eventService.emit('workflow-version-updated', {
 				user: {
 					id: user.id,
