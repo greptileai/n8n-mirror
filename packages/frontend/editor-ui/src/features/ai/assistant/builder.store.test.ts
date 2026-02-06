@@ -2632,10 +2632,7 @@ describe('AI Builder store', () => {
 
 			await builderStore.sendChatMessage({ text: 'create a workflow' });
 
-			expect(track).not.toHaveBeenCalledWith(
-				'ai.focusedNodes.chatSent',
-				expect.anything(),
-			);
+			expect(track).not.toHaveBeenCalledWith('ai.focusedNodes.chatSent', expect.anything());
 		});
 
 		it('should set has_deictic_ref=false without deictic patterns', async () => {
@@ -2696,9 +2693,7 @@ describe('AI Builder store', () => {
 			// Check that the user message in chatMessages includes focusedNodeNames
 			const userMessage = builderStore.chatMessages.find((m) => m.role === 'user');
 			expect(userMessage).toBeDefined();
-			expect((userMessage as Record<string, unknown>).focusedNodeNames).toEqual([
-				'HTTP Request',
-			]);
+			expect((userMessage as Record<string, unknown>).focusedNodeNames).toEqual(['HTTP Request']);
 		});
 	});
 });

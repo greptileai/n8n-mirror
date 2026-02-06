@@ -20,14 +20,7 @@ vi.mock('@/app/components/NodeIcon.vue', () => ({
 vi.mock('./NodeMentionDropdown.vue', () => ({
 	default: defineComponent({
 		name: 'NodeMentionDropdown',
-		props: [
-			'nodes',
-			'selectedNodeIds',
-			'highlightedIndex',
-			'position',
-			'searchQuery',
-			'viaButton',
-		],
+		props: ['nodes', 'selectedNodeIds', 'highlightedIndex', 'position', 'searchQuery', 'viaButton'],
 		emits: ['select', 'highlight', 'keydown', 'close', 'update:searchQuery'],
 		setup() {
 			return () => h('div', { 'data-test-id': 'node-mention-dropdown' });
@@ -128,11 +121,7 @@ vi.mock('vue-router', () => ({
 
 const renderComponent = createComponentRenderer(ChatInputWithMention);
 
-const createFocusedNode = (
-	id: string,
-	name: string,
-	state: FocusedNode['state'],
-): FocusedNode => ({
+const createFocusedNode = (id: string, name: string, state: FocusedNode['state']): FocusedNode => ({
 	nodeId: id,
 	nodeName: name,
 	nodeType: 'n8n-nodes-base.httpRequest',

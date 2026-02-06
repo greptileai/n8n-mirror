@@ -63,11 +63,7 @@ vi.mock('vue-router', () => ({
 
 const renderComponent = createComponentRenderer(FocusedNodesChips);
 
-const createFocusedNode = (
-	id: string,
-	name: string,
-	state: FocusedNode['state'],
-): FocusedNode => ({
+const createFocusedNode = (id: string, name: string, state: FocusedNode['state']): FocusedNode => ({
 	nodeId: id,
 	nodeName: name,
 	nodeType: 'n8n-nodes-base.httpRequest',

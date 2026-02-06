@@ -781,11 +781,7 @@ describe('useFocusedNodesStore', () => {
 		});
 
 		it('should include issues (param + credential)', () => {
-			const nodeWithIssues = createMockNode(
-				'node-1',
-				'HTTP Request',
-				'n8n-nodes-base.httpRequest',
-			);
+			const nodeWithIssues = createMockNode('node-1', 'HTTP Request', 'n8n-nodes-base.httpRequest');
 			(nodeWithIssues as INodeUi & { issues: unknown }).issues = {
 				parameters: {
 					url: ['URL is required'],
