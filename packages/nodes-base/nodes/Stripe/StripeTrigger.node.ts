@@ -351,6 +351,11 @@ export class StripeTrigger implements INodeType {
 							'Occurs whenever an invoice payment attempt fails, due either to a declined payment or to the lack of a stored payment method.',
 					},
 					{
+						name: 'Invoice Payment_paid',
+						value: 'invoice_payment.paid',
+						description: 'Occurs when an InvoicePayment is successfully paid.',
+					},
+					{
 						name: 'Invoice Payment_succeeded',
 						value: 'invoice.payment_succeeded',
 						description: 'Occurs whenever an invoice payment attempt succeeds.',
