@@ -165,10 +165,7 @@ onBeforeUnmount(() => {
 			</div>
 			<div :class="$style.statItem">
 				<div :class="$style.statItemLeft">
-					<div
-						v-if="/*template.readyToDemo*/ Math.random() < 0.5"
-						:class="[$style.statItem, $style.mintGreen]"
-					>
+					<div v-if="template.readyToDemo === true" :class="[$style.statItem, $style.mintGreen]">
 						<N8nIcon icon="zap" :size="16" />
 						<N8nText size="medium">
 							{{ i18n.baseText('templates.card.readyToRun') }}
