@@ -18,7 +18,7 @@ import {
 	validCredentialsPropertiesForUpdate,
 } from './credentials.middleware';
 import {
-	buildProjectsForCredential,
+	buildSharedForCredential,
 	CredentialsIsNotUpdatableError,
 	getCredentials,
 	getSharedCredentials,
@@ -53,7 +53,7 @@ export = {
 					type: string;
 					createdAt: Date;
 					updatedAt: Date;
-					projects: ReturnType<typeof buildProjectsForCredential>;
+					shared: ReturnType<typeof buildSharedForCredential>;
 				}>;
 				nextCursor: string | null;
 			}>
@@ -71,14 +71,14 @@ export = {
 			});
 
 			const data = credentials.map((credential: CredentialsEntity) => {
-				const projects = buildProjectsForCredential(credential);
+				const shared = buildSharedForCredential(credential);
 				return {
 					id: credential.id,
 					name: credential.name,
 					type: credential.type,
 					createdAt: credential.createdAt,
 					updatedAt: credential.updatedAt,
-					projects,
+					shared,
 				};
 			});
 

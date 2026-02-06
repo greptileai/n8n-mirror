@@ -9,25 +9,25 @@ import type { GenericValue, IDataObject, INodeProperties } from 'n8n-workflow';
 import { CredentialsService } from '@/credentials/credentials.service';
 import type { IDependency } from '@/public-api/types';
 
-import { buildProjectsForCredential, toJsonSchema, updateCredential } from '../credentials.service';
+import { buildSharedForCredential, toJsonSchema, updateCredential } from '../credentials.service';
 
 // Set up real Cipher with mocked InstanceSettings for encryption
 const cipher = new Cipher(mock<InstanceSettings>({ encryptionKey: 'test-encryption-key' }));
 Container.set(Cipher, cipher);
 
 describe('CredentialsService', () => {
-	describe('buildProjectsForCredential', () => {
+	describe('buildSharedForCredential', () => {
 		it('returns empty array when credential has no shared', () => {
 			const credential = { shared: undefined } as unknown as CredentialsEntity;
-			expect(buildProjectsForCredential(credential)).toEqual([]);
+			expect(buildSharedForCredential(credential)).toEqual([]);
 		});
 
 		it('returns empty array when credential has empty shared', () => {
 			const credential = { shared: [] } as unknown as CredentialsEntity;
-			expect(buildProjectsForCredential(credential)).toEqual([]);
+			expect(buildSharedForCredential(credential)).toEqual([]);
 		});
 
-		it('returns one project when credential is shared with one project', () => {
+		it('returns one shared entry when credential is shared with one project', () => {
 			const createdAt = new Date('2024-01-01T00:00:00.000Z');
 			const updatedAt = new Date('2024-01-02T00:00:00.000Z');
 			const credential = {
@@ -40,7 +40,7 @@ describe('CredentialsService', () => {
 					},
 				],
 			} as unknown as CredentialsEntity;
-			expect(buildProjectsForCredential(credential)).toEqual([
+			expect(buildSharedForCredential(credential)).toEqual([
 				{
 					id: 'proj-1',
 					name: 'My Project',
@@ -51,7 +51,7 @@ describe('CredentialsService', () => {
 			]);
 		});
 
-		it('returns multiple projects and skips shared entries without project', () => {
+		it('returns multiple shared entries and skips shared entries without project', () => {
 			const createdAt1 = new Date('2024-01-01T00:00:00.000Z');
 			const updatedAt1 = new Date('2024-01-02T00:00:00.000Z');
 			const createdAt2 = new Date('2024-02-01T00:00:00.000Z');
@@ -73,7 +73,7 @@ describe('CredentialsService', () => {
 					},
 				],
 			} as unknown as CredentialsEntity;
-			expect(buildProjectsForCredential(credential)).toEqual([
+			expect(buildSharedForCredential(credential)).toEqual([
 				{
 					id: 'proj-1',
 					name: 'Project One',

@@ -28,9 +28,10 @@ import type { IDependency, IJsonSchema } from '../../../types';
 export class CredentialsIsNotUpdatableError extends BaseError {}
 
 /**
- * Project summary for credential list, derived from shared (SharedCredentials + Project).
+ * Shared entry for credential list: project id/name plus sharing role and timestamps.
+ * Derived from credential.shared (SharedCredentials + Project), limited to these fields.
  */
-export type CredentialListProject = {
+export type CredentialListSharedItem = {
 	id: string;
 	name: string;
 	role: string;
@@ -39,10 +40,12 @@ export type CredentialListProject = {
 };
 
 /**
- * Build the projects array for a credential list item from credential.shared.
+ * Build the shared array for a credential list item from credential.shared.
  * Each entry has id, name from the project and role, createdAt, updatedAt from the shared relation.
  */
-export function buildProjectsForCredential(credential: CredentialsEntity): CredentialListProject[] {
+export function buildSharedForCredential(
+	credential: CredentialsEntity,
+): CredentialListSharedItem[] {
 	const shared = credential.shared ?? [];
 	return shared
 		.filter((sh) => typeof sh.project?.id === 'string')

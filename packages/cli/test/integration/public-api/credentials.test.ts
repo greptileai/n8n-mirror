@@ -190,7 +190,7 @@ describe('GET /credentials', () => {
 		expect(Array.isArray(response.body.data)).toBe(true);
 		expect(response.body.data.length).toBe(2);
 
-		const allowedListItemKeys = ['createdAt', 'id', 'name', 'projects', 'type', 'updatedAt'];
+		const allowedListItemKeys = ['createdAt', 'id', 'name', 'shared', 'type', 'updatedAt'];
 		response.body.data.forEach((item: Record<string, unknown>) => {
 			expect(Object.keys(item).sort()).toEqual(allowedListItemKeys);
 			expect(item).toHaveProperty('id');
@@ -198,11 +198,11 @@ describe('GET /credentials', () => {
 			expect(item).toHaveProperty('type');
 			expect(item).toHaveProperty('createdAt');
 			expect(item).toHaveProperty('updatedAt');
-			expect(item).toHaveProperty('projects');
-			expect(Array.isArray((item as { projects: unknown }).projects)).toBe(true);
+			expect(item).toHaveProperty('shared');
+			expect(Array.isArray((item as { shared: unknown }).shared)).toBe(true);
 			(
 				item as {
-					projects: {
+					shared: {
 						id: string;
 						name: string;
 						role: string;
@@ -210,12 +210,12 @@ describe('GET /credentials', () => {
 						updatedAt: string;
 					}[];
 				}
-			).projects.forEach((proj) => {
-				expect(proj).toHaveProperty('id');
-				expect(proj).toHaveProperty('name');
-				expect(proj).toHaveProperty('role');
-				expect(proj).toHaveProperty('createdAt');
-				expect(proj).toHaveProperty('updatedAt');
+			).shared.forEach((entry) => {
+				expect(entry).toHaveProperty('id');
+				expect(entry).toHaveProperty('name');
+				expect(entry).toHaveProperty('role');
+				expect(entry).toHaveProperty('createdAt');
+				expect(entry).toHaveProperty('updatedAt');
 			});
 		});
 		expect(response.body.data).toContainEqual(
