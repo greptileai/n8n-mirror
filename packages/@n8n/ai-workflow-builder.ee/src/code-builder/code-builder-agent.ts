@@ -77,10 +77,12 @@ export class CodeBuilderAgent {
 	/** Token usage accumulator - tracks original callback and accumulated totals */
 	private originalOnTokenUsage?: (usage: TokenUsage) => void;
 	/** Accumulated token usage for the current chat session */
-	private accumulatedTokens: { inputTokens: number; outputTokens: number } = {
-		inputTokens: 0,
-		outputTokens: 0,
-	};
+	private accumulatedTokens: { inputTokens: number; outputTokens: number; thinkingTokens: number } =
+		{
+			inputTokens: 0,
+			outputTokens: 0,
+			thinkingTokens: 0,
+		};
 
 	constructor(config: CodeBuilderAgentConfig) {
 		/** @TODO Lots of temporary logging to be cleaned up */
@@ -125,6 +127,7 @@ export class CodeBuilderAgent {
 				// Accumulate tokens for telemetry
 				this.accumulatedTokens.inputTokens += usage.inputTokens;
 				this.accumulatedTokens.outputTokens += usage.outputTokens;
+				this.accumulatedTokens.thinkingTokens += usage.thinkingTokens;
 				// Call original callback if provided
 				this.originalOnTokenUsage?.(usage);
 			},
@@ -267,7 +270,7 @@ ${'='.repeat(50)}
 	 * Reset accumulated token counters for a new chat session
 	 */
 	private resetAccumulatedTokens(): void {
-		this.accumulatedTokens = { inputTokens: 0, outputTokens: 0 };
+		this.accumulatedTokens = { inputTokens: 0, outputTokens: 0, thinkingTokens: 0 };
 	}
 
 	/**
@@ -316,6 +319,7 @@ ${'='.repeat(50)}
 			iteration_count: iterationCount,
 			input_tokens: this.accumulatedTokens.inputTokens,
 			output_tokens: this.accumulatedTokens.outputTokens,
+			thinking_tokens: this.accumulatedTokens.thinkingTokens,
 			nodes_added: nodeChanges.nodes_added,
 			nodes_removed: nodeChanges.nodes_removed,
 			nodes_modified: nodeChanges.nodes_modified,
