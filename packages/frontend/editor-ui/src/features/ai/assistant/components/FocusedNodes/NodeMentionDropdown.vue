@@ -129,7 +129,11 @@ onUnmounted(() => {
 					v-for="(node, index) in nodes"
 					:key="node.id"
 					data-mention-item
-					:class="[$style.item, { [$style.highlighted]: index === highlightedIndex }]"
+					:class="[
+						$style.item,
+						{ [$style.highlighted]: index === highlightedIndex },
+						{ [$style.selected]: selectedNodeIds.includes(node.id) },
+					]"
 					@click="handleSelect(node)"
 					@mouseenter="handleMouseEnter(index)"
 				>
@@ -213,6 +217,15 @@ onUnmounted(() => {
 	&:hover,
 	&.highlighted {
 		background: var(--color--foreground--tint-2);
+	}
+
+	&.selected {
+		background-color: var(--color--success--tint-4);
+	}
+
+	&.selected:hover,
+	&.selected.highlighted {
+		background-color: var(--color--success--tint-3);
 	}
 }
 
