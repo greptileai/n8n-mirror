@@ -24,7 +24,7 @@ describe('InputTriple.vue', () => {
 
 		// Check that middle slot has custom width via inline style
 		const middleSlot = getByText('middle').parentElement;
-		expect(middleSlot).toHaveStyle('--input-triple--width: 200px');
+		expect(middleSlot).toHaveStyle('flex-basis: 200px');
 	});
 
 	it('does not render missing slots', async () => {
