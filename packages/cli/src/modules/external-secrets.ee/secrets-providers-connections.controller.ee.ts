@@ -94,7 +94,9 @@ export class SecretProvidersConnectionsController {
 	async listConnections(): Promise<SecretsProvidersResponses.PublicConnectionList> {
 		this.logger.debug('Listing all connections');
 		const connections = await this.connectionsService.listConnections();
-		return connections.map((connection) => this.connectionsService.toPublicConnection(connection));
+		return connections.map((connection) =>
+			this.connectionsService.toPublicConnectionListItem(connection),
+		);
 	}
 
 	@Get('/:providerKey')
