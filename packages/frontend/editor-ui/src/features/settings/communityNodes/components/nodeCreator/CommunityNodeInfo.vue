@@ -129,6 +129,9 @@ onMounted(async () => {
 				}}</template>
 				<div>
 					<ShieldIcon :class="$style.tooltipIcon" />
+					<N8nText color="text-light" size="xsmall" bold data-test-id="verified-tag">
+						{{ i18n.baseText('communityNodeInfo.approved.label') }}
+					</N8nText>
 				</div>
 			</N8nTooltip>
 
@@ -136,6 +139,9 @@ onMounted(async () => {
 				<template #content>{{ i18n.baseText('communityNodeInfo.unverified') }}</template>
 				<div>
 					<N8nIcon :class="$style.tooltipIcon" icon="box" />
+					<N8nText color="text-light" size="xsmall" bold>
+						{{ i18n.baseText('communityNodeInfo.unverified.label') }}
+					</N8nText>
 				</div>
 			</N8nTooltip>
 
@@ -193,7 +199,7 @@ onMounted(async () => {
 	display: flex;
 	align-items: center;
 	justify-content: left;
-	gap: var(--spacing--2xs);
+	gap: var(--spacing--sm);
 	margin-bottom: var(--spacing--md);
 	flex-wrap: wrap;
 }
