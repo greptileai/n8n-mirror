@@ -12,24 +12,6 @@ import { DataSource } from '@n8n/typeorm';
 const MIGRATION_NAME = 'AddWorkflowUnpublishScopeToCustomRoles1769900001000';
 const PERSONAL_OWNER_ROLE_SLUG = 'project:personalOwner';
 
-/**
- * Generate parameter placeholders for a given context and count.
- * PostgreSQL uses $1, $2, ... while SQLite uses ?
- */
-function getParamPlaceholders(context: TestMigrationContext, count: number): string {
-	if (context.isPostgres) {
-		return Array.from({ length: count }, (_, i) => `$${i + 1}`).join(', ');
-	}
-	return Array.from({ length: count }, () => '?').join(', ');
-}
-
-/**
- * Generate a single parameter placeholder for WHERE clauses
- */
-function getParamPlaceholder(context: TestMigrationContext, index = 1): string {
-	return context.isPostgres ? `$${index}` : '?';
-}
-
 interface ScopeData {
 	slug: string;
 	displayName: string;
@@ -61,19 +43,12 @@ describe('AddWorkflowUnpublishScopeToCustomRoles Migration', () => {
 		await dbConnection.init();
 
 		dataSource = Container.get(DataSource);
-	});
 
-	beforeEach(async () => {
-		// Clear database and re-run migrations up to (but not including) target so each test
-		// has an isolated state and uses a fresh connection (avoids Postgres pool timeout after runSingleMigration).
 		const context = createTestMigrationContext(dataSource);
 		await context.queryRunner.clearDatabase();
 		await context.queryRunner.release();
 
 		await initDbUpToMigration(MIGRATION_NAME);
-
-		// Refresh DataSource after reinitializeDataConnection() so we use the current connection
-		dataSource = Container.get(DataSource);
 	});
 
 	afterAll(async () => {
@@ -90,17 +65,19 @@ describe('AddWorkflowUnpublishScopeToCustomRoles Migration', () => {
 		const displayNameColumn = context.escape.columnName('displayName');
 		const descriptionColumn = context.escape.columnName('description');
 
-		const scopePlaceholder = getParamPlaceholder(context);
-		const existingScope = await context.queryRunner.query(
-			`SELECT ${slugColumn} FROM ${tableName} WHERE ${slugColumn} = ${scopePlaceholder}`,
-			[scopeData.slug],
+		const existingScope = await context.runQuery<unknown[]>(
+			`SELECT ${slugColumn} FROM ${tableName} WHERE ${slugColumn} = :slug`,
+			{ slug: scopeData.slug },
 		);
 
 		if (existingScope.length === 0) {
-			const insertPlaceholders = getParamPlaceholders(context, 3);
-			await context.queryRunner.query(
-				`INSERT INTO ${tableName} (${slugColumn}, ${displayNameColumn}, ${descriptionColumn}) VALUES (${insertPlaceholders})`,
-				[scopeData.slug, scopeData.displayName, scopeData.description],
+			await context.runQuery(
+				`INSERT INTO ${tableName} (${slugColumn}, ${displayNameColumn}, ${descriptionColumn}) VALUES (:slug, :displayName, :description)`,
+				{
+					slug: scopeData.slug,
+					displayName: scopeData.displayName,
+					description: scopeData.description,
+				},
 			);
 		}
 	}
@@ -116,10 +93,16 @@ describe('AddWorkflowUnpublishScopeToCustomRoles Migration', () => {
 
 		const systemRole = roleData.systemRole ?? false;
 
-		const rolePlaceholders = getParamPlaceholders(context, 6);
-		await context.queryRunner.query(
-			`INSERT INTO ${tableName} (${slugColumn}, ${displayNameColumn}, ${roleTypeColumn}, ${systemRoleColumn}, ${createdAtColumn}, ${updatedAtColumn}) VALUES (${rolePlaceholders})`,
-			[roleData.slug, roleData.displayName, roleData.roleType, systemRole, new Date(), new Date()],
+		await context.runQuery(
+			`INSERT INTO ${tableName} (${slugColumn}, ${displayNameColumn}, ${roleTypeColumn}, ${systemRoleColumn}, ${createdAtColumn}, ${updatedAtColumn}) VALUES (:slug, :displayName, :roleType, :systemRole, :createdAt, :updatedAt)`,
+			{
+				slug: roleData.slug,
+				displayName: roleData.displayName,
+				roleType: roleData.roleType,
+				systemRole,
+				createdAt: new Date(),
+				updatedAt: new Date(),
+			},
 		);
 	}
 
@@ -131,10 +114,9 @@ describe('AddWorkflowUnpublishScopeToCustomRoles Migration', () => {
 		const roleSlugColumn = context.escape.columnName('roleSlug');
 		const scopeSlugColumn = context.escape.columnName('scopeSlug');
 
-		const roleScopePlaceholders = getParamPlaceholders(context, 2);
-		await context.queryRunner.query(
-			`INSERT INTO ${tableName} (${roleSlugColumn}, ${scopeSlugColumn}) VALUES (${roleScopePlaceholders})`,
-			[roleScopeData.roleSlug, roleScopeData.scopeSlug],
+		await context.runQuery(
+			`INSERT INTO ${tableName} (${roleSlugColumn}, ${scopeSlugColumn}) VALUES (:roleSlug, :scopeSlug)`,
+			{ roleSlug: roleScopeData.roleSlug, scopeSlug: roleScopeData.scopeSlug },
 		);
 	}
 
@@ -146,13 +128,12 @@ describe('AddWorkflowUnpublishScopeToCustomRoles Migration', () => {
 		const roleSlugColumn = context.escape.columnName('roleSlug');
 		const scopeSlugColumn = context.escape.columnName('scopeSlug');
 
-		const rolePlaceholder = getParamPlaceholder(context);
-		const scopes = await context.queryRunner.query(
-			`SELECT ${roleSlugColumn} as roleSlug, ${scopeSlugColumn} as scopeSlug FROM ${tableName} WHERE ${roleSlugColumn} = ${rolePlaceholder}`,
-			[roleSlug],
+		const scopes = await context.runQuery<Array<{ roleSlug: string; scopeSlug: string }>>(
+			`SELECT ${roleSlugColumn} as roleSlug, ${scopeSlugColumn} as scopeSlug FROM ${tableName} WHERE ${roleSlugColumn} = :roleSlug`,
+			{ roleSlug },
 		);
 
-		return scopes;
+		return scopes as RoleScopeRow[];
 	}
 
 	async function getRoleScopesByScope(
@@ -163,13 +144,12 @@ describe('AddWorkflowUnpublishScopeToCustomRoles Migration', () => {
 		const roleSlugColumn = context.escape.columnName('roleSlug');
 		const scopeSlugColumn = context.escape.columnName('scopeSlug');
 
-		const scopePlaceholder = getParamPlaceholder(context);
-		const roleScopeEntries = await context.queryRunner.query(
-			`SELECT ${roleSlugColumn} as roleSlug, ${scopeSlugColumn} as scopeSlug FROM ${tableName} WHERE ${scopeSlugColumn} = ${scopePlaceholder}`,
-			[scopeSlug],
+		const rows = await context.runQuery<Array<{ roleSlug: string; scopeSlug: string }>>(
+			`SELECT ${roleSlugColumn} as roleSlug, ${scopeSlugColumn} as scopeSlug FROM ${tableName} WHERE ${scopeSlugColumn} = :scopeSlug`,
+			{ scopeSlug },
 		);
 
-		return roleScopeEntries;
+		return rows as RoleScopeRow[];
 	}
 
 	describe('up migration', () => {
@@ -187,24 +167,18 @@ describe('AddWorkflowUnpublishScopeToCustomRoles Migration', () => {
 				description: 'Allows reading workflows.',
 			});
 
-			// Use test-unique slugs to avoid UNIQUE constraint (project:admin / project:personalOwner may already exist)
-			// Custom role with workflow:publish → should get workflow:unpublish
 			await insertTestRole(context, {
 				slug: 'test1-custom-editor',
 				displayName: 'Test1 Custom Editor',
 				roleType: 'project',
 				systemRole: false,
 			});
-
-			// Another role with workflow:publish → should get workflow:unpublish
 			await insertTestRole(context, {
 				slug: 'test1-project-admin',
 				displayName: 'Test1 Project Admin',
 				roleType: 'project',
 				systemRole: true,
 			});
-
-			// Role with workflow:read only → should NOT get workflow:unpublish
 			await insertTestRole(context, {
 				slug: 'test1-custom-viewer',
 				displayName: 'Test1 Custom Viewer',
@@ -225,8 +199,7 @@ describe('AddWorkflowUnpublishScopeToCustomRoles Migration', () => {
 				scopeSlug: 'workflow:read',
 			});
 
-			// project:personalOwner may already exist from earlier migrations; migration must not add workflow:unpublish to it
-			const personalOwnerUnpublishCountBefore = (
+			const personalOwnerUnpublishBefore = (
 				await getRoleScopesByRole(context, PERSONAL_OWNER_ROLE_SLUG)
 			).filter((s) => s.scopeSlug === 'workflow:unpublish').length;
 
@@ -239,21 +212,17 @@ describe('AddWorkflowUnpublishScopeToCustomRoles Migration', () => {
 
 			const postContext = createTestMigrationContext(dataSource);
 
-			// test1-custom-editor should have workflow:unpublish
 			const customEditorScopes = await getRoleScopesByRole(postContext, 'test1-custom-editor');
 			expect(customEditorScopes.map((s) => s.scopeSlug).sort()).toContain('workflow:unpublish');
 
-			// test1-project-admin should have workflow:unpublish
 			const adminScopes = await getRoleScopesByRole(postContext, 'test1-project-admin');
 			expect(adminScopes.map((s) => s.scopeSlug).sort()).toContain('workflow:unpublish');
 
-			// project:personalOwner is excluded by migration: count of workflow:unpublish for it must be unchanged
-			const personalOwnerUnpublishCountAfter = (
+			const personalOwnerUnpublishAfter = (
 				await getRoleScopesByRole(postContext, PERSONAL_OWNER_ROLE_SLUG)
 			).filter((s) => s.scopeSlug === 'workflow:unpublish').length;
-			expect(personalOwnerUnpublishCountAfter).toBe(personalOwnerUnpublishCountBefore);
+			expect(personalOwnerUnpublishAfter).toBe(personalOwnerUnpublishBefore);
 
-			// test1-custom-viewer should NOT have workflow:unpublish
 			const viewerScopes = await getRoleScopesByRole(postContext, 'test1-custom-viewer');
 			expect(viewerScopes.map((s) => s.scopeSlug)).not.toContain('workflow:unpublish');
 
@@ -313,56 +282,23 @@ describe('AddWorkflowUnpublishScopeToCustomRoles Migration', () => {
 	});
 
 	describe('down migration', () => {
-		it('removes workflow:unpublish from all roles except project:personalOwner', async () => {
-			// With beforeEach we have a clean DB. Insert a role with workflow:publish so the up migration
-			// will add workflow:unpublish to it, then we can test that down removes it.
+		it('removes workflow:unpublish from all roles', async () => {
+			// Migration was already run in the first up test, so workflow:unpublish entries exist
 			const context = createTestMigrationContext(dataSource);
 
-			await insertTestScope(context, {
-				slug: 'workflow:publish',
-				displayName: 'Publish Workflow',
-				description: 'Allows publishing workflows.',
-			});
-			await insertTestScope(context, {
-				slug: 'workflow:unpublish',
-				displayName: 'Unpublish Workflow',
-				description: 'Allows unpublishing workflows.',
-			});
-			await insertTestRole(context, {
-				slug: 'test-down-role',
-				displayName: 'Test Down Role',
-				roleType: 'project',
-				systemRole: false,
-			});
-			await insertTestRoleScope(context, {
-				roleSlug: 'test-down-role',
-				scopeSlug: 'workflow:publish',
-			});
+			const unpublishScopesBefore = await getRoleScopesByScope(context, 'workflow:unpublish');
+			expect(unpublishScopesBefore.length).toBeGreaterThan(0);
 
 			await context.queryRunner.release();
 
-			await runSingleMigration(MIGRATION_NAME);
-			dataSource = Container.get(DataSource);
-
-			const postUpContext = createTestMigrationContext(dataSource);
-			const unpublishScopesBefore = await getRoleScopesByScope(postUpContext, 'workflow:unpublish');
-			expect(unpublishScopesBefore.length).toBeGreaterThan(0);
-
-			await postUpContext.queryRunner.release();
-
 			await undoLastSingleMigration();
-			dataSource = Container.get(DataSource);
 
-			const postDownContext = createTestMigrationContext(dataSource);
+			const postContext = createTestMigrationContext(dataSource);
 
-			// Down removes workflow:unpublish only from non-personal-owner roles.
-			const unpublishScopesAfter = await getRoleScopesByScope(
-				postDownContext,
-				'workflow:unpublish',
-			);
+			const unpublishScopesAfter = await getRoleScopesByScope(postContext, 'workflow:unpublish');
 			expect(unpublishScopesAfter).toHaveLength(0);
 
-			await postDownContext.queryRunner.release();
+			await postContext.queryRunner.release();
 		});
 	});
 });
