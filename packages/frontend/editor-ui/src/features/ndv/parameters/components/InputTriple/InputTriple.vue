@@ -132,10 +132,6 @@ const isStacked = computed(() => bp.value !== 'default');
 		border-top-left-radius: 0;
 		border-bottom-left-radius: 0;
 	}
-
-	:global(.el-input-group__prepend ~ button) {
-		border-bottom-right-radius: var(--radius);
-	}
 }
 
 // Medium: right item wraps below, left+middle stay on first row
