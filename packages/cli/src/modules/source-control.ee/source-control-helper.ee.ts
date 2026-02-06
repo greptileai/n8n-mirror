@@ -27,6 +27,7 @@ import type {
 	ExportableDataTableColumn,
 	StatusExportableDataTable,
 } from './types/exportable-data-table';
+import type { StatusExportableCredential } from './types/exportable-credential';
 
 export function stringContainsExpression(testString: string): boolean {
 	return /^=.*\{\{.*\}\}/.test(testString);
@@ -379,4 +380,16 @@ export function isDataTableModified(
  */
 export function isValidDataTableColumnType(type: string): type is DataTableColumnType {
 	return ['string', 'number', 'boolean', 'date'].includes(type);
+}
+
+export function areSameCredentials(
+	credA: StatusExportableCredential,
+	credB: StatusExportableCredential,
+): boolean {
+	return (
+		credA.name === credB.name &&
+		credA.type === credB.type &&
+		!hasOwnerChanged(credA.ownedBy, credB.ownedBy) &&
+		Boolean(credA.isGlobal) === Boolean(credB.isGlobal)
+	);
 }
