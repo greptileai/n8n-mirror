@@ -1,5 +1,5 @@
 import { Logger } from '@n8n/backend-common';
-import { TaskRunnersConfig } from '@n8n/config';
+import { GlobalConfig, TaskRunnersConfig } from '@n8n/config';
 import { Time } from '@n8n/constants';
 import { Service } from '@n8n/di';
 import type { BrokerMessage, RunnerMessage } from '@n8n/task-runner';
@@ -40,6 +40,7 @@ export class TaskBrokerWsServer {
 		private disconnectAnalyzer: DefaultTaskRunnerDisconnectAnalyzer,
 		private readonly taskTunnersConfig: TaskRunnersConfig,
 		private readonly runnerLifecycleEvents: TaskRunnerLifecycleEvents,
+		private readonly globalConfig: GlobalConfig,
 	) {}
 
 	start() {
@@ -178,8 +179,9 @@ export class TaskBrokerWsServer {
 	}
 
 	private async stopConnectedRunners() {
-		const { drainTimeout } = this.taskTunnersConfig;
-		const drainTimeoutMs = drainTimeout * Time.seconds.toMilliseconds;
+		const drainTimeoutMs =
+			Math.floor(this.globalConfig.generic.gracefulShutdownTimeout * 0.8) *
+			Time.seconds.toMilliseconds;
 
 		this.taskBroker.startDraining();
 
