@@ -18,6 +18,7 @@ const props = defineProps<{
 	modalName: string;
 	data: {
 		node: INode | null;
+		existingToolNames?: string[];
 		onConfirm: (configuredNode: INode) => void;
 	};
 }>();
@@ -28,6 +29,8 @@ const nodeHelpers = useNodeHelpers();
 
 const modalBus = ref(createEventBus());
 const node = shallowRef(props.data.node);
+const existingToolNames = computed(() => props.data.existingToolNames ?? []);
+const userEditedName = ref(false);
 
 const nodeTypeDescription = computed(() => {
 	if (!props.data.node) {
@@ -85,13 +88,25 @@ function handleCancel() {
 	modalBus.value.emit('close');
 }
 
+function makeUniqueName(baseName: string, existingNames: string[]): string {
+	if (!existingNames.includes(baseName)) return baseName;
+	let counter = 1;
+	while (existingNames.includes(`${baseName} (${counter})`)) {
+		counter++;
+	}
+	return `${baseName} (${counter})`;
+}
+
 function handleChangeParameter(updateData: IUpdateInformation) {
-	if (node.value) {
-		node.value.parameters = {
+	if (!node.value) return;
+
+	node.value = {
+		...node.value,
+		parameters: {
 			...node.value.parameters,
 			[updateData.name]: updateData.value,
-		};
-	}
+		},
+	};
 }
 
 function handleChangeCredential(updateData: INodeUpdatePropertiesInformation) {
@@ -105,6 +120,7 @@ function handleChangeCredential(updateData: INodeUpdatePropertiesInformation) {
 
 function handleChangeName(name: string) {
 	if (node.value) {
+		userEditedName.value = true;
 		node.value = { ...node.value, name };
 	}
 }
@@ -113,8 +129,23 @@ watch(
 	() => props.data.node,
 	(initialNode) => {
 		node.value = initialNode;
+		userEditedName.value = false;
 	},
 	{ immediate: true },
+);
+
+// Auto-rename when resource/operation changes (if user hasn't manually edited)
+watch(
+	() => [node.value?.parameters?.resource, node.value?.parameters?.operation],
+	() => {
+		if (userEditedName.value || !node.value || !nodeTypeDescription.value) return;
+
+		const newName = NodeHelpers.makeNodeName(node.value.parameters, nodeTypeDescription.value);
+		if (newName && newName !== node.value.name) {
+			const uniqueName = makeUniqueName(newName, existingToolNames.value);
+			node.value = { ...node.value, name: uniqueName };
+		}
+	},
 );
 </script>
 
@@ -123,11 +154,11 @@ watch(
 		v-if="node"
 		:name="modalName"
 		:event-bus="modalBus"
-		width="50%"
+		width="520px"
 		:center="true"
-		max-width="460px"
+		max-width="90vw"
 		min-height="250px"
-		:class="$style.content"
+		:class="$style.modal"
 	>
 		<template #header>
 			<div :class="$style.header">
@@ -140,6 +171,7 @@ watch(
 				/>
 				<N8nInlineTextEdit
 					:model-value="node.name"
+					:max-width="400"
 					:class="$style.title"
 					@update:model-value="handleChangeName"
 				/>
@@ -178,18 +210,35 @@ watch(
 </template>
 
 <style lang="scss" module>
+.modal {
+	:global(.el-dialog__header) {
+		width: 100%;
+	}
+
+	:global(.el-dialog__body) {
+		padding: var(--spacing--sm);
+	}
+
+	/* don't show "This node must be connected to an AI agent." */
+	:global(.ndv-connection-hint-notice) {
+		display: none;
+	}
+}
+
 .footer {
 	display: flex;
 	justify-content: flex-end;
 	align-items: center;
 	gap: var(--spacing--2xs);
 	width: 100%;
+	padding-top: var(--spacing--sm);
 }
 
 .header {
 	display: flex;
 	gap: var(--spacing--2xs);
 	align-items: center;
+	min-width: 0;
 }
 
 .icon {
@@ -202,16 +251,7 @@ watch(
 	font-weight: var(--font-weight--regular);
 	line-height: var(--line-height--lg);
 	color: var(--color--text--shade-1);
-}
-
-.formGroup {
-	display: flex;
-	flex-direction: column;
-	gap: var(--spacing--3xs);
-}
-
-/* don't show "This node must be connected to an AI agent." */
-.content :global(.ndv-connection-hint-notice) {
-	display: none;
+	flex: 1;
+	min-width: 0;
 }
 </style>

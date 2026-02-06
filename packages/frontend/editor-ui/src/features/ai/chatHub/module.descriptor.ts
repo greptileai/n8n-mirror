@@ -5,6 +5,7 @@ import {
 	CHAT_WORKFLOW_AGENTS_VIEW,
 	CHAT_PERSONAL_AGENTS_VIEW,
 	TOOL_SETTINGS_MODAL_KEY,
+	TOOLS_MANAGER_MODAL_KEY,
 	AGENT_EDITOR_MODAL_KEY,
 	CHAT_CREDENTIAL_SELECTOR_MODAL_KEY,
 	CHAT_MODEL_BY_ID_SELECTOR_MODAL_KEY,
@@ -35,6 +36,18 @@ export const ChatModule: FrontendModuleDescription = {
 				open: false,
 				data: {
 					node: null,
+					existingToolNames: [],
+					onConfirm: () => {},
+				},
+			},
+		},
+		{
+			key: TOOLS_MANAGER_MODAL_KEY,
+			component: async () => await import('./components/ToolsManagerModal.vue'),
+			initialState: {
+				open: false,
+				data: {
+					tools: [],
 					onConfirm: () => {},
 				},
 			},

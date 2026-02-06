@@ -1,25 +1,14 @@
 <script setup lang="ts">
-import { v4 as uuidv4 } from 'uuid';
 import NodeIcon from '@/app/components/NodeIcon.vue';
 import { useNodeTypesStore } from '@/app/stores/nodeTypes.store';
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted } from 'vue';
 import { type DropdownMenuItemProps, N8nButton, N8nDropdownMenu } from '@n8n/design-system';
-import { NodeConnectionTypes, type INode, type INodeTypeDescription } from 'n8n-workflow';
+import type { INode, INodeTypeDescription } from 'n8n-workflow';
 import { useI18n } from '@n8n/i18n';
-import NodeCreator from '@/features/shared/nodeCreator/components/NodeCreator.vue';
-import { useBannersStore } from '@/features/shared/banners/banners.store';
-import { useNodeCreatorStore } from '@/features/shared/nodeCreator/nodeCreator.store';
-import { useViewStacks } from '@/features/shared/nodeCreator/composables/useViewStacks';
-import { AI_UNCATEGORIZED_CATEGORY } from '@/app/constants';
-import type { NodeTypeSelectedPayload } from '@/Interface';
 import { useUIStore } from '@/app/stores/ui.store';
-import { TOOL_SETTINGS_MODAL_KEY } from '@/features/ai/chatHub/constants';
+import { TOOL_SETTINGS_MODAL_KEY, TOOLS_MANAGER_MODAL_KEY } from '@/features/ai/chatHub/constants';
 
-const {
-	selected,
-	transparentBg = false,
-	disabledTooltip,
-} = defineProps<{
+const { selected, transparentBg = false } = defineProps<{
 	disabled: boolean;
 	selected: INode[];
 	transparentBg?: boolean;
@@ -30,12 +19,9 @@ const emit = defineEmits<{
 	change: [tools: INode[]];
 }>();
 
-const nodeCreatorStore = useNodeCreatorStore();
-const bannersStore = useBannersStore();
 const nodeTypesStore = useNodeTypesStore();
 const uiStore = useUIStore();
 const i18n = useI18n();
-const { gotoCompatibleConnectionView } = useViewStacks();
 
 const toolCount = computed(() => selected.length);
 
@@ -53,57 +39,13 @@ const toolsLabel = computed(() => {
 	return i18n.baseText('chatHub.tools.selector.label.default');
 });
 
-const nodeCreatorInlineStyle = computed(() => {
-	return {
-		top: `${bannersStore.bannersHeight}px`,
-		right: '0',
-	};
-});
-
-const isNodeCreatorOpen = ref(false);
-
-function toggleNodeCreatorOpen(open?: boolean) {
-	const newValue = open ?? !isNodeCreatorOpen.value;
-
-	isNodeCreatorOpen.value = newValue;
-
-	if (newValue) {
-		nodeCreatorStore.setNodeCreatorState({
-			createNodeActive: true,
-			nodeCreatorView: AI_UNCATEGORIZED_CATEGORY,
-			connectionType: NodeConnectionTypes.AiTool,
-		});
-
-		gotoCompatibleConnectionView(NodeConnectionTypes.AiTool).catch(() => {});
-	}
-}
-
-function handleSelectNodeType(value: NodeTypeSelectedPayload[]) {
-	isNodeCreatorOpen.value = false;
-
-	const nodeType = value[0] ? nodeTypesStore.getNodeType(value[0].type) : undefined;
-	const typeVersion =
-		typeof nodeType?.version === 'number'
-			? nodeType.version
-			: nodeType?.version.toSorted((a, b) => b - a)?.[0]; // pick latest
-
-	if (!nodeType || !typeVersion) {
-		return;
-	}
-
+function openToolsManager() {
 	uiStore.openModalWithData({
-		name: TOOL_SETTINGS_MODAL_KEY,
+		name: TOOLS_MANAGER_MODAL_KEY,
 		data: {
-			node: {
-				type: nodeType.name,
-				typeVersion,
-				parameters: {},
-				id: uuidv4(),
-				name: nodeType.displayName,
-				position: [0, 0],
-			},
-			onConfirm: (configuredNode: INode) => {
-				emit('change', [...selected, configuredNode]);
+			tools: selected,
+			onConfirm: (tools: INode[]) => {
+				emit('change', tools);
 			},
 		},
 	});
@@ -118,29 +60,29 @@ const menuItems = computed<Array<DropdownMenuItemProps<string, INodeTypeDescript
 		children: [
 			{
 				id: `configure::${sel.id}`,
-				label: 'Configure',
+				label: i18n.baseText('chatHub.toolsManager.configure'),
 				icon: { type: 'icon' as const, value: 'settings' as const },
 			},
 			{
 				id: `remove::${sel.id}`,
-				label: 'Remove',
+				label: i18n.baseText('chatHub.toolsManager.remove'),
 				icon: { type: 'icon' as const, value: 'trash-2' as const },
 			},
 		],
 	})),
 	{
-		id: 'add',
-		label: 'Add tool',
+		id: 'manage',
+		label: i18n.baseText('chatHub.toolsManager.manageTools'),
 		divided: true,
-		icon: { type: 'icon', value: 'plus' },
+		icon: { type: 'icon', value: 'settings' },
 	},
 ]);
 
 function handleSelect(id: string) {
 	const [command, target] = id.split('::');
 
-	if (command === 'add') {
-		toggleNodeCreatorOpen(true);
+	if (command === 'manage') {
+		openToolsManager();
 		return;
 	}
 
@@ -158,10 +100,13 @@ function handleSelect(id: string) {
 	}
 
 	if (command === 'configure') {
+		const otherToolNames = selected.filter((s) => s.id !== targetNode.id).map((s) => s.name);
+
 		uiStore.openModalWithData({
 			name: TOOL_SETTINGS_MODAL_KEY,
 			data: {
 				node: targetNode,
+				existingToolNames: otherToolNames,
 				onConfirm: (configuredNode: INode) => {
 					emit(
 						'change',
@@ -186,11 +131,12 @@ onMounted(async () => {
 
 <template>
 	<!-- <N8nTooltip :content="disabledTooltip" :disabled="!disabledTooltip" placement="top"> -->
-	<div>
+	<div :class="$style.container">
 		<N8nDropdownMenu
 			:items="menuItems"
 			placement="bottom-start"
 			:disabled="selected.length === 0"
+			extra-popper-class="tools-selector-dropdown"
 			@select="handleSelect"
 		>
 			<template #trigger>
@@ -200,7 +146,7 @@ onMounted(async () => {
 					:class="[$style.toolsButton, { [$style.transparentBg]: transparentBg }]"
 					:disabled="disabled"
 					:icon="toolCount > 0 ? undefined : 'plus'"
-					@click="selected.length === 0 ? toggleNodeCreatorOpen() : undefined"
+					@click="selected.length === 0 ? openToolsManager() : undefined"
 				>
 					<span v-if="toolCount" :class="$style.iconStack">
 						<NodeIcon
@@ -221,19 +167,15 @@ onMounted(async () => {
 				<NodeIcon v-if="item.data" :node-type="item.data" :size="16" />
 			</template>
 		</N8nDropdownMenu>
-
-		<Teleport to="body">
-			<NodeCreator
-				:active="isNodeCreatorOpen"
-				:style="nodeCreatorInlineStyle"
-				@close-node-creator="toggleNodeCreatorOpen(false)"
-				@node-type-selected="handleSelectNodeType"
-			/>
-		</Teleport>
 	</div>
 </template>
 
 <style lang="scss" module>
+.container {
+	display: flex;
+	align-items: center;
+}
+
 .toolsButton {
 	display: flex;
 	align-items: center;
@@ -262,5 +204,11 @@ onMounted(async () => {
 
 .iconOverlap {
 	margin-left: -6px;
+}
+</style>
+
+<style lang="scss">
+.tools-selector-dropdown {
+	z-index: 10000;
 }
 </style>
