@@ -36,6 +36,7 @@ import { useWorkflowsStore } from '@/app/stores/workflows.store';
 import { useNodeTypesStore } from '@/app/stores/nodeTypes.store';
 import { useCredentialsStore } from '@/features/credentials/credentials.store';
 import { useUIStore } from '@/app/stores/ui.store';
+import { AI_BUILDER_PLAN_MODE_EXPERIMENT } from '@/app/constants/experiments';
 
 // Mock useI18n to return the keys instead of translations
 vi.mock('@n8n/i18n', () => ({
@@ -2515,6 +2516,188 @@ describe('AI Builder store', () => {
 			const userMessage = builderStore.chatMessages[0] as ChatUI.TextMessage;
 			expect(userMessage.role).toBe('user');
 			expect(userMessage.revertVersion).toBeUndefined();
+		});
+	});
+
+	describe('Plan mode telemetry', () => {
+		function enablePlanMode() {
+			vi.spyOn(posthogStore, 'getVariant').mockImplementation((experiment) =>
+				experiment === AI_BUILDER_PLAN_MODE_EXPERIMENT.name
+					? AI_BUILDER_PLAN_MODE_EXPERIMENT.variant
+					: undefined,
+			);
+		}
+
+		function addPlanMessageToChat(builderStore: ReturnType<typeof useBuilderStore>) {
+			builderStore.chatMessages.push({
+				role: 'assistant',
+				type: 'custom',
+				customType: 'plan',
+				data: {
+					plan: { summary: 'Test plan', trigger: 'Manual', steps: [] },
+				},
+			} as unknown as ChatUI.AssistantMessage);
+		}
+
+		describe('user_switched_builder_mode', () => {
+			it('tracks journey event when switching to plan mode', () => {
+				const builderStore = useBuilderStore();
+				enablePlanMode();
+
+				track.mockClear();
+				builderStore.setBuilderMode('plan');
+
+				expect(track).toHaveBeenCalledWith(
+					'Workflow builder journey',
+					expect.objectContaining({
+						event_type: 'user_switched_builder_mode',
+						event_properties: { mode: 'plan' },
+					}),
+				);
+			});
+
+			it('tracks journey event when switching to build mode', () => {
+				const builderStore = useBuilderStore();
+				enablePlanMode();
+				builderStore.setBuilderMode('plan');
+
+				track.mockClear();
+				builderStore.setBuilderMode('build');
+
+				expect(track).toHaveBeenCalledWith(
+					'Workflow builder journey',
+					expect.objectContaining({
+						event_type: 'user_switched_builder_mode',
+						event_properties: { mode: 'build' },
+					}),
+				);
+			});
+
+			it('does not track when plan mode is unavailable', () => {
+				const builderStore = useBuilderStore();
+				// Do NOT enable plan mode
+
+				track.mockClear();
+				builderStore.setBuilderMode('plan');
+
+				expect(track).not.toHaveBeenCalledWith(
+					'Workflow builder journey',
+					expect.objectContaining({
+						event_type: 'user_switched_builder_mode',
+					}),
+				);
+			});
+		});
+
+		describe('user_clicked_implement_plan', () => {
+			it('tracks journey event when user approves plan', async () => {
+				const builderStore = useBuilderStore();
+				enablePlanMode();
+				builderStore.setBuilderMode('plan');
+
+				// Set up interrupted state with a plan message
+				addPlanMessageToChat(builderStore);
+
+				apiSpy.mockImplementationOnce((_ctx, _payload, _onMessage, onDone) => {
+					onDone();
+				});
+
+				track.mockClear();
+				await builderStore.resumeWithPlanDecision({ action: 'approve' });
+
+				expect(track).toHaveBeenCalledWith(
+					'Workflow builder journey',
+					expect.objectContaining({
+						event_type: 'user_clicked_implement_plan',
+					}),
+				);
+			});
+		});
+
+		describe('mode in User submitted builder message', () => {
+			it('includes plan mode', async () => {
+				const builderStore = useBuilderStore();
+				enablePlanMode();
+				builderStore.setBuilderMode('plan');
+
+				apiSpy.mockImplementationOnce(() => {});
+				track.mockClear();
+				await builderStore.sendChatMessage({ text: 'plan something' });
+
+				expect(track).toHaveBeenCalledWith(
+					'User submitted builder message',
+					expect.objectContaining({ mode: 'plan' }),
+				);
+			});
+
+			it('includes build mode by default', async () => {
+				const builderStore = useBuilderStore();
+
+				apiSpy.mockImplementationOnce(() => {});
+				track.mockClear();
+				await builderStore.sendChatMessage({ text: 'build something' });
+
+				expect(track).toHaveBeenCalledWith(
+					'User submitted builder message',
+					expect.objectContaining({ mode: 'build' }),
+				);
+			});
+		});
+
+		describe('mode in End of response from builder', () => {
+			it('includes mode on abort', async () => {
+				const builderStore = useBuilderStore();
+
+				apiSpy.mockImplementationOnce(() => {});
+				await builderStore.sendChatMessage({ text: 'test' });
+
+				track.mockClear();
+				builderStore.abortStreaming();
+
+				expect(track).toHaveBeenCalledWith(
+					'End of response from builder',
+					expect.objectContaining({ mode: 'build' }),
+				);
+			});
+
+			it('includes plan mode on abort when in plan mode', async () => {
+				const builderStore = useBuilderStore();
+				enablePlanMode();
+				builderStore.setBuilderMode('plan');
+
+				apiSpy.mockImplementationOnce(() => {});
+				await builderStore.sendChatMessage({ text: 'test' });
+
+				track.mockClear();
+				builderStore.abortStreaming();
+
+				expect(track).toHaveBeenCalledWith(
+					'End of response from builder',
+					expect.objectContaining({ mode: 'plan' }),
+				);
+			});
+
+			it('includes plan_approved when plan was approved', async () => {
+				const builderStore = useBuilderStore();
+				enablePlanMode();
+				builderStore.setBuilderMode('plan');
+
+				// Set up interrupted state with a plan message
+				addPlanMessageToChat(builderStore);
+
+				apiSpy.mockImplementationOnce((_ctx, _payload, _onMessage, onDone) => {
+					onDone();
+				});
+
+				track.mockClear();
+				await builderStore.resumeWithPlanDecision({ action: 'approve' });
+				await vi.waitFor(() => expect(builderStore.streaming).toBe(false));
+
+				expect(track).toHaveBeenCalledWith(
+					'End of response from builder',
+					expect.objectContaining({ plan_approved: true }),
+				);
+			});
 		});
 	});
 

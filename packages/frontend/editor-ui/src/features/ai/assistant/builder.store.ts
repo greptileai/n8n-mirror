@@ -61,7 +61,9 @@ export type WorkflowBuilderJourneyEventType =
 	| 'browser_notification_ask_permission'
 	| 'browser_notification_accept'
 	| 'browser_notification_dismiss'
-	| 'browser_generation_done_notified';
+	| 'browser_generation_done_notified'
+	| 'user_switched_builder_mode'
+	| 'user_clicked_implement_plan';
 
 interface WorkflowBuilderJourneyEventProperties {
 	node_type?: string;
@@ -72,6 +74,7 @@ interface WorkflowBuilderJourneyEventProperties {
 	revert_version_id?: string;
 	no_versions_reverted?: number;
 	completion_type?: 'workflow-ready' | 'input-needed';
+	mode?: 'plan' | 'build';
 }
 
 interface WorkflowBuilderJourneyPayload extends ITelemetryTrackProperties {
@@ -86,6 +89,7 @@ interface EndOfStreamingTrackingPayload {
 	userMessageId: string;
 	startWorkflowJson: string;
 	revertVersion?: { id: string; createdAt: string };
+	planApproved?: boolean;
 }
 
 interface UserSubmittedBuilderMessageTrackingPayload
@@ -104,6 +108,7 @@ interface UserSubmittedBuilderMessageTrackingPayload
 	execution_status?: string;
 	error_message?: string;
 	error_node_type?: string;
+	mode?: 'plan' | 'build';
 }
 
 export const useBuilderStore = defineStore(STORES.BUILDER, () => {
@@ -272,6 +277,7 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 	function setBuilderMode(mode: 'build' | 'plan') {
 		if (mode === 'plan' && !isPlanModeAvailable.value) return;
 		builderMode.value = mode;
+		trackWorkflowBuilderJourney('user_switched_builder_mode', { mode });
 	}
 
 	function incrementManualExecutionStats(type: 'success' | 'error') {
@@ -317,13 +323,15 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 			return;
 		}
 
-		const { userMessageId } = currentStreamingMessage.value;
+		const { userMessageId, planApproved } = currentStreamingMessage.value;
 
 		telemetry.track('End of response from builder', {
 			user_message_id: userMessageId,
 			workflow_id: workflowsStore.workflowId,
 			session_id: trackingSessionId.value,
 			tab_visible: document.visibilityState === 'visible',
+			mode: builderMode.value,
+			...(planApproved ? { plan_approved: true } : {}),
 			...getWorkflowModifications(currentStreamingMessage.value),
 			...payload,
 			...getTodosToTrack(),
@@ -521,6 +529,7 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 		errorMessage?: string;
 		errorNodeType?: string;
 		executionStatus?: string;
+		mode?: 'plan' | 'build';
 	}) {
 		const {
 			text,
@@ -531,6 +540,7 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 			errorMessage,
 			errorNodeType,
 			executionStatus,
+			mode,
 		} = options;
 
 		const trackingPayload: UserSubmittedBuilderMessageTrackingPayload = {
@@ -543,6 +553,7 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 			manual_exec_success_count_since_prev_msg: manualExecStatsInBetweenMessages.value.success,
 			manual_exec_error_count_since_prev_msg: manualExecStatsInBetweenMessages.value.error,
 			user_message_id: userMessageId,
+			mode,
 			...getTodosToTrack(),
 		};
 
@@ -664,10 +675,17 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 		lastUserMessageId.value = userMessageId;
 		const currentWorkflowJson = getWorkflowSnapshot();
 
+		const planApproved =
+			typeof resumeData === 'object' &&
+			resumeData !== null &&
+			'action' in resumeData &&
+			(resumeData as { action: string }).action === 'approve';
+
 		currentStreamingMessage.value = {
 			userMessageId,
 			startWorkflowJson: currentWorkflowJson,
 			revertVersion,
+			...(planApproved ? { planApproved: true } : {}),
 		};
 
 		trackUserSubmittedBuilderMessage({
@@ -679,6 +697,7 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 			errorMessage,
 			errorNodeType,
 			executionStatus,
+			mode: builderMode.value,
 		});
 
 		resetManualExecutionStats();
@@ -760,6 +779,7 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 		const feedback = decision.feedback?.trim();
 
 		if (decision.action === 'approve') {
+			trackWorkflowBuilderJourney('user_clicked_implement_plan');
 			await sendChatMessage({
 				text: locale.baseText('aiAssistant.builder.planMode.actions.implement'),
 				resumeData: decision,
