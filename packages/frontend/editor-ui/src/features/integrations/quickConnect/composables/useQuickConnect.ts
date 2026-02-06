@@ -4,8 +4,8 @@ import { useSettingsStore } from '@/app/stores/settings.store';
 import { computed, type Ref, toRef } from 'vue';
 
 type UseQuickConnectParams = {
-	packageName?: string | Ref<string>;
-	credentialType?: string | Ref<string>;
+	packageName?: string | Ref<string | undefined>;
+	credentialType?: string | Ref<string | undefined>;
 };
 
 export function useQuickConnect({ credentialType, packageName }: UseQuickConnectParams) {
