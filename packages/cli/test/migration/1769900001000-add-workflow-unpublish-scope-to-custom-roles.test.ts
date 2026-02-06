@@ -12,6 +12,24 @@ import { DataSource } from '@n8n/typeorm';
 const MIGRATION_NAME = 'AddWorkflowUnpublishScopeToCustomRoles1769900001000';
 const PERSONAL_OWNER_ROLE_SLUG = 'project:personalOwner';
 
+/**
+ * Generate parameter placeholders for a given context and count.
+ * PostgreSQL uses $1, $2, ... while SQLite uses ?
+ */
+function getParamPlaceholders(context: TestMigrationContext, count: number): string {
+	if (context.isPostgres) {
+		return Array.from({ length: count }, (_, i) => `$${i + 1}`).join(', ');
+	}
+	return Array.from({ length: count }, () => '?').join(', ');
+}
+
+/**
+ * Generate a single parameter placeholder for WHERE clauses
+ */
+function getParamPlaceholder(context: TestMigrationContext, index = 1): string {
+	return context.isPostgres ? `$${index}` : '?';
+}
+
 interface ScopeData {
 	slug: string;
 	displayName: string;
@@ -61,14 +79,16 @@ describe('AddWorkflowUnpublishScopeToCustomRoles Migration', () => {
 		const displayNameColumn = context.escape.columnName('displayName');
 		const descriptionColumn = context.escape.columnName('description');
 
+		const scopePlaceholder = getParamPlaceholder(context);
 		const existingScope = await context.queryRunner.query(
-			`SELECT ${slugColumn} FROM ${tableName} WHERE ${slugColumn} = ?`,
+			`SELECT ${slugColumn} FROM ${tableName} WHERE ${slugColumn} = ${scopePlaceholder}`,
 			[scopeData.slug],
 		);
 
 		if (existingScope.length === 0) {
+			const insertPlaceholders = getParamPlaceholders(context, 3);
 			await context.queryRunner.query(
-				`INSERT INTO ${tableName} (${slugColumn}, ${displayNameColumn}, ${descriptionColumn}) VALUES (?, ?, ?)`,
+				`INSERT INTO ${tableName} (${slugColumn}, ${displayNameColumn}, ${descriptionColumn}) VALUES (${insertPlaceholders})`,
 				[scopeData.slug, scopeData.displayName, scopeData.description],
 			);
 		}
@@ -85,8 +105,9 @@ describe('AddWorkflowUnpublishScopeToCustomRoles Migration', () => {
 
 		const systemRole = roleData.systemRole ?? false;
 
+		const rolePlaceholders = getParamPlaceholders(context, 6);
 		await context.queryRunner.query(
-			`INSERT INTO ${tableName} (${slugColumn}, ${displayNameColumn}, ${roleTypeColumn}, ${systemRoleColumn}, ${createdAtColumn}, ${updatedAtColumn}) VALUES (?, ?, ?, ?, ?, ?)`,
+			`INSERT INTO ${tableName} (${slugColumn}, ${displayNameColumn}, ${roleTypeColumn}, ${systemRoleColumn}, ${createdAtColumn}, ${updatedAtColumn}) VALUES (${rolePlaceholders})`,
 			[roleData.slug, roleData.displayName, roleData.roleType, systemRole, new Date(), new Date()],
 		);
 	}
@@ -99,8 +120,9 @@ describe('AddWorkflowUnpublishScopeToCustomRoles Migration', () => {
 		const roleSlugColumn = context.escape.columnName('roleSlug');
 		const scopeSlugColumn = context.escape.columnName('scopeSlug');
 
+		const roleScopePlaceholders = getParamPlaceholders(context, 2);
 		await context.queryRunner.query(
-			`INSERT INTO ${tableName} (${roleSlugColumn}, ${scopeSlugColumn}) VALUES (?, ?)`,
+			`INSERT INTO ${tableName} (${roleSlugColumn}, ${scopeSlugColumn}) VALUES (${roleScopePlaceholders})`,
 			[roleScopeData.roleSlug, roleScopeData.scopeSlug],
 		);
 	}
@@ -113,8 +135,9 @@ describe('AddWorkflowUnpublishScopeToCustomRoles Migration', () => {
 		const roleSlugColumn = context.escape.columnName('roleSlug');
 		const scopeSlugColumn = context.escape.columnName('scopeSlug');
 
+		const rolePlaceholder = getParamPlaceholder(context);
 		const scopes = await context.queryRunner.query(
-			`SELECT ${roleSlugColumn} as roleSlug, ${scopeSlugColumn} as scopeSlug FROM ${tableName} WHERE ${roleSlugColumn} = ?`,
+			`SELECT ${roleSlugColumn} as roleSlug, ${scopeSlugColumn} as scopeSlug FROM ${tableName} WHERE ${roleSlugColumn} = ${rolePlaceholder}`,
 			[roleSlug],
 		);
 
@@ -129,8 +152,9 @@ describe('AddWorkflowUnpublishScopeToCustomRoles Migration', () => {
 		const roleSlugColumn = context.escape.columnName('roleSlug');
 		const scopeSlugColumn = context.escape.columnName('scopeSlug');
 
+		const scopePlaceholder = getParamPlaceholder(context);
 		const roleScopeEntries = await context.queryRunner.query(
-			`SELECT ${roleSlugColumn} as roleSlug, ${scopeSlugColumn} as scopeSlug FROM ${tableName} WHERE ${scopeSlugColumn} = ?`,
+			`SELECT ${roleSlugColumn} as roleSlug, ${scopeSlugColumn} as scopeSlug FROM ${tableName} WHERE ${scopeSlugColumn} = ${scopePlaceholder}`,
 			[scopeSlug],
 		);
 
