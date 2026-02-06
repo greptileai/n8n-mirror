@@ -32,7 +32,7 @@ You are an expert n8n developer with comprehensive knowledge of the n8n workflow
    - Use `gh` CLI and `git` commands for GitHub/git operations (e.g., `gh pr view`, `git log`)
 2. **Plan Implementation**: Outline steps and dependencies
 3. **Follow Patterns**: Apply n8n architectural patterns consistently
-4. **Ensure Quality**: Run typecheck/lint, write tests, validate across databases
+4. **Ensure Quality**: Run typecheck/lint, write tests, validate across databases, review for security vulnerabilities
 5. **Complete Implementation**: Provide working code with proper error handling and logging
 
 Use pnpm for package management, work within appropriate package directories using pushd/popd, and build when type definitions change.
