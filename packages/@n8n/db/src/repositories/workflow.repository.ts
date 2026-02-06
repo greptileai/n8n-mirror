@@ -118,6 +118,10 @@ export class WorkflowRepository extends Repository<WorkflowEntity> {
 	}
 
 	async findByIds(workflowIds: string[], { fields }: { fields?: string[] } = {}) {
+		if (workflowIds.length === 0) {
+			return [];
+		}
+
 		const options: FindManyOptions<WorkflowEntity> = {
 			where: { id: In(workflowIds) },
 		};
@@ -887,9 +891,8 @@ export class WorkflowRepository extends Repository<WorkflowEntity> {
 	}
 
 	async updateActiveState(workflowId: string, newState: boolean) {
-		const workflow = await this.findById(workflowId);
-
-		if (!workflow) {
+		const wfExists = await this.existsBy({ id: workflowId });
+		if (!wfExists) {
 			throw new UserError(`Workflow "${workflowId}" not found.`);
 		}
 

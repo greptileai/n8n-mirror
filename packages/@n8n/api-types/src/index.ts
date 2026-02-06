@@ -1,3 +1,4 @@
+export { Z, type ZodClass } from './zod-class';
 export type * from './datetime';
 export * from './dto';
 export type * from './push';
@@ -56,6 +57,13 @@ export {
 	type ChatSendMessageResponse,
 	type ChatReconnectResponse,
 	ChatReconnectRequest,
+	type ChatArtifact,
+	type ChatArtifactCreateCommand,
+	type ChatArtifactEditCommand,
+	type ChatMessageContentChunk,
+	type ChatHubMessageButton,
+	chatHubMessageWithButtonsSchema,
+	type ChatHubMessageWithButtons,
 } from './chat-hub';
 
 export type {
@@ -184,4 +192,10 @@ export type {
 	SecretProviderTypeResponse,
 	SecretCompletionsResponse,
 	TestSecretProviderConnectionResponse,
+	ReloadSecretProviderConnectionResponse,
+} from './schemas/secrets-provider.schema';
+
+export {
+	testSecretProviderConnectionResponseSchema,
+	reloadSecretProviderConnectionResponseSchema,
 } from './schemas/secrets-provider.schema';

@@ -397,7 +397,7 @@ const displayValue = computed(() => {
 	if (returnValue !== undefined && returnValue !== null && props.parameter.type === 'string') {
 		const rows = editorRows.value;
 		if (rows === undefined || rows === 1) {
-			returnValue = (returnValue as string).toString().replace(/\n/, '|');
+			returnValue = (returnValue as string).toString().replace(/\n/g, '|');
 		}
 	}
 
@@ -749,6 +749,7 @@ async function loadRemoteParameterOptions() {
 			currentNodeParameters: resolvedNodeParameters,
 			credentials: node.value.credentials,
 			projectId: projectsStore.currentProjectId,
+			workflowId: workflowsStore.workflowId,
 		});
 
 		remoteParameterOptions.value = remoteParameterOptions.value.concat(options);
@@ -1064,6 +1065,12 @@ function onResourceLocatorDrop(data: string) {
 }
 
 function onUpdateTextInput(value: string) {
+	if (
+		props.parameter.type === 'string' &&
+		(editorRows.value === undefined || editorRows.value === 1)
+	) {
+		value = value.replace(/\|/g, '\n');
+	}
 	valueChanged(value);
 	onTextInputChange(value);
 }
