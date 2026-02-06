@@ -1,5 +1,5 @@
 import { mockInstance } from '@n8n/backend-test-utils';
-import { SettingsRepository } from '@n8n/db';
+import { SettingsRepository, WorkflowRepository } from '@n8n/db';
 import {
 	PERSONAL_SPACE_PUBLISHING_SETTING,
 	PERSONAL_SPACE_SHARING_SETTING,
@@ -11,7 +11,12 @@ import { SecuritySettingsService } from '@/services/security-settings.service';
 describe('SecuritySettingsService', () => {
 	const settingsRepository = mockInstance(SettingsRepository);
 	const roleService = mockInstance(RoleService);
-	const securitySettingsService = new SecuritySettingsService(settingsRepository, roleService);
+	const workflowRepository = mockInstance(WorkflowRepository);
+	const securitySettingsService = new SecuritySettingsService(
+		settingsRepository,
+		roleService,
+		workflowRepository,
+	);
 
 	const PERSONAL_OWNER_ROLE_SLUG = 'project:personalOwner';
 
@@ -186,6 +191,25 @@ describe('SecuritySettingsService', () => {
 			const result = await securitySettingsService.arePersonalSpaceSettingsEnabled();
 
 			expect(result.personalSpaceSharing).toBe(true);
+		});
+	});
+
+	describe('getPublishedPersonalWorkflowsCount', () => {
+		test('should delegate to workflowRepository.getPublishedPersonalWorkflowsCount', async () => {
+			workflowRepository.getPublishedPersonalWorkflowsCount.mockResolvedValue(5);
+
+			const result = await securitySettingsService.getPublishedPersonalWorkflowsCount();
+
+			expect(workflowRepository.getPublishedPersonalWorkflowsCount).toHaveBeenCalled();
+			expect(result).toBe(5);
+		});
+
+		test('should return 0 when repository returns 0', async () => {
+			workflowRepository.getPublishedPersonalWorkflowsCount.mockResolvedValue(0);
+
+			const result = await securitySettingsService.getPublishedPersonalWorkflowsCount();
+
+			expect(result).toBe(0);
 		});
 	});
 });

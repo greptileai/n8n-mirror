@@ -1,4 +1,4 @@
-import { SettingsRepository } from '@n8n/db';
+import { SettingsRepository, WorkflowRepository } from '@n8n/db';
 import { Service } from '@n8n/di';
 import {
 	PERSONAL_SPACE_PUBLISHING_SETTING,
@@ -14,6 +14,7 @@ export class SecuritySettingsService {
 	constructor(
 		private readonly settingsRepository: SettingsRepository,
 		private readonly roleService: RoleService,
+		private readonly workflowRepository: WorkflowRepository,
 	) {}
 
 	async setPersonalSpaceSetting(
@@ -53,5 +54,9 @@ export class SecuritySettingsService {
 			personalSpacePublishing: personalSpacePublishingValue !== 'false', // Default to true for backward compatibility
 			personalSpaceSharing: personalSpaceSharingValue !== 'false', // Default to true for backward compatibility
 		};
+	}
+
+	async getPublishedPersonalWorkflowsCount(): Promise<number> {
+		return await this.workflowRepository.getPublishedPersonalWorkflowsCount();
 	}
 }

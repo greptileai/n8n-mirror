@@ -26,11 +26,12 @@ describe('SecuritySettingsController', () => {
 	});
 
 	describe('GET /settings/security', () => {
-		it('should return security settings and call service', async () => {
+		it('should return security settings and publishedPersonalWorkflowsCount', async () => {
 			securitySettingsService.arePersonalSpaceSettingsEnabled.mockResolvedValue({
 				personalSpacePublishing: true,
 				personalSpaceSharing: false,
 			});
+			securitySettingsService.getPublishedPersonalWorkflowsCount.mockResolvedValue(5);
 
 			const response = await ownerAgent.get('/settings/security').expect(200);
 
@@ -38,9 +39,23 @@ describe('SecuritySettingsController', () => {
 				data: {
 					personalSpacePublishing: true,
 					personalSpaceSharing: false,
+					publishedPersonalWorkflowsCount: 5,
 				},
 			});
 			expect(securitySettingsService.arePersonalSpaceSettingsEnabled).toHaveBeenCalledTimes(1);
+			expect(securitySettingsService.getPublishedPersonalWorkflowsCount).toHaveBeenCalledTimes(1);
+		});
+
+		it('should return 0 for publishedPersonalWorkflowsCount when no published workflows', async () => {
+			securitySettingsService.arePersonalSpaceSettingsEnabled.mockResolvedValue({
+				personalSpacePublishing: true,
+				personalSpaceSharing: true,
+			});
+			securitySettingsService.getPublishedPersonalWorkflowsCount.mockResolvedValue(0);
+
+			const response = await ownerAgent.get('/settings/security').expect(200);
+
+			expect(response.body.data.publishedPersonalWorkflowsCount).toBe(0);
 		});
 
 		it('should handle service errors gracefully', async () => {
