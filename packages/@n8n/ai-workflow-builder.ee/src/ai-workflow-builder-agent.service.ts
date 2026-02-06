@@ -385,7 +385,6 @@ export class AiWorkflowBuilderService {
 				question: z.string(),
 				type: z.enum(['single', 'multi', 'text']),
 				options: z.array(z.string()).optional(),
-				allowCustom: z.boolean().optional(),
 			}),
 		),
 	});

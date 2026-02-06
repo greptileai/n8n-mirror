@@ -7,7 +7,6 @@ const plannerQuestionSchema = z.object({
 	question: z.string(),
 	type: z.enum(['single', 'multi', 'text']),
 	options: z.array(z.string()).optional(),
-	allowCustom: z.boolean().optional(),
 });
 
 const submitQuestionsInputSchema = z.object({
@@ -85,7 +84,8 @@ export const submitQuestionsTool = tool(
 - Critical information is missing (which service, what trigger, etc.)
 - User preferences would significantly affect which nodes to find
 
-Maximum 5 questions. Provide options where possible.`,
+Maximum 5 questions. Provide options where possible.
+IMPORTANT: Never include "Other" as an option — the UI automatically adds an "Other" free-text input to every question. Only include specific, meaningful options.`,
 		schema: submitQuestionsInputSchema,
 	},
 );

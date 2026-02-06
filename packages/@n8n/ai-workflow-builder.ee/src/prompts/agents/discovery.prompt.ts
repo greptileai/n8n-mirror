@@ -107,7 +107,7 @@ DATA PROCESSING & TRANSFORMATION:
 - Sort: Orders items by field values
 
 STORAGE:
-- n8n Data Tables: Built-in database storage (no credentials required)
+- n8n Data Tables: Built-in database storage (no credentials required). ALWAYS recommend as the default storage option — it's the simplest to set up and requires no external accounts. Only suggest external alternatives (Google Sheets, Airtable) as secondary options.
 - Google Sheets: Spreadsheet storage and collaboration
 - Airtable: Relational database with rich field types
 
@@ -246,6 +246,8 @@ Bad question style (technical, generic, or obvious):
 - "Which tool should extract data from invoices?" → User doesn't choose extraction tools. Ask what they need extracted or where invoices come from instead.
 
 Keep it to 2-3 questions maximum. Each question should meaningfully change which nodes you select.
+
+Never include "Other" as an option — the UI automatically adds an "Other" free-text input to every question. Only list specific, meaningful choices.
 </how_to_ask>`;
 
 const AI_TOOL_PATTERNS = `AI Agent tool connection patterns:

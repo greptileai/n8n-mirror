@@ -258,6 +258,15 @@ function checkQuestionQuality(
 					violations.push(`Internal node name in option: "${opt}" for question "${q.question}"`);
 				}
 			}
+
+			// "Other" options should not be included — the UI adds them automatically.
+			// Catches "Other", "Other source", "Other service", etc.
+			const hasOtherOption = q.options.some((opt) => opt.toLowerCase().trim().startsWith('other'));
+			if (hasOtherOption) {
+				violations.push(
+					`"Other" option should not be included (UI adds it automatically): question "${q.question}"`,
+				);
+			}
 		}
 
 		// Options should not name obscure tools without describing what they do.
@@ -550,4 +559,106 @@ describe('Question Quality - Integration Tests', () => {
 		// No quality violations (technical jargon, implementation details, etc.)
 		expect(allViolations).toHaveLength(0);
 	});
+
+	// ── Storage questions: n8n Data Tables should be the recommended option ──
+
+	const storagePrompts = [
+		{
+			name: 'Storage: track data over time',
+			prompt: 'Every hour check my website uptime and store the results',
+		},
+		{
+			name: 'Storage: save form submissions',
+			prompt: 'Collect form submissions and save them to a database',
+		},
+		{
+			name: 'Storage: log processed invoices',
+			prompt: 'Automatically process invoices and update accounting',
+		},
+	];
+
+	it.each(storagePrompts)(
+		'should recommend n8n Data Tables for storage: $name',
+		async ({ name, prompt: userPrompt }) => {
+			if (skipTests) return;
+
+			const graph = createGraph();
+			const threadId = nextThreadId();
+			const config = { configurable: { thread_id: threadId } };
+
+			const input = {
+				userRequest: userPrompt,
+				workflowJSON: { nodes: [], connections: {}, name: '' },
+				mode: 'plan' as const,
+				planOutput: null,
+				planFeedback: null,
+				planPrevious: null,
+			};
+
+			await graph.invoke(input, config);
+			const state = await graph.getState(config);
+			const interruptData = state.tasks?.[0]?.interrupts?.[0];
+			const interruptValue = interruptData?.value as
+				| { type: string; questions?: QuestionData[]; introMessage?: string }
+				| undefined;
+
+			const gotQuestions = interruptValue?.type === 'questions';
+
+			if (!gotQuestions) {
+				// Agent didn't ask questions — it should have picked data tables by default.
+				// This is acceptable; the prompt guidance tells it to default to data tables.
+				console.log(`  ${name}: No questions asked (agent chose defaults) ✅`);
+				return;
+			}
+
+			const questions = interruptValue?.questions ?? [];
+
+			// Find any storage-related question (mentions store, save, database, table, sheet)
+			const storageKeywords = [
+				'store',
+				'save',
+				'database',
+				'table',
+				'sheet',
+				'storage',
+				'record',
+				'track',
+				'log',
+			];
+			const storageQuestion = questions.find((q) => {
+				const text = q.question.toLowerCase();
+				const optionsText = (q.options ?? []).join(' ').toLowerCase();
+				const allText = `${text} ${optionsText}`;
+				return storageKeywords.some((kw) => allText.includes(kw));
+			});
+
+			if (!storageQuestion) {
+				// No storage question found — agent may have defaulted to data tables.
+				console.log(`  ${name}: No storage question found (agent may have defaulted) ✅`);
+				return;
+			}
+
+			console.log(`  ${name}: Storage question: "${storageQuestion.question}"`);
+			console.log(`    Options: [${(storageQuestion.options ?? []).join(', ')}]`);
+
+			// n8n Data Tables should be among the options
+			const options = storageQuestion.options ?? [];
+			const hasDataTableOption = options.some(
+				(opt) => opt.toLowerCase().includes('data table') || opt.toLowerCase().includes('built-in'),
+			);
+
+			expect(hasDataTableOption).toBe(true);
+
+			// n8n Data Tables should be the FIRST option (recommended)
+			if (options.length > 0) {
+				const firstOption = options[0].toLowerCase();
+				const isFirstOption =
+					firstOption.includes('data table') || firstOption.includes('built-in');
+				if (!isFirstOption) {
+					console.log(`  ⚠️  Data Tables not first option. First: "${options[0]}"`);
+				}
+				expect(isFirstOption).toBe(true);
+			}
+		},
+	);
 });

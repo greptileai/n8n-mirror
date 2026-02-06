@@ -5,11 +5,6 @@ export interface PlannerQuestion {
 	question: string;
 	type: PlannerQuestionType;
 	options?: string[];
-	/**
-	 * Defaults to true when omitted.
-	 * Frontend may still render a free-form input even when options exist.
-	 */
-	allowCustom?: boolean;
 }
 
 export interface QuestionResponse {
