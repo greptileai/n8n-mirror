@@ -308,8 +308,10 @@ export function hasOwnerChanged(
 
 	// For team projects, compare IDs
 	// owner1 could be TeamResourceOwner (with teamId) or StatusResourceOwner (with projectId)
+	// owner2 could also be TeamResourceOwner (with teamId) or StatusResourceOwner (with projectId)
 	const owner1TeamId = 'teamId' in owner1 ? owner1.teamId : owner1.projectId;
-	return owner1TeamId !== owner2.projectId;
+	const owner2TeamId = 'teamId' in owner2 ? owner2.teamId : owner2.projectId;
+	return owner1TeamId !== owner2TeamId;
 }
 
 /**
