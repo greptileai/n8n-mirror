@@ -401,6 +401,7 @@ export function createConsoleLifecycle(options: ConsoleLifecycleOptions): Evalua
 		},
 
 		onEnd(summary: RunSummary): void {
+			if (runMode === 'langsmith') return;
 			logger.info('\n' + pc.bold('═══════════════════ SUMMARY ═══════════════════'));
 			logger.info(
 				`  Total: ${summary.totalExamples} | ` +
