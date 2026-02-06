@@ -19,36 +19,44 @@ function unescapeCurlyBrackets(text: string): string {
 	return text.replace(/\{\{/g, '{').replace(/\}\}/g, '}');
 }
 
+interface ContentBlock {
+	type: string;
+	text: string;
+}
+
+interface DictPromptTemplate {
+	template: ContentBlock;
+}
+
+interface PromptMessage {
+	prompt: DictPromptTemplate[];
+}
+
 const prompt = buildCodeBuilderPrompt();
-const messages = prompt.promptMessages;
+const messages = prompt.promptMessages as unknown as PromptMessage[];
 
 let output = '# Code Builder Agent Prompt\n\n';
 
-// Extract system message (ROLE)
+// Extract system message - prompt[0].template is { type: 'text', text: '...' }
 const systemMessage = messages[0];
-const systemTemplate =
-	'lc_kwargs' in systemMessage
-		? (systemMessage.lc_kwargs as { prompt?: { template?: string } }).prompt?.template
-		: '';
-
-if (systemTemplate) {
-	output += '# ROLE\n\n';
-	output += unescapeCurlyBrackets(systemTemplate);
+if (systemMessage.prompt?.[0]?.template?.text) {
+	output += unescapeCurlyBrackets(systemMessage.prompt[0].template.text);
 	output += '\n\n';
 }
 
-// Hardcoded MESSAGE section format
-output += `## MESSAGE
-
-<conversation_summary>{{conversationSummary}}</conversation_summary>
-<previous_requests>{{previous_requests}}</previous_requests>
-<workflow_file path="/workflow.ts">
-{{escapedCode}}
-</workflow_file>
-
-User request:
-{{userMessage}}
-`;
+// Extract human message template
+const humanMessage = messages[1];
+if (humanMessage.prompt?.template) {
+	const template =
+		typeof humanMessage.prompt.template === 'string'
+			? humanMessage.prompt.template
+			: ((humanMessage.prompt.template as unknown as ContentBlock).text ?? '');
+	if (template) {
+		output += '---\n\n## USER MESSAGE\n\n';
+		output += unescapeCurlyBrackets(template);
+		output += '\n';
+	}
+}
 
 const outputPath = join(__dirname, 'code-builder-prompt.md');
 writeFileSync(outputPath, output);
