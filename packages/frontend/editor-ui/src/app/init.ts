@@ -154,10 +154,6 @@ export async function initializeAuthenticatedFeatures(
 		bannersStore.pushBannerToStack('V1');
 	}
 
-	// TEMPORARY: Also run for local dev to test banner - REMOVE BEFORE MERGE
-	const shouldInitCloudPlan = settingsStore.isCloudDeployment || import.meta.env.DEV;
-	// END TEMPORARY
-
 	if (shouldInitCloudPlan) {
 		void cloudPlanStore
 			.initialize()
