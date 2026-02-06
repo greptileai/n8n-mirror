@@ -126,11 +126,9 @@ export class ExportWorkflowsCommand extends BaseCommand<z.infer<typeof flagsSche
 
 			if (flags.published) {
 				if (!workflow.activeVersionId) {
-					this.logger.error(
-						`Workflow "${workflow.name}" (${workflow.id}) is not published. Cannot export published version.`,
+					throw new UserError(
+						`Workflow "${workflow.name}" (${workflow.id}) has no published version`,
 					);
-					process.exit(1);
-					return;
 				}
 				targetVersionId = workflow.activeVersionId;
 			} else {
@@ -146,11 +144,9 @@ export class ExportWorkflowsCommand extends BaseCommand<z.infer<typeof flagsSche
 				});
 
 				if (!workflowHistory) {
-					this.logger.error(
+					throw new UserError(
 						`Version "${targetVersionId}" not found for workflow "${workflow.name}" (${workflow.id})`,
 					);
-					process.exit(1);
-					return;
 				}
 
 				workflow.nodes = workflowHistory.nodes;
@@ -195,6 +191,5 @@ export class ExportWorkflowsCommand extends BaseCommand<z.infer<typeof flagsSche
 
 	async catch(error: Error) {
 		this.logger.error('Error exporting workflows. See log messages for details.');
-		this.logger.error(error.message);
 	}
 }

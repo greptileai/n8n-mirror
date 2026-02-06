@@ -251,13 +251,11 @@ test('should error when version not found', async () => {
 	const workflow = await createWorkflowWithTriggerAndHistory();
 	const nonExistentVersionId = 'non-existent-version';
 
-	const mockExit = jest.spyOn(process, 'exit').mockImplementation((() => {}) as any);
-
-	await command.run([`--id=${workflow.id}`, `--version=${nonExistentVersionId}`]);
-
-	expect(mockExit).toHaveBeenCalledWith(1);
-
-	mockExit.mockRestore();
+	await expect(
+		command.run([`--id=${workflow.id}`, `--version=${nonExistentVersionId}`]),
+	).rejects.toThrow(
+		`Version "${nonExistentVersionId}" not found for workflow "${workflow.name}" (${workflow.id})`,
+	);
 });
 
 test('should error when --published used on unpublished workflow', async () => {
@@ -268,13 +266,9 @@ test('should error when --published used on unpublished workflow', async () => {
 	workflow.activeVersionId = null;
 	await Container.get(WorkflowRepository).save(workflow);
 
-	const mockExit = jest.spyOn(process, 'exit').mockImplementation((() => {}) as any);
-
-	await command.run([`--id=${workflow.id}`, '--published']);
-
-	expect(mockExit).toHaveBeenCalledWith(1);
-
-	mockExit.mockRestore();
+	await expect(command.run([`--id=${workflow.id}`, '--published'])).rejects.toThrow(
+		`Workflow "${workflow.name}" (${workflow.id}) has no published version`,
+	);
 });
 
 test('should error when workflow not found', async () => {
