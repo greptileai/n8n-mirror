@@ -25,6 +25,7 @@ import { SessionManagerService } from './session-manager.service';
 import type { ResourceLocatorCallback } from './types/callbacks';
 import type { SimpleWorkflow } from './types/workflow';
 import { createStreamProcessor, type StreamEvent } from './utils/stream-processor';
+import { TokenUsageTrackingHandler } from './utils/token-usage-tracking-handler';
 import type { WorkflowState } from './workflow-state';
 
 const PROMPT_IS_TOO_LARGE_ERROR =
@@ -89,6 +90,12 @@ export interface BuilderFeatureFlags {
 	codeBuilder?: boolean;
 }
 
+export interface ChatMetrics {
+	durationMs: number;
+	inputTokens: number;
+	outputTokens: number;
+}
+
 export interface ChatPayload {
 	id: string;
 	message: string;
@@ -119,6 +126,7 @@ export class WorkflowBuilderAgent {
 	private generatedTypesDir?: string;
 	private resourceLocatorCallback?: ResourceLocatorCallback;
 	private onTelemetryEvent?: (event: string, properties: ITelemetryTrackProperties) => void;
+	private lastChatMetrics?: ChatMetrics;
 
 	constructor(config: WorkflowBuilderAgentConfig) {
 		this.parsedNodeTypes = config.parsedNodeTypes;
@@ -159,6 +167,10 @@ export class WorkflowBuilderAgent {
 		})) as TypedStateSnapshot;
 	}
 
+	getLastChatMetrics(): ChatMetrics | undefined {
+		return this.lastChatMetrics;
+	}
+
 	private getDefaultWorkflowJSON(payload: ChatPayload): SimpleWorkflow {
 		return (
 			(payload.workflowContext?.currentWorkflow as SimpleWorkflow) ?? {
@@ -174,13 +186,19 @@ export class WorkflowBuilderAgent {
 		abortSignal?: AbortSignal,
 		externalCallbacks?: Callbacks,
 	) {
+		this.lastChatMetrics = undefined;
 		this.validateMessageLength(payload.message);
+
+		const startTime = Date.now();
 
 		// Feature flag: Route to CodeWorkflowBuilder if enabled (default: false)
 		const useCodeWorkflowBuilder = payload.featureFlags?.codeBuilder ?? false;
 
 		if (useCodeWorkflowBuilder) {
 			this.logger?.debug('Routing to CodeWorkflowBuilder', { userId });
+
+			let accumulatedInputTokens = 0;
+			let accumulatedOutputTokens = 0;
 
 			// Use CodeWorkflowBuilder (unified code builder agent)
 			const codeWorkflowBuilder = new CodeWorkflowBuilder({
@@ -196,20 +214,32 @@ export class WorkflowBuilderAgent {
 					userMessageId: payload.id,
 				},
 				onTelemetryEvent: this.onTelemetryEvent,
+				onTokenUsage: (usage) => {
+					accumulatedInputTokens += usage.inputTokens;
+					accumulatedOutputTokens += usage.outputTokens;
+				},
 			});
 
 			yield* codeWorkflowBuilder.chat(payload, userId ?? 'unknown', abortSignal);
+
+			this.lastChatMetrics = {
+				durationMs: Date.now() - startTime,
+				inputTokens: accumulatedInputTokens,
+				outputTokens: accumulatedOutputTokens,
+			};
 			return;
 		}
 
 		// Fall back to legacy multi-agent system
 		this.logger?.debug('Routing to legacy multi-agent system', { userId });
 
+		const tokenTracker = new TokenUsageTrackingHandler();
 		const { agent, threadConfig, streamConfig } = this.setupAgentAndConfigs(
 			payload,
 			userId,
 			abortSignal,
 			externalCallbacks,
+			tokenTracker,
 		);
 
 		try {
@@ -218,6 +248,13 @@ export class WorkflowBuilderAgent {
 		} catch (error: unknown) {
 			this.handleStreamError(error);
 		}
+
+		const tokenUsage = tokenTracker.getUsage();
+		this.lastChatMetrics = {
+			durationMs: Date.now() - startTime,
+			inputTokens: tokenUsage.inputTokens,
+			outputTokens: tokenUsage.outputTokens,
+		};
 	}
 
 	private validateMessageLength(message: string): void {
@@ -238,6 +275,7 @@ export class WorkflowBuilderAgent {
 		userId?: string,
 		abortSignal?: AbortSignal,
 		externalCallbacks?: Callbacks,
+		tokenTracker?: TokenUsageTrackingHandler,
 	) {
 		const agent = this.createWorkflow(payload.featureFlags);
 		const workflowId = payload.workflowContext?.currentWorkflow?.id;
@@ -249,14 +287,20 @@ export class WorkflowBuilderAgent {
 				thread_id: threadId,
 			},
 		};
+
+		const baseCallbacks = externalCallbacks ?? (this.tracer ? [this.tracer] : undefined);
+		let callbacks: Callbacks | undefined = baseCallbacks;
+		if (tokenTracker) {
+			const baseArray = Array.isArray(baseCallbacks) ? baseCallbacks : [];
+			callbacks = [...baseArray, tokenTracker];
+		}
+
 		const streamConfig = {
 			...threadConfig,
 			streamMode: ['updates', 'custom'] as const,
 			recursionLimit: MAX_MULTI_AGENT_STREAM_ITERATIONS,
 			signal: abortSignal,
-			// Use external callbacks if provided (e.g., from LangSmith traceable context),
-			// otherwise fall back to the instance tracer
-			callbacks: externalCallbacks ?? (this.tracer ? [this.tracer] : undefined),
+			callbacks,
 			metadata: this.runMetadata,
 			// Enable subgraph streaming for multi-agent architecture
 			subgraphs: true,

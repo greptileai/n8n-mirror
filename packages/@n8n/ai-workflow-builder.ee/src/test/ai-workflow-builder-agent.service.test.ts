@@ -1,4 +1,5 @@
 import { ChatAnthropic } from '@langchain/anthropic';
+import { AIMessage } from '@langchain/core/messages';
 import type { BaseMessage } from '@langchain/core/messages';
 import { MemorySaver } from '@langchain/langgraph';
 import type { Logger } from '@n8n/backend-common';
@@ -651,6 +652,112 @@ describe('AiWorkflowBuilderService', () => {
 				workflowId,
 				'test-user-id',
 				undefined,
+			);
+		});
+	});
+
+	describe('telemetry metrics', () => {
+		let mockOnTelemetry: jest.Mock;
+		let serviceWithTelemetry: AiWorkflowBuilderService;
+
+		beforeEach(() => {
+			mockOnTelemetry = jest.fn();
+			serviceWithTelemetry = new AiWorkflowBuilderService(
+				mockNodeTypeDescriptions,
+				mockClient,
+				mockLogger,
+				'test-instance-id',
+				'https://n8n.example.com',
+				'1.0.0',
+				mockOnCreditsUpdated,
+				mockOnTelemetry,
+			);
+		});
+
+		it('should include duration_ms, input_tokens, output_tokens in telemetry when metrics available', async () => {
+			// Override the mock to also return getLastChatMetrics and getState
+			MockedWorkflowBuilderAgent.mockImplementation((agentConfig) => {
+				const mockAgent = mock<WorkflowBuilderAgent>();
+				(mockAgent.chat as jest.Mock).mockImplementation(async function* () {
+					yield { messages: [{ role: 'assistant', type: 'message', text: 'Test response' }] };
+					if (agentConfig.onGenerationSuccess) {
+						await agentConfig.onGenerationSuccess();
+					}
+				});
+				(mockAgent.getLastChatMetrics as jest.Mock).mockReturnValue({
+					durationMs: 1500,
+					inputTokens: 1000,
+					outputTokens: 200,
+				});
+				(mockAgent.getState as jest.Mock).mockResolvedValue({
+					values: {
+						messages: [new AIMessage({ content: 'Test AI response', id: 'msg-1' })],
+						techniqueCategories: [],
+						validationHistory: [],
+						templateIds: [],
+					},
+				});
+				return mockAgent;
+			});
+
+			const mockPayload: ChatPayload = {
+				id: '12345',
+				message: 'Create a workflow',
+				workflowContext: { currentWorkflow: { id: 'wf-1' } },
+			};
+
+			const generator = serviceWithTelemetry.chat(mockPayload, mockUser);
+			for await (const _ of generator) {
+				// consume
+			}
+
+			expect(mockOnTelemetry).toHaveBeenCalledWith(
+				'Builder replied to user message',
+				expect.objectContaining({
+					duration_ms: 1500,
+					input_tokens: 1000,
+					output_tokens: 200,
+				}),
+			);
+		});
+
+		it('should not include metrics fields in telemetry when metrics are undefined', async () => {
+			MockedWorkflowBuilderAgent.mockImplementation((agentConfig) => {
+				const mockAgent = mock<WorkflowBuilderAgent>();
+				(mockAgent.chat as jest.Mock).mockImplementation(async function* () {
+					yield { messages: [{ role: 'assistant', type: 'message', text: 'Test response' }] };
+					if (agentConfig.onGenerationSuccess) {
+						await agentConfig.onGenerationSuccess();
+					}
+				});
+				(mockAgent.getLastChatMetrics as jest.Mock).mockReturnValue(undefined);
+				(mockAgent.getState as jest.Mock).mockResolvedValue({
+					values: {
+						messages: [new AIMessage({ content: 'Test AI response', id: 'msg-1' })],
+						techniqueCategories: [],
+						validationHistory: [],
+						templateIds: [],
+					},
+				});
+				return mockAgent;
+			});
+
+			const mockPayload: ChatPayload = {
+				id: '12345',
+				message: 'Create a workflow',
+				workflowContext: { currentWorkflow: { id: 'wf-1' } },
+			};
+
+			const generator = serviceWithTelemetry.chat(mockPayload, mockUser);
+			for await (const _ of generator) {
+				// consume
+			}
+
+			expect(mockOnTelemetry).toHaveBeenCalledWith(
+				'Builder replied to user message',
+				expect.not.objectContaining({
+					duration_ms: expect.anything(),
+				}),
 			);
 		});
 	});

@@ -272,5 +272,34 @@ describe('WorkflowBuilderAgent', () => {
 				await generator.next();
 			}).rejects.toThrow(unknownError);
 		});
+
+		it('should populate lastChatMetrics with duration after multi-agent chat completes', async () => {
+			const mockStreamOutput: StreamOutput = {
+				messages: [{ role: 'assistant', type: 'message', text: 'Done' }],
+			};
+			mockCreateStreamProcessor.mockReturnValue(
+				(async function* () {
+					yield mockStreamOutput;
+				})(),
+			);
+
+			const generator = agent.chat(mockPayload);
+			// Drain the generator
+			for await (const _ of generator) {
+				// consume
+			}
+
+			const metrics = agent.getLastChatMetrics();
+			expect(metrics).toBeDefined();
+			expect(metrics!.durationMs).toBeGreaterThanOrEqual(0);
+			expect(typeof metrics!.inputTokens).toBe('number');
+			expect(typeof metrics!.outputTokens).toBe('number');
+		});
+	});
+
+	describe('getLastChatMetrics', () => {
+		it('should return undefined before any chat call', () => {
+			expect(agent.getLastChatMetrics()).toBeUndefined();
+		});
 	});
 });
