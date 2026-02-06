@@ -5,18 +5,34 @@
  * Can be run directly or used as a reference for custom setups.
  */
 
-import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import type { INodeTypeDescription } from 'n8n-workflow';
 import pLimit from 'p-limit';
 
+import type { CoordinationLogEntry } from '@/types/coordination';
 import type { SimpleWorkflow } from '@/types/workflow';
 import type { BuilderFeatureFlags } from '@/workflow-builder-agent';
 
 import {
+	argsToStageModels,
 	getDefaultDatasetName,
 	getDefaultExperimentName,
 	parseEvaluationArgs,
 } from './argument-parser';
+import { buildCIMetadata } from './ci-metadata';
+import {
+	loadTestCasesFromCsv,
+	loadDefaultTestCases,
+	getDefaultTestCaseIds,
+} from './csv-prompt-loader';
+import { sendWebhookNotification } from './webhook';
+import {
+	consumeGenerator,
+	extractSubgraphMetrics,
+	getChatPayload,
+} from '../harness/evaluation-helpers';
+import { createLogger } from '../harness/logger';
+import type { GenerationCollectors } from '../harness/runner';
+import { TokenUsageTrackingHandler } from '../harness/token-tracking-handler';
 import {
 	runEvaluation,
 	createConsoleLifecycle,
@@ -29,34 +45,44 @@ import {
 	type Evaluator,
 	type EvaluationContext,
 } from '../index';
-import {
-	loadTestCasesFromCsv,
-	loadDefaultTestCases,
-	getDefaultTestCaseIds,
-} from './csv-prompt-loader';
-import { consumeGenerator, getChatPayload } from '../harness/evaluation-helpers';
-import { createLogger } from '../harness/logger';
 import { generateRunId, isWorkflowStateValues } from '../langsmith/types';
 import { EVAL_TYPES, EVAL_USERS } from '../support/constants';
-import { setupTestEnvironment, createAgent } from '../support/environment';
+import { setupTestEnvironment, createAgent, type ResolvedStageLLMs } from '../support/environment';
+
+/**
+ * Type guard to check if state values contain a coordination log.
+ */
+function hasCoordinationLog(
+	values: unknown,
+): values is { coordinationLog: CoordinationLogEntry[] } {
+	if (!values || typeof values !== 'object') return false;
+	const obj = values as Record<string, unknown>;
+	return Array.isArray(obj.coordinationLog);
+}
 
 /**
  * Create a workflow generator function.
- * NOTE: Don't pass a tracer - LangSmith tracing is handled via traceable() in the runner.
+ * LangSmith tracing is handled via traceable() in the runner.
+ * Callbacks are passed explicitly from the runner to ensure correct trace context
+ * under high concurrency (avoids AsyncLocalStorage race conditions).
  */
 function createWorkflowGenerator(
 	parsedNodeTypes: INodeTypeDescription[],
-	llm: BaseChatModel,
+	llms: ResolvedStageLLMs,
 	featureFlags?: BuilderFeatureFlags,
-): (prompt: string) => Promise<SimpleWorkflow> {
-	return async (prompt: string): Promise<SimpleWorkflow> => {
+): (prompt: string, collectors?: GenerationCollectors) => Promise<SimpleWorkflow> {
+	return async (prompt: string, collectors?: GenerationCollectors): Promise<SimpleWorkflow> => {
 		const runId = generateRunId();
 
 		const agent = createAgent({
 			parsedNodeTypes,
-			llm,
+			llms,
 			featureFlags,
 		});
+
+		// Create token tracking handler to capture usage from all LLM calls
+		// (supervisor, discovery, builder, responder agents)
+		const tokenTracker = collectors?.tokenUsage ? new TokenUsageTrackingHandler() : undefined;
 
 		await consumeGenerator(
 			agent.chat(
@@ -67,6 +93,8 @@ function createWorkflowGenerator(
 					featureFlags,
 				}),
 				EVAL_USERS.LANGSMITH,
+				undefined, // abortSignal
+				tokenTracker ? [tokenTracker] : undefined, // externalCallbacks
 			),
 		);
 
@@ -76,7 +104,35 @@ function createWorkflowGenerator(
 			throw new Error('Invalid workflow state: workflow or messages missing');
 		}
 
-		return state.values.workflowJSON;
+		const workflow = state.values.workflowJSON;
+
+		// Report accumulated token usage from all agents
+		if (collectors?.tokenUsage && tokenTracker) {
+			const usage = tokenTracker.getUsage();
+			if (usage.inputTokens > 0 || usage.outputTokens > 0) {
+				collectors.tokenUsage(usage);
+			}
+		}
+
+		// Extract and report subgraph metrics from coordination log
+		if (collectors?.subgraphMetrics) {
+			const coordinationLog = hasCoordinationLog(state.values)
+				? state.values.coordinationLog
+				: undefined;
+			const nodeCount = workflow.nodes?.length;
+			const metrics = extractSubgraphMetrics(coordinationLog, nodeCount);
+
+			if (
+				metrics.discoveryDurationMs !== undefined ||
+				metrics.builderDurationMs !== undefined ||
+				metrics.responderDurationMs !== undefined ||
+				metrics.nodeCount !== undefined
+			) {
+				collectors.subgraphMetrics(metrics);
+			}
+		}
+
+		return workflow;
 	};
 }
 
@@ -141,32 +197,36 @@ export async function runV2Evaluation(): Promise<void> {
 		);
 	}
 
-	// Setup environment
+	// Setup environment with per-stage model configuration
 	const logger = createLogger(args.verbose);
 	const lifecycle = createConsoleLifecycle({ verbose: args.verbose, logger });
-	const env = await setupTestEnvironment(logger);
+	const stageModels = argsToStageModels(args);
+	const env = await setupTestEnvironment(stageModels, logger);
 
 	// Validate LangSmith client early if langsmith backend is requested
 	if (args.backend === 'langsmith' && !env.lsClient) {
 		throw new Error('LangSmith client not initialized - check LANGSMITH_API_KEY');
 	}
 
-	// Create workflow generator (tracing handled via traceable() in runner)
-	const generateWorkflow = createWorkflowGenerator(env.parsedNodeTypes, env.llm, args.featureFlags);
+	// Create workflow generator with per-stage LLMs
+	const generateWorkflow = createWorkflowGenerator(
+		env.parsedNodeTypes,
+		env.llms,
+		args.featureFlags,
+	);
 
-	// Create evaluators based on mode
+	// Create evaluators based on mode (using judge LLM for evaluation)
 	const evaluators: Array<Evaluator<EvaluationContext>> = [];
 
 	switch (args.suite) {
 		case 'llm-judge':
-			evaluators.push(createLLMJudgeEvaluator(env.llm, env.parsedNodeTypes));
+			evaluators.push(createLLMJudgeEvaluator(env.llms.judge, env.parsedNodeTypes));
 			evaluators.push(createProgrammaticEvaluator(env.parsedNodeTypes));
 			break;
 		case 'pairwise':
 			evaluators.push(
-				createPairwiseEvaluator(env.llm, {
+				createPairwiseEvaluator(env.llms.judge, {
 					numJudges: args.numJudges,
-					numGenerations: args.numGenerations,
 				}),
 			);
 			evaluators.push(createProgrammaticEvaluator(env.parsedNodeTypes));
@@ -179,8 +239,6 @@ export async function runV2Evaluation(): Promise<void> {
 			break;
 	}
 
-	// Build context - include generateWorkflow for multi-gen pairwise
-	const isMultiGen = args.suite === 'pairwise' && args.numGenerations > 1;
 	const llmCallLimiter = pLimit(args.concurrency);
 
 	const baseConfig = {
@@ -189,8 +247,10 @@ export async function runV2Evaluation(): Promise<void> {
 		lifecycle,
 		logger,
 		outputDir: args.outputDir,
+		outputCsv: args.outputCsv,
+		suite: args.suite,
 		timeoutMs: args.timeoutMs,
-		context: isMultiGen ? { generateWorkflow, llmCallLimiter } : { llmCallLimiter },
+		context: { llmCallLimiter },
 	};
 
 	const config: RunConfig =
@@ -206,15 +266,13 @@ export async function runV2Evaluation(): Promise<void> {
 						concurrency: args.concurrency,
 						maxExamples: args.maxExamples,
 						filters: args.filters,
-						experimentMetadata:
-							args.suite === 'pairwise'
-								? {
-										numJudges: args.numJudges,
-										numGenerations: args.numGenerations,
-										scoringMethod:
-											args.numGenerations > 1 ? 'hierarchical-multi-generation' : 'hierarchical',
-									}
-								: undefined,
+						experimentMetadata: {
+							...buildCIMetadata(),
+							...(args.suite === 'pairwise' && {
+								numJudges: args.numJudges,
+								scoringMethod: 'hierarchical',
+							}),
+						},
 					},
 				}
 			: {
@@ -226,10 +284,25 @@ export async function runV2Evaluation(): Promise<void> {
 	// Run evaluation
 	const summary = await runEvaluation(config);
 
-	// Exit with appropriate code
-	// Check pass rate
-	const passRate = summary.totalExamples > 0 ? summary.passed / summary.totalExamples : 0;
-	process.exit(passRate >= 0.7 ? 0 : 1);
+	if (args.webhookUrl) {
+		const dataset =
+			args.backend === 'langsmith'
+				? (args.datasetName ?? getDefaultDatasetName(args.suite))
+				: 'local-dataset';
+
+		await sendWebhookNotification({
+			webhookUrl: args.webhookUrl,
+			webhookSecret: args.webhookSecret,
+			summary,
+			dataset,
+			suite: args.suite,
+			metadata: { ...buildCIMetadata() },
+			logger,
+		});
+	}
+
+	// Always exit 0 on successful completion - pass/fail is informational, not an error
+	process.exit(0);
 }
 
 // Run if called directly

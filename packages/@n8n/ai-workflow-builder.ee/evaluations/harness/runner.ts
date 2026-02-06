@@ -20,14 +20,44 @@ import type {
 	RunSummary,
 	EvaluationLifecycle,
 	LangsmithExampleFilters,
+	LlmCallLimiter,
 } from './harness-types.js';
 import type { EvalLogger } from './logger';
 import { createArtifactSaver, type ArtifactSaver } from './output';
-import { calculateWeightedScore } from './score-calculator';
+import {
+	calculateWeightedScore,
+	selectScoringItems,
+	calculateFiniteAverage,
+} from './score-calculator';
 import type { SimpleWorkflow } from '../../src/types/workflow.js';
 import { extractMessageContent } from '../langsmith/types';
 
 const DEFAULT_PASS_THRESHOLD = 0.7;
+
+/**
+ * Callback to collect token usage from generation.
+ * Called after each workflow generation with the token counts.
+ */
+export type TokenUsageCollector = (usage: { inputTokens: number; outputTokens: number }) => void;
+
+/**
+ * Callback to collect subgraph metrics from generation.
+ * Called after each workflow generation with timing and node count data.
+ */
+export type SubgraphMetricsCollector = (metrics: {
+	discoveryDurationMs?: number;
+	builderDurationMs?: number;
+	responderDurationMs?: number;
+	nodeCount?: number;
+}) => void;
+
+/**
+ * Combined collectors for workflow generation metrics.
+ */
+export interface GenerationCollectors {
+	tokenUsage?: TokenUsageCollector;
+	subgraphMetrics?: SubgraphMetricsCollector;
+}
 
 /**
  * Run evaluators in parallel for a single workflow.
@@ -85,6 +115,57 @@ function determineStatus(args: { score: number; passThreshold: number }): 'pass'
 
 function hasErrorFeedback(feedback: Feedback[]): boolean {
 	return feedback.some((f) => f.metric === 'error');
+}
+
+/**
+ * Create feedback items for subgraph metrics.
+ * These are reported to LangSmith as 'metrics' evaluator feedback.
+ */
+function createMetricsFeedback(args: {
+	discoveryDurationMs?: number;
+	builderDurationMs?: number;
+	responderDurationMs?: number;
+	nodeCount?: number;
+}): Feedback[] {
+	const feedback: Feedback[] = [];
+
+	if (args.discoveryDurationMs !== undefined) {
+		feedback.push({
+			evaluator: 'metrics',
+			metric: 'discovery_latency_ms',
+			score: args.discoveryDurationMs,
+			kind: 'metric',
+		});
+	}
+
+	if (args.builderDurationMs !== undefined) {
+		feedback.push({
+			evaluator: 'metrics',
+			metric: 'builder_latency_ms',
+			score: args.builderDurationMs,
+			kind: 'metric',
+		});
+	}
+
+	if (args.responderDurationMs !== undefined) {
+		feedback.push({
+			evaluator: 'metrics',
+			metric: 'responder_latency_ms',
+			score: args.responderDurationMs,
+			kind: 'metric',
+		});
+	}
+
+	if (args.nodeCount !== undefined) {
+		feedback.push({
+			evaluator: 'metrics',
+			metric: 'node_count',
+			score: args.nodeCount,
+			kind: 'metric',
+		});
+	}
+
+	return feedback;
 }
 
 /**
@@ -346,7 +427,7 @@ async function runLocalExample(args: {
 	index: number;
 	total: number;
 	testCase: TestCase;
-	generateWorkflow: (prompt: string) => Promise<SimpleWorkflow>;
+	generateWorkflow: (prompt: string, collectors?: GenerationCollectors) => Promise<SimpleWorkflow>;
 	evaluators: Array<Evaluator<EvaluationContext>>;
 	globalContext?: GlobalRunContext;
 	passThreshold: number;
@@ -371,11 +452,31 @@ async function runLocalExample(args: {
 	lifecycle?.onExampleStart?.(index, total, testCase.prompt);
 
 	try {
-		// Generate workflow
+		// Generate workflow with metrics collection
 		const genStartTime = Date.now();
+		let genInputTokens: number | undefined;
+		let genOutputTokens: number | undefined;
+		let discoveryDurationMs: number | undefined;
+		let builderDurationMs: number | undefined;
+		let responderDurationMs: number | undefined;
+		let nodeCount: number | undefined;
+
+		const collectors: GenerationCollectors = {
+			tokenUsage: (usage) => {
+				genInputTokens = usage.inputTokens;
+				genOutputTokens = usage.outputTokens;
+			},
+			subgraphMetrics: (metrics) => {
+				discoveryDurationMs = metrics.discoveryDurationMs;
+				builderDurationMs = metrics.builderDurationMs;
+				responderDurationMs = metrics.responderDurationMs;
+				nodeCount = metrics.nodeCount;
+			},
+		};
+
 		const workflow = await runWithOptionalLimiter(async () => {
 			return await withTimeout({
-				promise: generateWorkflow(testCase.prompt),
+				promise: generateWorkflow(testCase.prompt, collectors),
 				timeoutMs,
 				label: 'workflow_generation',
 			});
@@ -412,6 +513,15 @@ async function runLocalExample(args: {
 			durationMs,
 			generationDurationMs: genDurationMs,
 			evaluationDurationMs: evalDurationMs,
+			generationInputTokens: genInputTokens,
+			generationOutputTokens: genOutputTokens,
+			subgraphMetrics:
+				discoveryDurationMs !== undefined ||
+				builderDurationMs !== undefined ||
+				responderDurationMs !== undefined ||
+				nodeCount !== undefined
+					? { discoveryDurationMs, builderDurationMs, responderDurationMs, nodeCount }
+					: undefined,
 			workflow,
 		};
 
@@ -459,7 +569,7 @@ function createArtifactSaverIfRequested(args: {
 
 async function runLocalDataset(params: {
 	testCases: TestCase[];
-	generateWorkflow: (prompt: string) => Promise<SimpleWorkflow>;
+	generateWorkflow: (prompt: string, collectors?: GenerationCollectors) => Promise<SimpleWorkflow>;
 	evaluators: Array<Evaluator<EvaluationContext>>;
 	globalContext?: GlobalRunContext;
 	passThreshold: number;
@@ -518,6 +628,87 @@ function buildRunSummary(results: ExampleResult[]): RunSummary {
 	};
 }
 
+/**
+ * Compute average scores per evaluator from example results.
+ */
+function computeEvaluatorAverages(
+	results: ExampleResult[],
+	logger?: EvalLogger,
+): Record<string, number> {
+	const evaluatorStats: Record<string, { scores: number[] }> = {};
+
+	for (const result of results) {
+		// Group feedback by evaluator
+		const byEvaluator: Record<string, Feedback[]> = {};
+		for (const fb of result.feedback) {
+			if (!byEvaluator[fb.evaluator]) byEvaluator[fb.evaluator] = [];
+			byEvaluator[fb.evaluator].push(fb);
+		}
+
+		// Calculate per-evaluator average for this example
+		for (const [evaluator, items] of Object.entries(byEvaluator)) {
+			if (!evaluatorStats[evaluator]) {
+				evaluatorStats[evaluator] = { scores: [] };
+			}
+			const scoringItems = selectScoringItems(items);
+			const avg = calculateFiniteAverage(scoringItems);
+			evaluatorStats[evaluator].scores.push(avg);
+		}
+	}
+
+	// Compute overall average per evaluator
+	const evaluatorAverages: Record<string, number> = {};
+	for (const [name, stats] of Object.entries(evaluatorStats)) {
+		const avg = stats.scores.reduce((a, b) => a + b, 0) / stats.scores.length;
+		logger?.verbose(
+			`[computeEvaluatorAverages] Final avg for "${name}": ${stats.scores.join(', ')} -> ${avg}`,
+		);
+		evaluatorAverages[name] = avg;
+	}
+
+	logger?.verbose(`[computeEvaluatorAverages] Final result: ${JSON.stringify(evaluatorAverages)}`);
+	return evaluatorAverages;
+}
+
+interface LangsmithSummaryParams {
+	stats: {
+		total: number;
+		passed: number;
+		failed: number;
+		errors: number;
+		scoreSum: number;
+		durationSumMs: number;
+	};
+	langsmithData: {
+		experimentName?: string;
+		experimentId?: string;
+		datasetId?: string;
+	};
+	evaluatorAverages?: Record<string, number>;
+}
+
+function buildLangsmithSummary(params: LangsmithSummaryParams): RunSummary {
+	const { stats, langsmithData, evaluatorAverages } = params;
+	const { experimentName, experimentId, datasetId } = langsmithData;
+
+	const summary: RunSummary = {
+		totalExamples: stats.total,
+		passed: stats.passed,
+		failed: stats.failed,
+		errors: stats.errors,
+		averageScore: stats.total > 0 ? stats.scoreSum / stats.total : 0,
+		totalDurationMs: stats.durationSumMs,
+		evaluatorAverages,
+	};
+
+	// Add LangSmith IDs if available
+	if (experimentName && experimentId && datasetId) {
+		summary.langsmith = { experimentName, experimentId, datasetId };
+	}
+
+	return summary;
+}
+
 async function runLocal(config: LocalRunConfig): Promise<RunSummary> {
 	const {
 		dataset,
@@ -528,6 +719,8 @@ async function runLocal(config: LocalRunConfig): Promise<RunSummary> {
 		timeoutMs,
 		lifecycle,
 		outputDir,
+		outputCsv,
+		suite,
 		logger,
 	} = config;
 
@@ -561,6 +754,15 @@ async function runLocal(config: LocalRunConfig): Promise<RunSummary> {
 
 	// Save summary to disk if outputDir is provided
 	artifactSaver?.saveSummary(summary, results);
+
+	// Write CSV if requested
+	if (outputCsv) {
+		const { writeResultsCsv } = await import('./csv-writer.js');
+		// Map suite to CSV format (only llm-judge and pairwise are supported)
+		const csvSuite = suite === 'llm-judge' || suite === 'pairwise' ? suite : undefined;
+		writeResultsCsv(results, outputCsv, { suite: csvSuite });
+		logger.info(`Results written to: ${outputCsv}`);
+	}
 
 	lifecycle?.onEnd?.(summary);
 
@@ -694,7 +896,11 @@ async function runLangsmithEvaluateAndFlush(params: {
 	lsClient: LangsmithRunConfig['langsmithClient'];
 	logger: EvalLogger;
 	targetCallCount: () => number;
-}): Promise<void> {
+}): Promise<{
+	experimentName?: string;
+	experimentId?: string;
+	datasetId?: string;
+}> {
 	const {
 		target,
 		effectiveData,
@@ -714,7 +920,7 @@ async function runLangsmithEvaluateAndFlush(params: {
 	const { runType, filterValue } = computeFilterMetadata(langsmithOptions.filters);
 
 	const evalStartTime = Date.now();
-	await evaluate(target, {
+	const experimentResults = await evaluate(target, {
 		data: effectiveData,
 		evaluators: [feedbackExtractor],
 		experimentPrefix: langsmithOptions.experimentName,
@@ -741,11 +947,34 @@ async function runLangsmithEvaluateAndFlush(params: {
 	const flushStartTime = Date.now();
 	await lsClient.awaitPendingTraceBatches();
 	logger.verbose(`Flush completed in ${((Date.now() - flushStartTime) / 1000).toFixed(1)}s`);
+
+	const experimentName = experimentResults.experimentName;
+	logger.info(`Experiment completed: ${experimentName}`);
+
+	let experimentId: string | undefined;
+	let datasetId: string | undefined;
+
+	try {
+		const manager = (
+			experimentResults as unknown as {
+				manager?: { _getExperiment?: () => { id: string }; datasetId?: Promise<string> };
+			}
+		).manager;
+		if (manager?._getExperiment) {
+			experimentId = manager._getExperiment().id;
+		}
+		if (manager?.datasetId) {
+			datasetId = await manager.datasetId;
+		}
+	} catch {
+		logger.verbose('Could not extract LangSmith IDs from experiment results');
+	}
+
+	return { experimentName, experimentId, datasetId };
 }
 
 /**
  * Run evaluation in LangSmith mode.
- * This wraps generation + evaluation in a traceable function.
  */
 async function runLangsmith(config: LangsmithRunConfig): Promise<RunSummary> {
 	const {
@@ -754,6 +983,8 @@ async function runLangsmith(config: LangsmithRunConfig): Promise<RunSummary> {
 		evaluators,
 		context: globalContext,
 		outputDir,
+		outputCsv,
+		suite,
 		passThreshold = DEFAULT_PASS_THRESHOLD,
 		timeoutMs,
 		langsmithOptions,
@@ -774,12 +1005,37 @@ async function runLangsmith(config: LangsmithRunConfig): Promise<RunSummary> {
 	};
 
 	const artifactSaver = createArtifactSaverIfRequested({ outputDir, logger });
-	const capturedResults: ExampleResult[] | null = artifactSaver ? [] : null;
+	const capturedResults: ExampleResult[] = [];
+
+	// Create traceable wrapper ONCE outside target function to avoid context leaking
+	// when running concurrent evaluations. Pass all parameters explicitly (no closures).
+	// IMPORTANT: Get callbacks INSIDE the traceable wrapper where AsyncLocalStorage context
+	// is correctly set, then pass them explicitly to genFn to avoid race conditions.
+	const traceableGenerateWorkflow = traceable(
+		async (args: {
+			prompt: string;
+			genFn: (prompt: string, collectors?: GenerationCollectors) => Promise<SimpleWorkflow>;
+			collectors?: GenerationCollectors;
+			limiter?: LlmCallLimiter;
+			genTimeoutMs?: number;
+		}): Promise<SimpleWorkflow> => {
+			return await runWithOptionalLimiter(async () => {
+				return await withTimeout({
+					promise: args.genFn(args.prompt, args.collectors),
+					timeoutMs: args.genTimeoutMs,
+					label: 'workflow_generation',
+				});
+			}, args.limiter);
+		},
+		{
+			name: 'workflow_generation',
+			run_type: 'chain',
+			client: lsClient,
+		},
+	);
 
 	// Create target function that does ALL work (generation + evaluation)
-	// NOTE: Do NOT wrap target with traceable() - evaluate() handles that automatically
-	// and applies critical options (on_end callback, reference_example_id, client).
-	// Only wrap inner operations with traceable() for child traces.
+	// NOTE: Do NOT wrap target with traceable() - evaluate() handles tracing automatically.
 	let targetCallCount = 0;
 	let totalExamples = 0;
 	const stats = {
@@ -801,26 +1057,35 @@ async function runLangsmith(config: LangsmithRunConfig): Promise<RunSummary> {
 		const startTime = Date.now();
 		const genStart = Date.now();
 
-		try {
-			const limiter = effectiveGlobalContext.llmCallLimiter;
+		// Metrics collection for this example
+		let genInputTokens: number | undefined;
+		let genOutputTokens: number | undefined;
+		let discoveryDurationMs: number | undefined;
+		let builderDurationMs: number | undefined;
+		let responderDurationMs: number | undefined;
+		let nodeCount: number | undefined;
 
-			// Generate workflow - wrapped in traceable for proper child trace visibility
-			const traceableGenerate = traceable(
-				async () =>
-					await runWithOptionalLimiter(async () => {
-						return await withTimeout({
-							promise: generateWorkflow(prompt),
-							timeoutMs,
-							label: 'workflow_generation',
-						});
-					}, limiter),
-				{
-					name: 'workflow_generation',
-					run_type: 'chain',
-					client: lsClient,
-				},
-			);
-			const workflow = await traceableGenerate();
+		const collectors: GenerationCollectors = {
+			tokenUsage: (usage) => {
+				genInputTokens = usage.inputTokens;
+				genOutputTokens = usage.outputTokens;
+			},
+			subgraphMetrics: (metrics) => {
+				discoveryDurationMs = metrics.discoveryDurationMs;
+				builderDurationMs = metrics.builderDurationMs;
+				responderDurationMs = metrics.responderDurationMs;
+				nodeCount = metrics.nodeCount;
+			},
+		};
+
+		try {
+			const workflow = await traceableGenerateWorkflow({
+				prompt,
+				genFn: generateWorkflow,
+				collectors,
+				limiter: effectiveGlobalContext.llmCallLimiter,
+				genTimeoutMs: timeoutMs,
+			});
 			const genDurationMs = Date.now() - genStart;
 			lifecycle?.onWorkflowGenerated?.(workflow, genDurationMs);
 
@@ -868,17 +1133,35 @@ async function runLangsmith(config: LangsmithRunConfig): Promise<RunSummary> {
 				durationMs: totalDurationMs,
 				generationDurationMs: genDurationMs,
 				evaluationDurationMs: evalDurationMs,
+				generationInputTokens: genInputTokens,
+				generationOutputTokens: genOutputTokens,
+				subgraphMetrics:
+					discoveryDurationMs !== undefined ||
+					builderDurationMs !== undefined ||
+					responderDurationMs !== undefined ||
+					nodeCount !== undefined
+						? { discoveryDurationMs, builderDurationMs, responderDurationMs, nodeCount }
+						: undefined,
 				workflow,
 			};
 
 			artifactSaver?.saveExample(result);
-			capturedResults?.push(result);
+			capturedResults.push(result);
 			lifecycle?.onExampleComplete?.(index, result);
+
+			// Create metrics feedback for LangSmith (subgraph timing + node count)
+			const metricsFeedback = createMetricsFeedback({
+				discoveryDurationMs,
+				builderDurationMs,
+				responderDurationMs,
+				nodeCount,
+			});
 
 			return {
 				workflow,
 				prompt,
-				feedback,
+				// Include metrics feedback in the array sent to LangSmith
+				feedback: [...feedback, ...metricsFeedback],
 			};
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
@@ -911,7 +1194,7 @@ async function runLangsmith(config: LangsmithRunConfig): Promise<RunSummary> {
 			};
 
 			artifactSaver?.saveExample(result);
-			capturedResults?.push(result);
+			capturedResults.push(result);
 			lifecycle?.onExampleComplete?.(index, result);
 
 			return { workflow, prompt, feedback };
@@ -945,7 +1228,7 @@ async function runLangsmith(config: LangsmithRunConfig): Promise<RunSummary> {
 	totalExamples = Array.isArray(effectiveData) ? effectiveData.length : 0;
 
 	logLangsmithInputsSummary(logger, effectiveData);
-	await runLangsmithEvaluateAndFlush({
+	const { experimentName, experimentId, datasetId } = await runLangsmithEvaluateAndFlush({
 		target,
 		effectiveData,
 		feedbackExtractor,
@@ -955,18 +1238,27 @@ async function runLangsmith(config: LangsmithRunConfig): Promise<RunSummary> {
 		targetCallCount: () => targetCallCount,
 	});
 
-	// Return placeholder summary - LangSmith handles actual results
-	const summary: RunSummary = {
-		totalExamples: stats.total,
-		passed: stats.passed,
-		failed: stats.failed,
-		errors: stats.errors,
-		averageScore: stats.total > 0 ? stats.scoreSum / stats.total : 0,
-		totalDurationMs: stats.durationSumMs,
-	};
+	// Compute evaluator averages from captured results
 
-	if (artifactSaver && capturedResults) {
+	const evaluatorAverages = computeEvaluatorAverages(capturedResults, logger);
+
+	const summary: RunSummary = buildLangsmithSummary({
+		stats,
+		langsmithData: { experimentName, experimentId, datasetId },
+		evaluatorAverages,
+	});
+
+	if (artifactSaver) {
 		artifactSaver.saveSummary(summary, capturedResults);
+	}
+
+	// Write CSV if requested
+	if (outputCsv) {
+		const { writeResultsCsv } = await import('./csv-writer.js');
+		// Map suite to CSV format (only llm-judge and pairwise are supported)
+		const csvSuite = suite === 'llm-judge' || suite === 'pairwise' ? suite : undefined;
+		writeResultsCsv(capturedResults, outputCsv, { suite: csvSuite });
+		logger.info(`Results written to: ${outputCsv}`);
 	}
 
 	lifecycle?.onEnd?.(summary);

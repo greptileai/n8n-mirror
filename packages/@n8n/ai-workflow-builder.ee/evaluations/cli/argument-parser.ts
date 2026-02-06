@@ -1,9 +1,12 @@
 /* eslint-disable @typescript-eslint/naming-convention */
 import { z } from 'zod';
 
-import type { BuilderFeatureFlags } from '../../src/workflow-builder-agent.js';
+import { AVAILABLE_MODELS, DEFAULT_MODEL, type ModelId } from '@/llm-config';
+import type { BuilderFeatureFlags } from '@/workflow-builder-agent';
+
 import type { LangsmithExampleFilters } from '../harness/harness-types';
 import { DEFAULTS } from '../support/constants';
+import type { StageModels } from '../support/environment.js';
 
 export type EvaluationSuite = 'llm-judge' | 'pairwise' | 'programmatic' | 'similarity';
 export type EvaluationBackend = 'local' | 'langsmith';
@@ -30,13 +33,47 @@ export interface EvaluationArgs {
 	donts?: string;
 
 	numJudges: number;
-	numGenerations: number;
 
 	featureFlags?: BuilderFeatureFlags;
+
+	/** URL to POST evaluation results to when complete */
+	webhookUrl?: string;
+	/** Secret for HMAC-SHA256 signature of webhook payload */
+	webhookSecret?: string;
+
+	/** CSV file path for evaluation results */
+	outputCsv?: string;
+
+	// Model configuration
+	/** Default model for all stages */
+	model: ModelId;
+	/** Model for LLM judge evaluation */
+	judgeModel?: ModelId;
+	/** Model for supervisor stage */
+	supervisorModel?: ModelId;
+	/** Model for responder stage */
+	responderModel?: ModelId;
+	/** Model for discovery stage */
+	discoveryModel?: ModelId;
+	/** Model for builder stage (structure and configuration) */
+	builderModel?: ModelId;
+	/** Model for parameter updater (within builder) */
+	parameterUpdaterModel?: ModelId;
 }
 
 type CliValueKind = 'boolean' | 'string';
-type FlagGroup = 'input' | 'eval' | 'pairwise' | 'langsmith' | 'output' | 'feature' | 'advanced';
+type FlagGroup =
+	| 'input'
+	| 'eval'
+	| 'pairwise'
+	| 'langsmith'
+	| 'output'
+	| 'feature'
+	| 'model'
+	| 'advanced';
+
+// Model ID validation schema
+const modelIdSchema = z.enum(AVAILABLE_MODELS as [ModelId, ...ModelId[]]);
 
 const cliSchema = z
 	.object({
@@ -49,6 +86,7 @@ const cliSchema = z
 		timeoutMs: z.coerce.number().int().positive().default(DEFAULTS.TIMEOUT_MS),
 		experimentName: z.string().min(1).optional(),
 		outputDir: z.string().min(1).optional(),
+		outputCsv: z.string().min(1).optional(),
 		datasetName: z.string().min(1).optional(),
 		maxExamples: z.coerce.number().int().positive().optional(),
 		filter: z.array(z.string().min(1)).default([]),
@@ -63,10 +101,20 @@ const cliSchema = z
 		donts: z.string().min(1).optional(),
 
 		numJudges: z.coerce.number().int().positive().default(DEFAULTS.NUM_JUDGES),
-		numGenerations: z.coerce.number().int().positive().max(10).default(DEFAULTS.NUM_GENERATIONS),
 
 		langsmith: z.boolean().optional(),
 		templateExamples: z.boolean().default(false),
+		webhookUrl: z.string().url().optional(),
+		webhookSecret: z.string().min(16).optional(),
+
+		// Model configuration
+		model: modelIdSchema.default(DEFAULT_MODEL),
+		judgeModel: modelIdSchema.optional(),
+		supervisorModel: modelIdSchema.optional(),
+		responderModel: modelIdSchema.optional(),
+		discoveryModel: modelIdSchema.optional(),
+		builderModel: modelIdSchema.optional(),
+		parameterUpdaterModel: modelIdSchema.optional(),
 	})
 	.strict();
 
@@ -177,7 +225,25 @@ const FLAG_DEFS: Record<string, FlagDef> = {
 		group: 'output',
 		desc: 'Directory for artifacts',
 	},
+	'--output-csv': {
+		key: 'outputCsv',
+		kind: 'string',
+		group: 'output',
+		desc: 'CSV file for evaluation results - if pre-existing file found it will be overwritten',
+	},
 	'--verbose': { key: 'verbose', kind: 'boolean', group: 'output', desc: 'Verbose logging' },
+	'--webhook-url': {
+		key: 'webhookUrl',
+		kind: 'string',
+		group: 'output',
+		desc: 'URL to POST results to when complete',
+	},
+	'--webhook-secret': {
+		key: 'webhookSecret',
+		kind: 'string',
+		group: 'output',
+		desc: 'Secret for HMAC-SHA256 signature (min 16 chars)',
+	},
 
 	// Feature flags
 	'--template-examples': {
@@ -187,14 +253,52 @@ const FLAG_DEFS: Record<string, FlagDef> = {
 		desc: 'Enable template examples phase',
 	},
 
+	// Model configuration
+	'--model': {
+		key: 'model',
+		kind: 'string',
+		group: 'model',
+		desc: `Default model for all stages (default: ${DEFAULT_MODEL})`,
+	},
+	'--judge-model': {
+		key: 'judgeModel',
+		kind: 'string',
+		group: 'model',
+		desc: 'Model for LLM judge evaluation',
+	},
+	'--supervisor-model': {
+		key: 'supervisorModel',
+		kind: 'string',
+		group: 'model',
+		desc: 'Model for supervisor stage',
+	},
+	'--responder-model': {
+		key: 'responderModel',
+		kind: 'string',
+		group: 'model',
+		desc: 'Model for responder stage',
+	},
+	'--discovery-model': {
+		key: 'discoveryModel',
+		kind: 'string',
+		group: 'model',
+		desc: 'Model for discovery stage',
+	},
+	'--builder-model': {
+		key: 'builderModel',
+		kind: 'string',
+		group: 'model',
+		desc: 'Model for builder stage (structure and configuration)',
+	},
+	'--parameter-updater-model': {
+		key: 'parameterUpdaterModel',
+		kind: 'string',
+		group: 'model',
+		desc: 'Model for parameter updater',
+	},
+
 	// Advanced
 	'--judges': { key: 'numJudges', kind: 'string', group: 'advanced', desc: 'Number of LLM judges' },
-	'--generations': {
-		key: 'numGenerations',
-		kind: 'string',
-		group: 'advanced',
-		desc: 'Workflow generations per prompt',
-	},
 };
 
 // Aliases (not shown in help)
@@ -225,6 +329,7 @@ const GROUP_TITLES: Record<FlagGroup, string> = {
 	langsmith: 'LangSmith Options',
 	output: 'Output',
 	feature: 'Feature Flags',
+	model: 'Model Configuration',
 	advanced: 'Advanced',
 };
 
@@ -243,6 +348,7 @@ function formatHelp(): string {
 		'langsmith',
 		'output',
 		'feature',
+		'model',
 		'advanced',
 	];
 
@@ -429,6 +535,7 @@ export function parseEvaluationArgs(argv: string[] = process.argv.slice(2)): Eva
 		timeoutMs: parsed.timeoutMs,
 		experimentName: parsed.experimentName,
 		outputDir: parsed.outputDir,
+		outputCsv: parsed.outputCsv,
 		datasetName: parsed.datasetName,
 		maxExamples: parsed.maxExamples,
 		filters,
@@ -438,8 +545,32 @@ export function parseEvaluationArgs(argv: string[] = process.argv.slice(2)): Eva
 		dos: parsed.dos,
 		donts: parsed.donts,
 		numJudges: parsed.numJudges,
-		numGenerations: parsed.numGenerations,
 		featureFlags,
+		webhookUrl: parsed.webhookUrl,
+		webhookSecret: parsed.webhookSecret,
+		// Model configuration
+		model: parsed.model,
+		judgeModel: parsed.judgeModel,
+		supervisorModel: parsed.supervisorModel,
+		responderModel: parsed.responderModel,
+		discoveryModel: parsed.discoveryModel,
+		builderModel: parsed.builderModel,
+		parameterUpdaterModel: parsed.parameterUpdaterModel,
+	};
+}
+
+/**
+ * Converts EvaluationArgs to StageModels for use with environment setup.
+ */
+export function argsToStageModels(args: EvaluationArgs): StageModels {
+	return {
+		default: args.model,
+		supervisor: args.supervisorModel,
+		responder: args.responderModel,
+		discovery: args.discoveryModel,
+		builder: args.builderModel,
+		parameterUpdater: args.parameterUpdaterModel,
+		judge: args.judgeModel,
 	};
 }
 

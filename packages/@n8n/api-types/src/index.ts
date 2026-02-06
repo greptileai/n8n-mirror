@@ -1,3 +1,4 @@
+export { Z, type ZodClass } from './zod-class';
 export type * from './datetime';
 export * from './dto';
 export type * from './push';
@@ -53,7 +54,33 @@ export {
 	type ChatHubAgentTool,
 	UpdateChatSettingsRequest,
 	type ChatProviderSettingsDto,
+	type ChatSendMessageResponse,
+	type ChatReconnectResponse,
+	ChatReconnectRequest,
+	type ChatArtifact,
+	type ChatArtifactCreateCommand,
+	type ChatArtifactEditCommand,
+	type ChatMessageContentChunk,
+	type ChatHubMessageButton,
+	chatHubMessageWithButtonsSchema,
+	type ChatHubMessageWithButtons,
 } from './chat-hub';
+
+export type {
+	ChatHubPushMessage,
+	ChatHubStreamEvent,
+	ChatHubStreamBegin,
+	ChatHubStreamChunk,
+	ChatHubStreamEnd,
+	ChatHubStreamError,
+	ChatHubStreamMetadata,
+	ChatHubExecutionEvent,
+	ChatHubExecutionBegin,
+	ChatHubExecutionEnd,
+	ChatHubHumanMessageCreated,
+	ChatHubMessageEdited,
+	ChatHubAttachmentInfo,
+} from './push/chat-hub';
 
 export type { Collaborator } from './push/collaboration';
 export type { HeartbeatMessage } from './push/heartbeat';
@@ -156,3 +183,19 @@ export type {
 	BreakingChangeLightReportResult,
 	BreakingChangeVersion,
 } from './schemas/breaking-changes.schema';
+
+export type {
+	SecretsProviderType,
+	SecretsProviderState,
+	SecretsProviderConnectionTestState,
+	SecretProviderConnection,
+	SecretProviderTypeResponse,
+	SecretCompletionsResponse,
+	TestSecretProviderConnectionResponse,
+	ReloadSecretProviderConnectionResponse,
+} from './schemas/secrets-provider.schema';
+
+export {
+	testSecretProviderConnectionResponseSchema,
+	reloadSecretProviderConnectionResponseSchema,
+} from './schemas/secrets-provider.schema';
