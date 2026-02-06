@@ -1,6 +1,12 @@
-import { ExecutionRepository } from '@n8n/db';
+import {
+	AnnotationTagMappingRepository,
+	ExecutionAnnotationRepository,
+	ExecutionRepository,
+} from '@n8n/db';
 import { Container } from '@n8n/di';
 import type express from 'express';
+// eslint-disable-next-line n8n-local-rules/misplaced-n8n-typeorm-import
+import { QueryFailedError } from '@n8n/typeorm';
 import { replaceCircularReferences } from 'n8n-workflow';
 
 import { ActiveExecutions } from '@/active-executions';
@@ -194,6 +200,94 @@ export = {
 					throw error;
 				}
 			}
+		},
+	],
+	getExecutionTags: [
+		apiKeyHasScope('executionTags:list'),
+		async (req: ExecutionRequest.GetTags, res: express.Response): Promise<express.Response> => {
+			const { id } = req.params;
+			const sharedWorkflowsIds = await getSharedWorkflowIds(req.user, ['workflow:read']);
+
+			if (!sharedWorkflowsIds.length) {
+				return res.status(404).json({ message: 'Not Found' });
+			}
+
+			const execution = await Container.get(
+				ExecutionRepository,
+			).getExecutionInWorkflowsForPublicApi(id, sharedWorkflowsIds, false);
+
+			if (!execution) {
+				return res.status(404).json({ message: 'Not Found' });
+			}
+
+			const annotation = await Container.get(ExecutionAnnotationRepository).findOne({
+				where: { execution: { id } },
+				relations: ['tags'],
+			});
+
+			const tags = (annotation?.tags ?? []).map(({ id: tagId, name, createdAt, updatedAt }) => ({
+				id: tagId,
+				name,
+				createdAt,
+				updatedAt,
+			}));
+
+			return res.json(tags);
+		},
+	],
+	updateExecutionTags: [
+		apiKeyHasScope('executionTags:update'),
+		async (req: ExecutionRequest.UpdateTags, res: express.Response): Promise<express.Response> => {
+			const { id } = req.params;
+			const newTagIds = req.body.map((tag) => tag.id);
+			const sharedWorkflowsIds = await getSharedWorkflowIds(req.user, ['workflow:read']);
+
+			if (!sharedWorkflowsIds.length) {
+				return res.status(404).json({ message: 'Not Found' });
+			}
+
+			const execution = await Container.get(
+				ExecutionRepository,
+			).getExecutionInWorkflowsForPublicApi(id, sharedWorkflowsIds, false);
+
+			if (!execution) {
+				return res.status(404).json({ message: 'Not Found' });
+			}
+
+			// Upsert annotation (create if it doesn't exist)
+			await Container.get(ExecutionAnnotationRepository).upsert({ execution: { id } }, [
+				'execution',
+			]);
+
+			const annotation = await Container.get(ExecutionAnnotationRepository).findOneOrFail({
+				where: { execution: { id } },
+			});
+
+			try {
+				await Container.get(AnnotationTagMappingRepository).overwriteTags(annotation.id, newTagIds);
+			} catch (error) {
+				if (error instanceof QueryFailedError) {
+					return res.status(404).json({ message: 'Some tags not found' });
+				}
+				throw error;
+			}
+
+			// Fetch updated tags to return
+			const updatedAnnotation = await Container.get(ExecutionAnnotationRepository).findOneOrFail({
+				where: { execution: { id } },
+				relations: ['tags'],
+			});
+
+			const tags = (updatedAnnotation.tags ?? []).map(
+				({ id: tagId, name, createdAt, updatedAt }) => ({
+					id: tagId,
+					name,
+					createdAt,
+					updatedAt,
+				}),
+			);
+
+			return res.json(tags);
 		},
 	],
 };

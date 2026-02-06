@@ -1,4 +1,4 @@
-import type { AuthenticatedRequest, TagEntity, WorkflowEntity } from '@n8n/db';
+import type { AnnotationTagEntity, AuthenticatedRequest, TagEntity, WorkflowEntity } from '@n8n/db';
 import type { ExecutionStatus, ICredentialDataDecryptedObject } from 'n8n-workflow';
 import type {
 	AddDataTableRowsDto,
@@ -42,6 +42,8 @@ export declare namespace ExecutionRequest {
 	type Get = AuthenticatedRequest<{ id: string }, {}, {}, { includeData?: boolean }>;
 	type Delete = Get;
 	type Retry = AuthenticatedRequest<{ id: string }, {}, { loadWorkflow?: boolean }, {}>;
+	type GetTags = AuthenticatedRequest<{ id: string }>;
+	type UpdateTags = AuthenticatedRequest<{ id: string }, {}, AnnotationTagEntity[]>;
 }
 
 export declare namespace TagRequest {
