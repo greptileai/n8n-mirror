@@ -505,6 +505,7 @@ defineExpose({ focus, blur, select });
 .input {
 	flex: 1;
 	min-width: 0;
+	padding: 0;
 	border: none;
 	background: transparent;
 	outline: none;
