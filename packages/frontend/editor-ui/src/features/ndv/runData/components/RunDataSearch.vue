@@ -192,6 +192,8 @@ watch(
 .ioSearch {
 	transition: max-width 0.3s $ease-out-expo;
 	--input--border-color: transparent;
+	--input--border-color--hover: transparent;
+	--input--border-color--focus: transparent;
 	--input--color--background: transparent;
 
 	.ioSearchIcon {
@@ -208,6 +210,7 @@ watch(
 
 .ioSearchOpened {
 	--input--border-color: var(--border-color);
+	--input--border-color--focus: var(--color--secondary);
 	--input--color--background: var(--color--foreground--tint-2);
 
 	.ioSearchIcon {

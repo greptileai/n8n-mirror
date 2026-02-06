@@ -299,7 +299,7 @@ defineExpose({ focus, blur, select });
 		</span>
 
 		<!-- Input wrapper (holds border, contains prefix/input/suffix) -->
-		<div :class="inputWrapperClasses">
+		<div :class="inputWrapperClasses" @click="focus">
 			<!-- Prefix slot -->
 			<span v-if="$slots.prefix" :class="$style.prefix">
 				<slot name="prefix" />
@@ -386,17 +386,20 @@ defineExpose({ focus, blur, select });
 	flex: 1;
 	min-width: 0;
 	gap: var(--spacing--3xs);
-	border-radius: var(--radius);
+	border-radius: var(--input--radius--top-left, var(--input--radius, var(--radius)))
+		var(--input--radius--top-right, var(--input--radius, var(--radius)))
+		var(--input--radius--bottom-right, var(--input--radius, var(--radius)))
+		var(--input--radius--bottom-left, var(--input--radius, var(--radius)));
 	border: var(--input--border-width, var(--border-width))
 		var(--input--border-style, var(--border-style)) var(--input--border-color, var(--border-color));
 	background-color: var(--input--color--background, var(--color--background--light-2));
 
 	&:hover:not(.disabled):not(:focus-within) {
-		border-color: var(--color--foreground--shade-1);
+		border-color: var(--input--border-color--hover, var(--color--foreground--shade-1));
 	}
 
 	&:focus-within {
-		border-color: var(--color--secondary);
+		border-color: var(--input--border-color--focus, var(--color--secondary));
 	}
 
 	&.disabled {
@@ -435,12 +438,12 @@ defineExpose({ focus, blur, select });
 
 .xlarge .input {
 	min-height: 48px;
-	font-size: var(--font-size--md);
+	font-size: var(--input--font-size, var(--font-size--md));
 }
 
 .xlarge .textarea {
 	padding: var(--spacing--2xs) 0;
-	font-size: var(--font-size--md);
+	font-size: var(--input--font-size, var(--font-size--md));
 }
 
 .large .inputWrapper {
@@ -449,12 +452,12 @@ defineExpose({ focus, blur, select });
 
 .large .input {
 	min-height: 40px;
-	font-size: var(--font-size--sm);
+	font-size: var(--input--font-size, var(--font-size--sm));
 }
 
 .large .textarea {
 	padding: var(--spacing--2xs) 0;
-	font-size: var(--font-size--sm);
+	font-size: var(--input--font-size, var(--font-size--sm));
 }
 
 .medium .inputWrapper {
@@ -463,12 +466,12 @@ defineExpose({ focus, blur, select });
 
 .medium .input {
 	min-height: 36px;
-	font-size: var(--font-size--sm);
+	font-size: var(--input--font-size, var(--font-size--sm));
 }
 
 .medium .textarea {
 	padding: var(--spacing--2xs) 0;
-	font-size: var(--font-size--sm);
+	font-size: var(--input--font-size, var(--font-size--sm));
 }
 
 .small .inputWrapper {
@@ -477,12 +480,12 @@ defineExpose({ focus, blur, select });
 
 .small .input {
 	min-height: 28px;
-	font-size: var(--font-size--2xs);
+	font-size: var(--input--font-size, var(--font-size--2xs));
 }
 
 .small .textarea {
 	padding: var(--spacing--2xs) 0;
-	font-size: var(--font-size--2xs);
+	font-size: var(--input--font-size, var(--font-size--2xs));
 }
 
 .mini .inputWrapper {
@@ -491,12 +494,12 @@ defineExpose({ focus, blur, select });
 
 .mini .input {
 	min-height: 22px;
-	font-size: var(--font-size--3xs);
+	font-size: var(--input--font-size, var(--font-size--3xs));
 }
 
 .mini .textarea {
 	padding: var(--spacing--3xs) 0;
-	font-size: var(--font-size--3xs);
+	font-size: var(--input--font-size, var(--font-size--3xs));
 }
 
 .input {
