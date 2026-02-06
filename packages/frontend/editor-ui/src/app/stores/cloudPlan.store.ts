@@ -42,7 +42,41 @@ export const useCloudPlanStore = defineStore(STORES.CLOUD_PLAN, () => {
 		state.usage = null;
 	};
 
-	const userIsTrialing = computed(() => state.data?.metadata?.group === 'trial');
+	const userIsTrialing = computed(() => state.data?.userIsTrialing ?? false);
+
+	const shouldShowBanner = computed(() => {
+		if (!state.data?.bannerConfig) return false;
+
+		// Backend can force showing the trial banner even if user dismissed it
+		if (state.data.bannerConfig.forceShow) return true;
+
+		// Otherwise respect localStorage dismissal
+		return !isDynamicTrialBannerDismissed.value;
+	});
+
+	const bannerConfig = computed(() => state.data?.bannerConfig);
+
+	// If timeLeft is set, show it; otherwise hide
+	const bannerTimeLeft = computed(() => ({
+		show: !!bannerConfig.value?.timeLeft,
+		text: bannerConfig.value?.timeLeft?.text,
+	}));
+
+	// If showExecutions is true, show the executions section
+	const showExecutions = computed(() => bannerConfig.value?.showExecutions === true);
+
+	const bannerCta = computed(() => ({
+		text: bannerConfig.value?.cta?.text ?? 'Upgrade Now',
+		icon: bannerConfig.value?.cta?.icon ?? 'zap',
+		size: bannerConfig.value?.cta?.size ?? 'small',
+		style: bannerConfig.value?.cta?.style ?? 'success',
+		href: bannerConfig.value?.cta?.href,
+	}));
+
+	// Banner icon (left side info icon) - undefined means no icon
+	const bannerIcon = computed(() => bannerConfig.value?.icon);
+
+	const bannerDismissible = computed(() => bannerConfig.value?.dismissible ?? true);
 
 	const currentPlanData = computed(() => state.data);
 
@@ -68,26 +102,15 @@ export const useCloudPlanStore = defineStore(STORES.CLOUD_PLAN, () => {
 		return information.which_of_these_do_you_feel_comfortable_doing.length;
 	});
 
-	const dynamicTrialBannerText = computed(() => {
-		return currentUserCloudInfo.value?.trialBannerData?.bannerText;
-	});
-
-	const shouldShowDynamicTrialBanner = computed(() => {
-		return (
-			dynamicTrialBannerText.value !== undefined &&
-			dynamicTrialBannerText.value !== '' &&
-			!isDynamicTrialBannerDismissed.value
-		);
-	});
-
-	const dismissDynamicTrialBanner = () => {
+	const dismissBanner = () => {
+		if (!bannerDismissible.value) return;
 		isDynamicTrialBannerDismissed.value = true;
 		localStorage.setItem(DYNAMIC_TRIAL_BANNER_DISMISSED_KEY, 'true');
 	};
 
 	const trialExpired = computed(
 		() =>
-			state.data?.metadata?.group === 'trial' &&
+			state.data?.userIsTrialing &&
 			DateTime.now().toMillis() >= DateTime.fromISO(state.data?.expirationDate).toMillis(),
 	);
 
@@ -264,8 +287,13 @@ export const useCloudPlanStore = defineStore(STORES.CLOUD_PLAN, () => {
 		getAutoLoginCode,
 		selectedApps,
 		codingSkill,
-		dynamicTrialBannerText,
-		shouldShowDynamicTrialBanner,
-		dismissDynamicTrialBanner,
+		shouldShowBanner,
+		bannerConfig,
+		bannerTimeLeft,
+		showExecutions,
+		bannerCta,
+		bannerIcon,
+		bannerDismissible,
+		dismissBanner,
 	};
 });

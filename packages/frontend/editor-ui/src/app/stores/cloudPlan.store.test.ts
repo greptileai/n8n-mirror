@@ -129,4 +129,166 @@ describe('cloudPlan.store', () => {
 			expect(store.trialTimeLeft).toEqual({ count: 0, unit: 'days' });
 		});
 	});
+
+	describe('shouldShowBanner', () => {
+		it('should return false when bannerConfig is not set', () => {
+			setActivePinia(createPinia());
+			const store = useCloudPlanStore();
+			store.state.data = {} as never;
+
+			expect(store.shouldShowBanner).toBe(false);
+		});
+
+		it('should return true when bannerConfig is set and not dismissed', () => {
+			setActivePinia(createPinia());
+			const store = useCloudPlanStore();
+			store.state.data = { bannerConfig: { showExecutions: true } } as never;
+
+			expect(store.shouldShowBanner).toBe(true);
+		});
+
+		it('should return true when forceShow is true even if dismissed', () => {
+			localStorage.setItem('n8n-dynamic-trial-banner-dismissed', 'true');
+			setActivePinia(createPinia());
+			const store = useCloudPlanStore();
+			store.state.data = { bannerConfig: { forceShow: true } } as never;
+
+			expect(store.shouldShowBanner).toBe(true);
+			localStorage.removeItem('n8n-dynamic-trial-banner-dismissed');
+		});
+	});
+
+	describe('bannerTimeLeft', () => {
+		it('should return show: false when timeLeft is not set', () => {
+			setActivePinia(createPinia());
+			const store = useCloudPlanStore();
+			store.state.data = { bannerConfig: {} } as never;
+
+			expect(store.bannerTimeLeft).toEqual({ show: false, text: undefined });
+		});
+
+		it('should return show: true with text when timeLeft is set', () => {
+			setActivePinia(createPinia());
+			const store = useCloudPlanStore();
+			store.state.data = { bannerConfig: { timeLeft: { text: '5 days left' } } } as never;
+
+			expect(store.bannerTimeLeft).toEqual({ show: true, text: '5 days left' });
+		});
+
+		it('should return show: true with undefined text when timeLeft has no text', () => {
+			setActivePinia(createPinia());
+			const store = useCloudPlanStore();
+			store.state.data = { bannerConfig: { timeLeft: {} } } as never;
+
+			expect(store.bannerTimeLeft).toEqual({ show: true, text: undefined });
+		});
+	});
+
+	describe('showExecutions', () => {
+		it('should return false when showExecutions is not set', () => {
+			setActivePinia(createPinia());
+			const store = useCloudPlanStore();
+			store.state.data = { bannerConfig: {} } as never;
+
+			expect(store.showExecutions).toBe(false);
+		});
+
+		it('should return true when showExecutions is true', () => {
+			setActivePinia(createPinia());
+			const store = useCloudPlanStore();
+			store.state.data = { bannerConfig: { showExecutions: true } } as never;
+
+			expect(store.showExecutions).toBe(true);
+		});
+
+		it('should return false when showExecutions is false', () => {
+			setActivePinia(createPinia());
+			const store = useCloudPlanStore();
+			store.state.data = { bannerConfig: { showExecutions: false } } as never;
+
+			expect(store.showExecutions).toBe(false);
+		});
+	});
+
+	describe('bannerCta', () => {
+		it('should return defaults when cta is not set', () => {
+			setActivePinia(createPinia());
+			const store = useCloudPlanStore();
+			store.state.data = { bannerConfig: {} } as never;
+
+			expect(store.bannerCta).toEqual({
+				text: 'Upgrade Now',
+				icon: 'zap',
+				size: 'small',
+				style: 'success',
+				href: undefined,
+			});
+		});
+
+		it('should return custom values when cta is set', () => {
+			setActivePinia(createPinia());
+			const store = useCloudPlanStore();
+			store.state.data = {
+				bannerConfig: {
+					cta: {
+						text: 'Subscribe',
+						icon: 'star',
+						size: 'medium',
+						style: 'primary',
+						href: '/upgrade',
+					},
+				},
+			} as never;
+
+			expect(store.bannerCta).toEqual({
+				text: 'Subscribe',
+				icon: 'star',
+				size: 'medium',
+				style: 'primary',
+				href: '/upgrade',
+			});
+		});
+	});
+
+	describe('bannerDismissible', () => {
+		it('should return true by default', () => {
+			setActivePinia(createPinia());
+			const store = useCloudPlanStore();
+			store.state.data = { bannerConfig: {} } as never;
+
+			expect(store.bannerDismissible).toBe(true);
+		});
+
+		it('should return false when dismissible is false', () => {
+			setActivePinia(createPinia());
+			const store = useCloudPlanStore();
+			store.state.data = { bannerConfig: { dismissible: false } } as never;
+
+			expect(store.bannerDismissible).toBe(false);
+		});
+	});
+
+	describe('dismissBanner', () => {
+		it('should set localStorage when banner is dismissible', () => {
+			setActivePinia(createPinia());
+			const store = useCloudPlanStore();
+			store.state.data = { bannerConfig: { dismissible: true } } as never;
+
+			store.dismissBanner();
+
+			expect(localStorage.getItem('n8n-dynamic-trial-banner-dismissed')).toBe('true');
+			localStorage.removeItem('n8n-dynamic-trial-banner-dismissed');
+		});
+
+		it('should not set localStorage when banner is not dismissible', () => {
+			localStorage.removeItem('n8n-dynamic-trial-banner-dismissed');
+			setActivePinia(createPinia());
+			const store = useCloudPlanStore();
+			store.state.data = { bannerConfig: { dismissible: false } } as never;
+
+			store.dismissBanner();
+
+			expect(localStorage.getItem('n8n-dynamic-trial-banner-dismissed')).toBeNull();
+		});
+	});
 });

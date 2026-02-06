@@ -36,11 +36,11 @@ const hasTrailingContent = computed(() => {
 });
 
 async function onCloseClick() {
+	emit('close');
 	await bannersStore.dismissBanner(
 		props.name,
 		props.dismissPermanently ? 'permanent' : 'temporary',
 	);
-	emit('close');
 }
 </script>
 <template>

@@ -5,26 +5,41 @@ import { useCloudPlanStore } from '@/app/stores/cloudPlan.store';
 import { computed } from 'vue';
 import type { CloudPlanAndUsageData } from '@/Interface';
 import { usePageRedirectionHelper } from '@/app/composables/usePageRedirectionHelper';
-import { N8nBadge, N8nButton, N8nText } from '@n8n/design-system';
+import { N8nButton, N8nText, type IconName, type ButtonType } from '@n8n/design-system';
 
 const PROGRESS_BAR_MINIMUM_THRESHOLD = 8;
 
 const cloudPlanStore = useCloudPlanStore();
-
 const pageRedirectionHelper = usePageRedirectionHelper();
 
-const shouldShowTrialBanner = computed(() => cloudPlanStore.shouldShowDynamicTrialBanner);
-const trialBannerText = computed(() => cloudPlanStore.dynamicTrialBannerText);
+// Banner config from backend
+const bannerTimeLeft = computed(() => cloudPlanStore.bannerTimeLeft);
+const showExecutions = computed(() => cloudPlanStore.showExecutions);
+const bannerCta = computed(() => ({
+	text: cloudPlanStore.bannerCta.text,
+	icon: cloudPlanStore.bannerCta.icon as IconName | undefined,
+	size: cloudPlanStore.bannerCta.size as 'small' | 'medium',
+	style: cloudPlanStore.bannerCta.style as ButtonType,
+	href: cloudPlanStore.bannerCta.href,
+}));
+const bannerIcon = computed(() => cloudPlanStore.bannerIcon as IconName | undefined);
 
-const trialTimeLeft = computed(() => cloudPlanStore.trialTimeLeft);
+const storeTrialTimeLeft = computed(() => cloudPlanStore.trialTimeLeft);
 
 const messageText = computed(() => {
-	const { count, unit } = trialTimeLeft.value;
+	// Use backend text if provided, otherwise compute from expirationDate
+	if (bannerTimeLeft.value.text) {
+		return bannerTimeLeft.value.text;
+	}
+
+	const { count, unit } = storeTrialTimeLeft.value;
+
 	return locale.baseText(`banners.trial.message.${unit}`, {
 		adjustToNumber: count,
 		interpolate: { count: String(count) },
 	});
 });
+
 const cloudPlanData = computed<CloudPlanAndUsageData | null>(() => {
 	const planData = cloudPlanStore.currentPlanData;
 	const usage = cloudPlanStore.currentUsageData;
@@ -34,10 +49,12 @@ const cloudPlanData = computed<CloudPlanAndUsageData | null>(() => {
 		usage,
 	};
 });
+
 const trialHasExecutionsLeft = computed(() => {
 	if (!cloudPlanData.value?.usage) return 0;
 	return cloudPlanData.value.usage.executions < cloudPlanData.value.monthlyExecutionsLimit;
 });
+
 const currentExecutionsWithThreshold = computed(() => {
 	if (!cloudPlanData.value?.usage) return 0;
 	const usedExecutions = cloudPlanData.value.usage.executions;
@@ -45,10 +62,12 @@ const currentExecutionsWithThreshold = computed(() => {
 	const threshold = (PROGRESS_BAR_MINIMUM_THRESHOLD * executionsQuota) / 100;
 	return usedExecutions < threshold ? threshold : usedExecutions;
 });
+
 const maxExecutions = computed(() => {
 	if (!cloudPlanData.value?.monthlyExecutionsLimit) return 0;
 	return cloudPlanData.value.monthlyExecutionsLimit;
 });
+
 const currentExecutions = computed(() => {
 	if (!cloudPlanData.value?.usage) return 0;
 	const usedExecutions = cloudPlanData.value.usage.executions;
@@ -56,22 +75,39 @@ const currentExecutions = computed(() => {
 	return usedExecutions > executionsQuota ? executionsQuota : usedExecutions;
 });
 
-function onUpdatePlanClick() {
-	if (shouldShowTrialBanner.value) {
-		cloudPlanStore.dismissDynamicTrialBanner();
+function onCtaClick() {
+	cloudPlanStore.dismissBanner();
+	if (bannerCta.value.href) {
+		// Use provided href - external URLs open in new tab, internal routes navigate
+		if (bannerCta.value.href.startsWith('http')) {
+			window.open(bannerCta.value.href, '_blank');
+		} else {
+			window.location.href = bannerCta.value.href;
+		}
+	} else {
+		// No href provided - use upgrade flow
+		void pageRedirectionHelper.goToUpgrade('canvas-nav', 'upgrade-canvas-nav', 'redirect');
 	}
+}
 
-	void pageRedirectionHelper.goToUpgrade('canvas-nav', 'upgrade-canvas-nav', 'redirect');
+function onBannerClose() {
+	// Also update cloudPlan store so banner stays dismissed on next page load
+	cloudPlanStore.dismissBanner();
 }
 </script>
 
 <template>
-	<BaseBanner name="TRIAL" theme="custom">
+	<BaseBanner
+		name="TRIAL"
+		theme="custom"
+		:dismissible="cloudPlanStore.bannerDismissible"
+		:custom-icon="bannerIcon"
+		@close="onBannerClose"
+	>
 		<template #mainContent>
 			<div :class="$style.content">
-				<span>{{ messageText }}</span>
-				<span :class="$style.pipe"> | </span>
-				<div :class="$style.usageCounter">
+				<span v-if="bannerTimeLeft.show">{{ messageText }}</span>
+				<div v-if="showExecutions" :class="$style.usageCounter">
 					<div :class="$style.progressBarDiv">
 						<progress
 							:class="[
@@ -96,17 +132,14 @@ function onUpdatePlanClick() {
 		</template>
 		<template #trailingContent>
 			<div :class="$style.trailingContentWrapper">
-				<N8nBadge
-					v-if="shouldShowTrialBanner"
-					:class="$style.dynamicBanner"
-					size="small"
-					:show-border="false"
-					:bold="true"
-					>{{ trialBannerText }}</N8nBadge
+				<N8nButton
+					:type="bannerCta.style"
+					:icon="bannerCta.icon"
+					:size="bannerCta.size"
+					@click="onCtaClick"
 				>
-				<N8nButton type="success" icon="zap" size="small" @click="onUpdatePlanClick">{{
-					locale.baseText('generic.upgradeNow')
-				}}</N8nButton>
+					{{ bannerCta.text }}
+				</N8nButton>
 			</div>
 		</template>
 	</BaseBanner>
@@ -117,12 +150,6 @@ function onUpdatePlanClick() {
 	display: flex;
 	align-items: center;
 	gap: var(--spacing--3xs);
-}
-
-.pipe {
-	display: inline-block;
-	font-size: var(--font-size--md);
-	padding: 0 0 2px;
 }
 
 .progressBarDiv {
@@ -198,13 +225,5 @@ function onUpdatePlanClick() {
 	display: flex;
 	align-items: center;
 	gap: var(--spacing--2xs);
-}
-
-.dynamicBanner {
-	color: var(--color--foreground--tint-2);
-	border: none;
-	background: var(--color--foreground--shade-2);
-	border-radius: var(--radius);
-	padding: var(--spacing--5xs) var(--spacing--3xs);
 }
 </style>
