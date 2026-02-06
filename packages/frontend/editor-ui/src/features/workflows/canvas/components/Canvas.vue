@@ -442,6 +442,10 @@ function onNodeDragStop(event: NodeDragEvent) {
 }
 
 function onNodeClick({ event, node }: NodeMouseEvent) {
+	if (chatPanelStore.isOpen && focusedNodesStore.isFeatureEnabled) {
+		focusedNodesStore.confirmNodes([node.id], 'canvas_selection');
+	}
+
 	emit('click:node', node.id, getProjectedPosition(event));
 
 	if (event.ctrlKey || event.metaKey || selectedNodes.value.length < 2) {
