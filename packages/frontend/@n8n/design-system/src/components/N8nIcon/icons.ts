@@ -451,7 +451,6 @@ export const deprecatedIconSet = {
 	'power-off': IconLucidePower,
 	'paper-plane': IconLucideSend,
 	bell: IconLucideBell,
-	'quick-connect': IconLucideFlame,
 } as const;
 
 export const updatedIconSet = {
@@ -700,6 +699,7 @@ export const updatedIconSet = {
 	'zoom-in': IconLucideZoomIn,
 	'zoom-out': IconLucideZoomOut,
 	loader: IconLucideLoader2,
+	'quick-connect': IconLucideFlame,
 } as const;
 
 export type IconName = keyof typeof updatedIconSet; // only new icon names should be used moving forward
