@@ -39,17 +39,21 @@ export function stringContainsExpression(testString: string): boolean {
 export function sanitizeCredentialData(
 	data: ICredentialDataDecryptedObject,
 ): ICredentialDataDecryptedObject {
-	for (const key of Object.keys(data)) {
+	for (const [key] of Object.entries(data)) {
 		const value = data[key];
+
 		if (value === null) {
-			delete data[key];
-		} else if (typeof value === 'object' && !Array.isArray(value)) {
+			delete data[key]; // remove invalid null values
+		} else if (typeof value === 'object') {
 			data[key] = sanitizeCredentialData(value as ICredentialDataDecryptedObject);
 		} else if (typeof value === 'string') {
-			data[key] = stringContainsExpression(value) ? value : '';
+			data[key] = stringContainsExpression(value) ? data[key] : '';
+		} else if (typeof data[key] === 'number') {
+			// TODO: leaving numbers in for now, but maybe we should remove them
+			continue;
 		}
-		// Numbers, booleans, and arrays are kept as-is
 	}
+
 	return data;
 }
 
