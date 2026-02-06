@@ -431,13 +431,13 @@ defineExpose({ focus, blur, select });
 	border-bottom-right-radius: 0;
 }
 
-/* Size variants - padding on wrapper, height on input (subtract 2px for wrapper border) */
+/* Size variants - padding on wrapper, height on input */
 .xlarge .inputWrapper {
 	padding: 0 var(--spacing--xs);
 }
 
 .xlarge .input {
-	min-height: 46px;
+	min-height: 48px;
 	font-size: var(--input--font-size, var(--font-size--md));
 }
 
@@ -451,7 +451,7 @@ defineExpose({ focus, blur, select });
 }
 
 .large .input {
-	min-height: 38px;
+	min-height: 40px;
 	font-size: var(--input--font-size, var(--font-size--sm));
 }
 
@@ -465,7 +465,7 @@ defineExpose({ focus, blur, select });
 }
 
 .medium .input {
-	min-height: 34px;
+	min-height: 36px;
 	font-size: var(--input--font-size, var(--font-size--sm));
 }
 
@@ -479,7 +479,7 @@ defineExpose({ focus, blur, select });
 }
 
 .small .input {
-	min-height: 26px;
+	min-height: 28px;
 	font-size: var(--input--font-size, var(--font-size--2xs));
 }
 
@@ -493,7 +493,7 @@ defineExpose({ focus, blur, select });
 }
 
 .mini .input {
-	min-height: 20px;
+	min-height: 22px;
 	font-size: var(--input--font-size, var(--font-size--3xs));
 }
 
