@@ -128,7 +128,13 @@ function handleChangeName(name: string) {
 watch(
 	() => props.data.node,
 	(initialNode) => {
-		node.value = initialNode;
+		if (initialNode) {
+			const uniqueName = makeUniqueName(initialNode.name, existingToolNames.value);
+			node.value =
+				uniqueName !== initialNode.name ? { ...initialNode, name: uniqueName } : initialNode;
+		} else {
+			node.value = initialNode;
+		}
 		userEditedName.value = false;
 	},
 	{ immediate: true },
@@ -141,9 +147,11 @@ watch(
 		if (userEditedName.value || !node.value || !nodeTypeDescription.value) return;
 
 		const newName = NodeHelpers.makeNodeName(node.value.parameters, nodeTypeDescription.value);
-		if (newName && newName !== node.value.name) {
+		if (newName) {
 			const uniqueName = makeUniqueName(newName, existingToolNames.value);
-			node.value = { ...node.value, name: uniqueName };
+			if (uniqueName !== node.value.name) {
+				node.value = { ...node.value, name: uniqueName };
+			}
 		}
 	},
 );

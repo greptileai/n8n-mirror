@@ -10,6 +10,8 @@ import {
 	ChatMessageId,
 	ChatHubCreateAgentRequest,
 	ChatHubUpdateAgentRequest,
+	ChatHubCreateToolRequest,
+	ChatHubUpdateToolRequest,
 	ChatHubConversationsRequest,
 	ViewableMimeTypes,
 	type ChatSendMessageResponse,
@@ -32,6 +34,7 @@ import { sanitizeFilename } from '@n8n/utils';
 import type { Response } from 'express';
 
 import { ChatHubAgentService } from './chat-hub-agent.service';
+import { ChatHubToolService } from './chat-hub-tool.service';
 import { extractAuthenticationMetadata } from './chat-hub-extractor';
 import { ChatHubAttachmentService } from './chat-hub.attachment.service';
 import { ChatHubModelsService } from './chat-hub.models.service';
@@ -46,6 +49,7 @@ export class ChatHubController {
 		private readonly chatService: ChatHubService,
 		private readonly chatModelsService: ChatHubModelsService,
 		private readonly chatAgentService: ChatHubAgentService,
+		private readonly chatToolService: ChatHubToolService,
 		private readonly chatAttachmentService: ChatHubAttachmentService,
 	) {}
 
@@ -253,6 +257,47 @@ export class ChatHubController {
 	): Promise<void> {
 		await this.chatService.deleteSession(req.user.id, sessionId);
 
+		res.status(204).send();
+	}
+
+	@Get('/tools')
+	@GlobalScope('chatHub:message')
+	async getTools(req: AuthenticatedRequest) {
+		const tools = await this.chatToolService.getToolsByUserId(req.user.id);
+		return tools.map((tool) => ChatHubToolService.toDto(tool));
+	}
+
+	@Post('/tools')
+	@GlobalScope('chatHub:message')
+	async createTool(
+		req: AuthenticatedRequest,
+		_res: Response,
+		@Body payload: ChatHubCreateToolRequest,
+	) {
+		const tool = await this.chatToolService.createTool(req.user, payload);
+		return ChatHubToolService.toDto(tool);
+	}
+
+	@Patch('/tools/:toolId')
+	@GlobalScope('chatHub:message')
+	async updateTool(
+		req: AuthenticatedRequest,
+		_res: Response,
+		@Param('toolId') toolId: string,
+		@Body payload: ChatHubUpdateToolRequest,
+	) {
+		const tool = await this.chatToolService.updateTool(toolId, req.user, payload);
+		return ChatHubToolService.toDto(tool);
+	}
+
+	@Delete('/tools/:toolId')
+	@GlobalScope('chatHub:message')
+	async deleteTool(
+		req: AuthenticatedRequest,
+		res: Response,
+		@Param('toolId') toolId: string,
+	): Promise<void> {
+		await this.chatToolService.deleteTool(toolId, req.user.id);
 		res.status(204).send();
 	}
 

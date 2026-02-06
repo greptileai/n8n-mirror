@@ -23,6 +23,10 @@ import {
 	fetchChatSettingsApi,
 	fetchChatProviderSettingsApi,
 	updateChatSettingsApi,
+	fetchToolsApi,
+	createToolApi,
+	updateToolApi,
+	deleteToolApi,
 } from './chat.api';
 import { useRootStore } from '@n8n/stores/useRootStore';
 import {
@@ -48,6 +52,7 @@ import {
 	type ChatHubStreamChunk,
 	type ChatHubStreamEnd,
 	type ChatHubStreamError,
+	type ChatHubToolDto,
 	type ChatHubExecutionBegin,
 	type ChatHubExecutionEnd,
 	type ChatMessageContentChunk,
@@ -96,6 +101,9 @@ export const useChatStore = defineStore(STORES.CHAT_HUB, () => {
 	const streaming = ref<ChatStreamingState>();
 	const settingsLoading = ref(false);
 	const settings = ref<Record<ChatHubLLMProvider, ChatProviderSettingsDto> | null>(null);
+	const configuredTools = ref<ChatHubToolDto[]>([]);
+	const configuredToolsLoaded = ref(false);
+
 	const conversationsBySession = ref<Map<ChatSessionId, ChatConversation>>(new Map());
 
 	const getConversation = (sessionId: ChatSessionId): ChatConversation | undefined =>
@@ -293,6 +301,40 @@ export const useChatStore = defineStore(STORES.CHAT_HUB, () => {
 			message.content = content;
 		}
 		message.updatedAt = new Date().toISOString();
+	}
+
+	async function fetchConfiguredTools() {
+		const tools = await fetchToolsApi(rootStore.restApiContext);
+		configuredTools.value = tools;
+		configuredToolsLoaded.value = true;
+		return tools;
+	}
+
+	async function addConfiguredTool(tool: INode): Promise<ChatHubToolDto> {
+		const created = await createToolApi(rootStore.restApiContext, tool);
+		configuredTools.value = [...configuredTools.value, created];
+		return created;
+	}
+
+	async function updateConfiguredTool(toolId: string, definition: INode): Promise<ChatHubToolDto> {
+		const updated = await updateToolApi(rootStore.restApiContext, toolId, { definition });
+		configuredTools.value = configuredTools.value.map((t) =>
+			t.definition.id === toolId ? updated : t,
+		);
+		return updated;
+	}
+
+	async function toggleToolEnabled(toolId: string, enabled: boolean): Promise<ChatHubToolDto> {
+		const updated = await updateToolApi(rootStore.restApiContext, toolId, { enabled });
+		configuredTools.value = configuredTools.value.map((t) =>
+			t.definition.id === toolId ? updated : t,
+		);
+		return updated;
+	}
+
+	async function removeConfiguredTool(toolId: string): Promise<void> {
+		await deleteToolApi(rootStore.restApiContext, toolId);
+		configuredTools.value = configuredTools.value.filter((t) => t.definition.id !== toolId);
 	}
 
 	async function fetchAgents(credentialMap: CredentialsMap, options: FetchOptions = {}) {
@@ -1177,6 +1219,17 @@ export const useChatStore = defineStore(STORES.CHAT_HUB, () => {
 		createCustomAgent,
 		updateCustomAgent,
 		deleteCustomAgent,
+
+		/**
+		 * configured tools (tool library)
+		 */
+		configuredTools,
+		configuredToolsLoaded,
+		fetchConfiguredTools,
+		addConfiguredTool,
+		updateConfiguredTool,
+		toggleToolEnabled,
+		removeConfiguredTool,
 
 		/**
 		 * conversations

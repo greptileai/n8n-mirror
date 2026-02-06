@@ -34,7 +34,6 @@ const emit = defineEmits<{
 	submit: [message: string, attachments: File[]];
 	stop: [];
 	selectModel: [];
-	selectTools: [INode[]];
 	setCredentials: [ChatHubLLMProvider];
 	editAgent: [agentId: string];
 	dismissCreditsCallout: [];
@@ -335,7 +334,6 @@ defineExpose({
 									: i18n.baseText('chatHub.tools.selector.disabled.tooltip')
 							"
 							transparent-bg
-							@change="emit('selectTools', $event)"
 						/>
 					</div>
 					<div :class="$style.actions">

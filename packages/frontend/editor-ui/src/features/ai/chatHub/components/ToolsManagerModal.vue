@@ -10,10 +10,13 @@ import { useI18n } from '@n8n/i18n';
 import { createEventBus } from '@n8n/utils/event-bus';
 import { useDebounceFn } from '@vueuse/core';
 import { NodeConnectionTypes, type INode, type INodeTypeDescription } from 'n8n-workflow';
-import { computed, ref, shallowRef, watch } from 'vue';
+import type { ChatHubToolDto } from '@n8n/api-types';
+import { computed, ref, watch } from 'vue';
 import { DEBOUNCE_TIME, getDebounceTime } from '@/app/constants';
+import { useChatStore } from '@/features/ai/chatHub/chat.store';
+import { useToast } from '@/app/composables/useToast';
 
-const props = defineProps<{
+defineProps<{
 	modalName: string;
 	data: {
 		tools: INode[];
@@ -24,13 +27,12 @@ const props = defineProps<{
 const i18n = useI18n();
 const nodeTypesStore = useNodeTypesStore();
 const uiStore = useUIStore();
+const chatStore = useChatStore();
+const toast = useToast();
 
 const modalBus = ref(createEventBus());
 const searchQuery = ref('');
 const debouncedSearchQuery = ref('');
-
-const tools = shallowRef<INode[]>([]);
-const enabledToolIds = ref<Set<string>>(new Set());
 
 const setDebouncedSearchQuery = useDebounceFn((value: string) => {
 	debouncedSearchQuery.value = value;
@@ -40,14 +42,7 @@ watch(searchQuery, (newValue) => {
 	void setDebouncedSearchQuery(newValue);
 });
 
-watch(
-	() => props.data.tools,
-	(initialTools) => {
-		tools.value = [...initialTools];
-		enabledToolIds.value = new Set(initialTools.map((t) => t.id));
-	},
-	{ immediate: true },
-);
+const tools = computed<ChatHubToolDto[]>(() => chatStore.configuredTools);
 
 const availableToolTypes = computed<INodeTypeDescription[]>(() => {
 	const toolTypeNames =
@@ -64,8 +59,9 @@ const filteredConfiguredTools = computed(() => {
 	}
 	const query = debouncedSearchQuery.value.toLowerCase();
 	return tools.value.filter((tool) => {
-		const nodeType = nodeTypesStore.getNodeType(tool.type, tool.typeVersion);
-		const nameMatch = tool.name.toLowerCase().includes(query);
+		const def = tool.definition;
+		const nodeType = nodeTypesStore.getNodeType(def.type, def.typeVersion);
+		const nameMatch = def.name.toLowerCase().includes(query);
 		const typeMatch = nodeType?.displayName.toLowerCase().includes(query);
 		return nameMatch || typeMatch;
 	});
@@ -83,38 +79,45 @@ const filteredAvailableTools = computed(() => {
 	});
 });
 
-function getNodeType(tool: INode): INodeTypeDescription | null {
-	return nodeTypesStore.getNodeType(tool.type, tool.typeVersion);
+function getNodeType(tool: ChatHubToolDto): INodeTypeDescription | null {
+	return nodeTypesStore.getNodeType(tool.definition.type, tool.definition.typeVersion);
 }
 
-function handleToggleTool(toolId: string, enabled: boolean) {
-	const newSet = new Set(enabledToolIds.value);
-	if (enabled) {
-		newSet.add(toolId);
-	} else {
-		newSet.delete(toolId);
-	}
-	enabledToolIds.value = newSet;
-}
-
-function handleConfigureTool(tool: INode) {
-	const otherToolNames = tools.value.filter((t) => t.id !== tool.id).map((t) => t.name);
+async function handleConfigureTool(tool: ChatHubToolDto) {
+	const otherToolNames = tools.value
+		.filter((t) => t.definition.id !== tool.definition.id)
+		.map((t) => t.definition.name);
 
 	uiStore.openModalWithData({
 		name: TOOL_SETTINGS_MODAL_KEY,
 		data: {
-			node: { ...tool },
+			node: { ...tool.definition },
 			existingToolNames: otherToolNames,
-			onConfirm: (configuredNode: INode) => {
-				tools.value = tools.value.map((t) => (t.id === tool.id ? configuredNode : t));
+			onConfirm: async (configuredNode: INode) => {
+				try {
+					await chatStore.updateConfiguredTool(tool.definition.id, configuredNode);
+				} catch (error) {
+					toast.showError(error, i18n.baseText('chatHub.error.updateToolsFailed'));
+				}
 			},
 		},
 	});
 }
 
-function handleRemoveTool(toolId: string) {
-	tools.value = tools.value.filter((t) => t.id !== toolId);
-	enabledToolIds.value.delete(toolId);
+async function handleRemoveTool(toolId: string) {
+	try {
+		await chatStore.removeConfiguredTool(toolId);
+	} catch (error) {
+		toast.showError(error, i18n.baseText('chatHub.error.updateToolsFailed'));
+	}
+}
+
+async function handleToggleTool(tool: ChatHubToolDto, enabled: boolean) {
+	try {
+		await chatStore.toggleToolEnabled(tool.definition.id, enabled);
+	} catch (error) {
+		toast.showError(error, i18n.baseText('chatHub.error.updateToolsFailed'));
+	}
 }
 
 function handleAddTool(nodeType: INodeTypeDescription) {
@@ -128,7 +131,7 @@ function handleAddTool(nodeType: INodeTypeDescription) {
 	}
 
 	const newToolId = uuidv4();
-	const existingNames = tools.value.map((t) => t.name);
+	const existingNames = tools.value.map((t) => t.definition.name);
 
 	uiStore.openModalWithData({
 		name: TOOL_SETTINGS_MODAL_KEY,
@@ -142,21 +145,18 @@ function handleAddTool(nodeType: INodeTypeDescription) {
 				position: [0, 0],
 			},
 			existingToolNames: existingNames,
-			onConfirm: (configuredNode: INode) => {
-				tools.value = [...tools.value, configuredNode];
-				enabledToolIds.value.add(configuredNode.id);
+			onConfirm: async (configuredNode: INode) => {
+				try {
+					await chatStore.addConfiguredTool(configuredNode);
+				} catch (error) {
+					toast.showError(error, i18n.baseText('chatHub.error.updateToolsFailed'));
+				}
 			},
 		},
 	});
 }
 
-function handleConfirm() {
-	const enabledTools = tools.value.filter((t) => enabledToolIds.value.has(t.id));
-	props.data.onConfirm(enabledTools);
-	modalBus.value.emit('close');
-}
-
-function handleCancel() {
+function handleClose() {
 	modalBus.value.emit('close');
 }
 </script>
@@ -198,14 +198,14 @@ function handleCancel() {
 					<div :class="$style.toolsList">
 						<ToolListItem
 							v-for="tool in filteredConfiguredTools"
-							:key="tool.id"
+							:key="tool.definition.id"
 							:node-type="getNodeType(tool)!"
-							:configured-node="tool"
-							:enabled="enabledToolIds.has(tool.id)"
+							:configured-node="tool.definition"
+							:enabled="tool.enabled"
 							mode="configured"
-							@toggle="(enabled) => handleToggleTool(tool.id, enabled)"
 							@configure="handleConfigureTool(tool)"
-							@remove="handleRemoveTool(tool.id)"
+							@remove="handleRemoveTool(tool.definition.id)"
+							@toggle="handleToggleTool(tool, $event)"
 						/>
 					</div>
 				</div>
@@ -238,10 +238,7 @@ function handleCancel() {
 
 		<template #footer>
 			<div :class="$style.footer">
-				<N8nButton type="tertiary" @click="handleCancel">
-					{{ i18n.baseText('chatHub.toolsManager.cancel') }}
-				</N8nButton>
-				<N8nButton type="primary" @click="handleConfirm">
+				<N8nButton type="primary" @click="handleClose">
 					{{ i18n.baseText('chatHub.toolsManager.confirm') }}
 				</N8nButton>
 			</div>

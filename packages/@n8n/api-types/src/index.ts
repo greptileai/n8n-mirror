@@ -59,6 +59,9 @@ export {
 	type ChatArtifactCreateCommand,
 	type ChatArtifactEditCommand,
 	type ChatMessageContentChunk,
+	type ChatHubToolDto,
+	ChatHubCreateToolRequest,
+	ChatHubUpdateToolRequest,
 } from './chat-hub';
 
 export type {

@@ -7,7 +7,9 @@ import type { DropdownMenuItemProps } from '@n8n/design-system';
 import type { INode, INodeTypeDescription } from 'n8n-workflow';
 import { useI18n } from '@n8n/i18n';
 import { useUIStore } from '@/app/stores/ui.store';
+import { useToast } from '@/app/composables/useToast';
 import { TOOLS_MANAGER_MODAL_KEY } from '@/features/ai/chatHub/constants';
+import { useChatStore } from '@/features/ai/chatHub/chat.store';
 
 const { selected, transparentBg = false } = defineProps<{
 	disabled: boolean;
@@ -16,12 +18,10 @@ const { selected, transparentBg = false } = defineProps<{
 	disabledTooltip?: string;
 }>();
 
-const emit = defineEmits<{
-	change: [tools: INode[]];
-}>();
-
 const nodeTypesStore = useNodeTypesStore();
 const uiStore = useUIStore();
+const chatStore = useChatStore();
+const toast = useToast();
 const i18n = useI18n();
 
 const searchQuery = ref('');
@@ -47,9 +47,7 @@ function openToolsManager() {
 		name: TOOLS_MANAGER_MODAL_KEY,
 		data: {
 			tools: selected,
-			onConfirm: (tools: INode[]) => {
-				emit('change', tools);
-			},
+			onConfirm: () => {},
 		},
 	});
 }
@@ -62,34 +60,38 @@ type ToolMenuItem = DropdownMenuItemProps<
 const menuItems = computed<ToolMenuItem[]>(() => {
 	const query = searchQuery.value.toLowerCase();
 
-	return selected
+	return chatStore.configuredTools
 		.filter((tool) => {
 			if (!query) return true;
-			const nodeType = nodeTypesStore.getNodeType(tool.type, tool.typeVersion);
-			const nameMatch = tool.name.toLowerCase().includes(query);
+			const def = tool.definition;
+			const nodeType = nodeTypesStore.getNodeType(def.type, def.typeVersion);
+			const nameMatch = def.name.toLowerCase().includes(query);
 			const typeMatch = nodeType?.displayName.toLowerCase().includes(query);
 			return nameMatch || typeMatch;
 		})
 		.map((tool) => ({
-			id: `tool::${tool.id}`,
-			label: tool.name,
-			checked: true,
+			id: `tool::${tool.definition.id}`,
+			label: tool.definition.name,
+			checked: tool.enabled,
 			data: {
-				nodeType: nodeTypesStore.getNodeType(tool.type, tool.typeVersion),
-				tool,
+				nodeType: nodeTypesStore.getNodeType(tool.definition.type, tool.definition.typeVersion),
+				tool: tool.definition,
 			},
 		}));
 });
 
-function handleSelect(id: string) {
+async function handleSelect(id: string) {
 	const [command, toolId] = id.split('::');
 
 	if (command === 'tool') {
-		// Toggle the tool - remove it from the list
-		emit(
-			'change',
-			selected.filter((s) => s.id !== toolId),
-		);
+		const tool = chatStore.configuredTools.find((t) => t.definition.id === toolId);
+		if (tool) {
+			try {
+				await chatStore.toggleToolEnabled(toolId, !tool.enabled);
+			} catch (error) {
+				toast.showError(error, i18n.baseText('chatHub.error.updateToolsFailed'));
+			}
+		}
 	}
 }
 
@@ -104,9 +106,9 @@ onMounted(async () => {
 
 <template>
 	<div :class="$style.container">
-		<!-- When no tools selected, show just the button that opens the manager -->
+		<!-- When no tools configured, show just the button that opens the manager -->
 		<N8nButton
-			v-if="toolCount === 0"
+			v-if="chatStore.configuredTools.length === 0"
 			type="secondary"
 			native-type="button"
 			:class="[$style.toolsButton, { [$style.transparentBg]: transparentBg }]"

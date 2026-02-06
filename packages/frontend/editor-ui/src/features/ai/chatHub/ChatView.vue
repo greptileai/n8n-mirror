@@ -3,7 +3,6 @@ import { useToast } from '@/app/composables/useToast';
 import {
 	LOCAL_STORAGE_CHAT_HUB_HAD_CONVERSATION_BEFORE,
 	LOCAL_STORAGE_CHAT_HUB_SELECTED_MODEL,
-	LOCAL_STORAGE_CHAT_HUB_SELECTED_TOOLS,
 	VIEWS,
 } from '@/app/constants';
 import {
@@ -50,7 +49,7 @@ import { useDocumentTitle } from '@/app/composables/useDocumentTitle';
 import { useUIStore } from '@/app/stores/ui.store';
 import { useChatCredentials } from '@/features/ai/chatHub/composables/useChatCredentials';
 import ChatLayout from '@/features/ai/chatHub/components/ChatLayout.vue';
-import { INodesSchema, type INode } from 'n8n-workflow';
+import type { INode } from 'n8n-workflow';
 import { useFileDrop } from '@/features/ai/chatHub/composables/useFileDrop';
 import {
 	type ChatHubConversationModelWithCachedDisplayName,
@@ -82,8 +81,9 @@ const i18n = useI18n();
 // Initialize WebSocket push handler for chat streaming
 const chatPushHandler = useChatPushHandler();
 
-onBeforeMount(() => {
+onBeforeMount(async () => {
 	chatPushHandler.initialize();
+	await chatStore.fetchConfiguredTools();
 });
 
 onBeforeUnmount(() => {
@@ -164,25 +164,6 @@ const defaultModel = useLocalStorage<ChatHubConversationModelWithCachedDisplayNa
 
 const defaultAgent = computed(() =>
 	defaultModel.value ? chatStore.getAgent(defaultModel.value) : undefined,
-);
-
-const defaultTools = useLocalStorage<INode[] | null>(
-	LOCAL_STORAGE_CHAT_HUB_SELECTED_TOOLS(usersStore.currentUserId ?? 'anonymous'),
-	null,
-	{
-		writeDefaults: false,
-		shallow: true,
-		serializer: {
-			read: (value) => {
-				try {
-					return INodesSchema.parse(JSON.parse(value));
-				} catch (error) {
-					return null;
-				}
-			},
-			write: (value) => JSON.stringify(value),
-		},
-	},
 );
 
 const shouldSkipNextScrollTrigger = ref(false);
@@ -267,7 +248,9 @@ const selectedTools = computed<INode[]>(() => {
 		return currentConversation.value.tools;
 	}
 
-	return modelFromQuery.value ? [] : (defaultTools.value ?? []);
+	return modelFromQuery.value
+		? []
+		: chatStore.configuredTools.filter((t) => t.enabled).map((t) => t.definition);
 });
 
 const { credentialsByProvider, selectCredential } = useChatCredentials(
@@ -476,13 +459,8 @@ watch(
 			defaultModel.value = { ...defaultModel.value, cachedIcon: agent.icon };
 		}
 
-		if (
-			agent &&
-			!agent.metadata.capabilities.functionCalling &&
-			(defaultTools.value ?? []).length > 0
-		) {
-			defaultTools.value = [];
-		}
+		// Note: when an agent doesn't support function calling,
+		// tools are simply not sent with messages (canSelectTools check handles this)
 	},
 	{ immediate: true },
 );
@@ -657,18 +635,6 @@ function handleConfigureModel() {
 	headerRef.value?.openModelSelector();
 }
 
-async function handleUpdateTools(newTools: INode[]) {
-	defaultTools.value = newTools;
-
-	if (currentConversation.value) {
-		try {
-			await chatStore.updateToolsInSession(sessionId.value, newTools);
-		} catch (error) {
-			toast.showError(error, i18n.baseText('chatHub.error.updateToolsFailed'));
-		}
-	}
-}
-
 function handleEditAgent(agentId: string) {
 	uiStore.openModalWithData({
 		name: AGENT_EDITOR_MODAL_KEY,
@@ -825,7 +791,6 @@ function onFilesDropped(files: File[]) {
 								@submit="onSubmit"
 								@stop="onStop"
 								@select-model="handleConfigureModel"
-								@select-tools="handleUpdateTools"
 								@set-credentials="handleConfigureCredentials"
 								@edit-agent="handleEditAgent"
 								@dismiss-credits-callout="handleDismissCreditsCallout"
