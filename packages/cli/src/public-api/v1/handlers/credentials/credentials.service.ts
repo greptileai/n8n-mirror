@@ -46,7 +46,7 @@ export type CredentialListSharedItem = {
 export function buildSharedForCredential(
 	credential: CredentialsEntity,
 ): CredentialListSharedItem[] {
-	const shared = credential.shared ?? [];
+	const shared = credential.shared;
 	return shared
 		.filter((sh) => typeof sh.project?.id === 'string')
 		.map((sh) => ({

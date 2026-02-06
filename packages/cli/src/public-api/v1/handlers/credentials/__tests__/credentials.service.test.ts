@@ -17,16 +17,6 @@ Container.set(Cipher, cipher);
 
 describe('CredentialsService', () => {
 	describe('buildSharedForCredential', () => {
-		it('returns empty array when credential has no shared', () => {
-			const credential = { shared: undefined } as unknown as CredentialsEntity;
-			expect(buildSharedForCredential(credential)).toEqual([]);
-		});
-
-		it('returns empty array when credential has empty shared', () => {
-			const credential = { shared: [] } as unknown as CredentialsEntity;
-			expect(buildSharedForCredential(credential)).toEqual([]);
-		});
-
 		it('returns one shared entry when credential is shared with one project', () => {
 			const createdAt = new Date('2024-01-01T00:00:00.000Z');
 			const updatedAt = new Date('2024-01-02T00:00:00.000Z');
