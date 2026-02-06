@@ -89,7 +89,14 @@ onMounted(() => {
 
 <template>
 	<div
-		:class="[$style.card, { [$style.collapsed]: !expanded, [$style.completed]: state.isComplete }]"
+		:class="[
+			$style.card,
+			{
+				[$style.collapsed]: !expanded,
+				[$style.completed]: state.isComplete,
+				[$style['no-content']]: !state.credentialRequirements.length,
+			},
+		]"
 	>
 		<header :class="$style.header" @click="onHeaderClick">
 			<N8nIcon
@@ -99,13 +106,26 @@ onMounted(() => {
 				size="medium"
 			/>
 			<NodeIcon v-else :node-type="nodeType" :size="16" />
-			<span :class="$style['node-name']">{{ props.state.node.name }}</span>
+			<N8nText :class="$style['node-name']" size="medium" color="text-dark">
+				{{ props.state.node.name }}
+			</N8nText>
 			<N8nTooltip v-if="state.isTrigger">
 				<template #content>
 					{{ i18n.baseText('nodeCreator.nodeItem.triggerIconTitle') }}
 				</template>
-				<N8nIcon :class="$style.chevron" icon="zap" size="small" />
+				<N8nIcon
+					:class="[$style['header-icon'], $style['trigger']]"
+					icon="zap"
+					size="small"
+					color="text-light"
+				/>
 			</N8nTooltip>
+			<N8nIcon
+				:class="[$style['header-icon'], $style['chevron']]"
+				icon="chevrons-down-up"
+				size="medium"
+				color="text-light"
+			/>
 		</header>
 
 		<template v-if="expanded">
@@ -113,6 +133,9 @@ onMounted(() => {
 				v-if="state.credentialRequirements.length"
 				:class="{ [$style.content]: true, ['pb-s']: !showFooter }"
 			>
+				<N8nText v-if="state.isTrigger" size="medium" color="text-light" class="mb-3xs">
+					{{ i18n.baseText('setupPanel.trigger.credential.note') }}
+				</N8nText>
 				<div
 					v-for="requirement in state.credentialRequirements"
 					:key="requirement.credentialType"
@@ -180,10 +203,27 @@ onMounted(() => {
 	width: 100%;
 	display: flex;
 	flex-direction: column;
-	gap: var(--spacing--sm);
+	gap: var(--spacing--2xs);
 	background-color: var(--color--background--light-2);
 	border: var(--border);
 	border-radius: var(--radius);
+
+	.header-icon {
+		&.chevron {
+			display: none;
+		}
+	}
+
+	&:hover {
+		.header-icon {
+			&.chevron {
+				display: block;
+			}
+			&.trigger {
+				display: none;
+			}
+		}
+	}
 }
 
 .header {
@@ -196,21 +236,19 @@ onMounted(() => {
 	.card:not(.collapsed) & {
 		margin-bottom: var(--spacing--sm);
 	}
+
+	.card.no-content & {
+		margin-bottom: 0;
+	}
 }
 
 .node-name {
 	flex: 1;
-	font-size: var(--font-size--sm);
 	font-weight: var(--font-weight--medium);
-	color: var(--color--text);
 }
 
 .complete-icon {
 	color: var(--color--success);
-}
-
-.chevron {
-	color: var(--color--text--tint-1);
 }
 
 .content {
@@ -250,7 +288,7 @@ onMounted(() => {
 .footer {
 	display: flex;
 	justify-content: flex-end;
-	padding: 0 var(--spacing--sm) var(--spacing--sm);
+	padding: var(--spacing--sm);
 }
 
 .footer-complete-check {
