@@ -72,7 +72,7 @@ function createTargetFunction(deps: TargetDeps) {
 			parsedNodeTypes,
 			llm,
 			plannerLLM: llm,
-			featureFlags: { planMode: true },
+			featureFlags: { planMode: true, templateExamples: true },
 			checkpointer: new MemorySaver(),
 		});
 
