@@ -3,4 +3,5 @@ module.exports = {
 	...require('../../../jest.config'),
 	collectCoverageFrom: ['src/**/*.ts'],
 	setupFilesAfterEnv: ['jest-expect-message'],
+	coveragePathIgnorePatterns: ['examples', 'src/examples'],
 };
