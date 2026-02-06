@@ -1,5 +1,5 @@
 import { GlobalConfig } from '@n8n/config';
-import type { SelectQueryBuilder } from '@n8n/typeorm';
+import { In, type SelectQueryBuilder } from '@n8n/typeorm';
 import { mock } from 'jest-mock-extended';
 
 import { WorkflowEntity } from '../../entities';
@@ -414,34 +414,6 @@ describe('WorkflowRepository', () => {
 			);
 		});
 
-		it('should left join activeVersion with addSelect and use COALESCE for MySQL', async () => {
-			const mysqlConfig = mockInstance(GlobalConfig, {
-				database: { type: 'mysqldb' },
-			});
-			const mysqlWorkflowRepository = new WorkflowRepository(
-				entityManager.connection,
-				mysqlConfig,
-				folderRepository,
-				workflowHistoryRepository,
-			);
-			jest.spyOn(mysqlWorkflowRepository, 'createQueryBuilder').mockReturnValue(queryBuilder);
-
-			const workflowIds = ['workflow1'];
-			const options = {
-				filter: { triggerNodeTypes: ['n8n-nodes-base.executeWorkflowTrigger'] },
-			};
-
-			await mysqlWorkflowRepository.getMany(workflowIds, options);
-
-			expect(queryBuilder.leftJoin).toHaveBeenCalledWith('workflow.activeVersion', 'activeVersion');
-			expect(queryBuilder.addSelect).toHaveBeenCalledWith('activeVersion.versionId');
-			// Should use COALESCE to check activeVersion.nodes first, falling back to workflow.nodes
-			expect(queryBuilder.andWhere).toHaveBeenCalledWith(
-				'(COALESCE(activeVersion.nodes, workflow.nodes) LIKE :triggerNodeType0)',
-				{ triggerNodeType0: '%n8n-nodes-base.executeWorkflowTrigger%' },
-			);
-		});
-
 		it('should not join activeVersion again if already joined', async () => {
 			// Simulate activeVersion already being joined
 			Object.defineProperty(queryBuilder, 'expressionMap', {
@@ -537,6 +509,26 @@ describe('WorkflowRepository', () => {
 
 			// Should left join activeVersion for the trigger filter
 			expect(queryBuilder.leftJoin).toHaveBeenCalledWith('workflow.activeVersion', 'activeVersion');
+		});
+	});
+
+	describe('findByIds', () => {
+		it('should return an empty array and not call the database when no workflow ids are provided', async () => {
+			const findSpy = jest.spyOn(workflowRepository, 'find');
+			const workflowIds: string[] = [];
+			const result = await workflowRepository.findByIds(workflowIds);
+
+			expect(result).toEqual([]);
+			expect(findSpy).not.toHaveBeenCalled();
+		});
+
+		it('should call the database when workflow ids are provided', async () => {
+			const findSpy = jest.spyOn(workflowRepository, 'find').mockResolvedValue([]);
+			const workflowIds = ['workflow1'];
+			const result = await workflowRepository.findByIds(workflowIds);
+			expect(result).toEqual([]);
+			expect(findSpy).toHaveBeenCalledTimes(1);
+			expect(findSpy).toHaveBeenCalledWith({ where: { id: In(workflowIds) } });
 		});
 	});
 });

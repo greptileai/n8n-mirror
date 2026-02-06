@@ -5,10 +5,10 @@
  * Can be run directly or used as a reference for custom setups.
  */
 
-import type { Callbacks } from '@langchain/core/callbacks/manager';
 import type { INodeTypeDescription } from 'n8n-workflow';
 import pLimit from 'p-limit';
 
+import type { CoordinationLogEntry } from '@/types/coordination';
 import type { SimpleWorkflow } from '@/types/workflow';
 import type { BuilderFeatureFlags } from '@/workflow-builder-agent';
 
@@ -19,6 +19,20 @@ import {
 	parseEvaluationArgs,
 } from './argument-parser';
 import { buildCIMetadata } from './ci-metadata';
+import {
+	loadTestCasesFromCsv,
+	loadDefaultTestCases,
+	getDefaultTestCaseIds,
+} from './csv-prompt-loader';
+import { sendWebhookNotification } from './webhook';
+import {
+	consumeGenerator,
+	extractSubgraphMetrics,
+	getChatPayload,
+} from '../harness/evaluation-helpers';
+import { createLogger } from '../harness/logger';
+import type { GenerationCollectors } from '../harness/runner';
+import { TokenUsageTrackingHandler } from '../harness/token-tracking-handler';
 import {
 	runEvaluation,
 	createConsoleLifecycle,
@@ -31,16 +45,20 @@ import {
 	type Evaluator,
 	type EvaluationContext,
 } from '../index';
-import {
-	loadTestCasesFromCsv,
-	loadDefaultTestCases,
-	getDefaultTestCaseIds,
-} from './csv-prompt-loader';
-import { consumeGenerator, getChatPayload } from '../harness/evaluation-helpers';
-import { createLogger } from '../harness/logger';
 import { generateRunId, isWorkflowStateValues } from '../langsmith/types';
 import { EVAL_TYPES, EVAL_USERS } from '../support/constants';
 import { setupTestEnvironment, createAgent, type ResolvedStageLLMs } from '../support/environment';
+
+/**
+ * Type guard to check if state values contain a coordination log.
+ */
+function hasCoordinationLog(
+	values: unknown,
+): values is { coordinationLog: CoordinationLogEntry[] } {
+	if (!values || typeof values !== 'object') return false;
+	const obj = values as Record<string, unknown>;
+	return Array.isArray(obj.coordinationLog);
+}
 
 /**
  * Create a workflow generator function.
@@ -52,8 +70,8 @@ function createWorkflowGenerator(
 	parsedNodeTypes: INodeTypeDescription[],
 	llms: ResolvedStageLLMs,
 	featureFlags?: BuilderFeatureFlags,
-): (prompt: string, callbacks?: Callbacks) => Promise<SimpleWorkflow> {
-	return async (prompt: string, callbacks?: Callbacks): Promise<SimpleWorkflow> => {
+): (prompt: string, collectors?: GenerationCollectors) => Promise<SimpleWorkflow> {
+	return async (prompt: string, collectors?: GenerationCollectors): Promise<SimpleWorkflow> => {
 		const runId = generateRunId();
 
 		const agent = createAgent({
@@ -61,6 +79,10 @@ function createWorkflowGenerator(
 			llms,
 			featureFlags,
 		});
+
+		// Create token tracking handler to capture usage from all LLM calls
+		// (supervisor, discovery, builder, responder agents)
+		const tokenTracker = collectors?.tokenUsage ? new TokenUsageTrackingHandler() : undefined;
 
 		await consumeGenerator(
 			agent.chat(
@@ -72,7 +94,7 @@ function createWorkflowGenerator(
 				}),
 				EVAL_USERS.LANGSMITH,
 				undefined, // abortSignal
-				callbacks,
+				tokenTracker ? [tokenTracker] : undefined, // externalCallbacks
 			),
 		);
 
@@ -82,7 +104,35 @@ function createWorkflowGenerator(
 			throw new Error('Invalid workflow state: workflow or messages missing');
 		}
 
-		return state.values.workflowJSON;
+		const workflow = state.values.workflowJSON;
+
+		// Report accumulated token usage from all agents
+		if (collectors?.tokenUsage && tokenTracker) {
+			const usage = tokenTracker.getUsage();
+			if (usage.inputTokens > 0 || usage.outputTokens > 0) {
+				collectors.tokenUsage(usage);
+			}
+		}
+
+		// Extract and report subgraph metrics from coordination log
+		if (collectors?.subgraphMetrics) {
+			const coordinationLog = hasCoordinationLog(state.values)
+				? state.values.coordinationLog
+				: undefined;
+			const nodeCount = workflow.nodes?.length;
+			const metrics = extractSubgraphMetrics(coordinationLog, nodeCount);
+
+			if (
+				metrics.discoveryDurationMs !== undefined ||
+				metrics.builderDurationMs !== undefined ||
+				metrics.responderDurationMs !== undefined ||
+				metrics.nodeCount !== undefined
+			) {
+				collectors.subgraphMetrics(metrics);
+			}
+		}
+
+		return workflow;
 	};
 }
 
@@ -197,6 +247,8 @@ export async function runV2Evaluation(): Promise<void> {
 		lifecycle,
 		logger,
 		outputDir: args.outputDir,
+		outputCsv: args.outputCsv,
+		suite: args.suite,
 		timeoutMs: args.timeoutMs,
 		context: { llmCallLimiter },
 	};
@@ -230,7 +282,24 @@ export async function runV2Evaluation(): Promise<void> {
 				};
 
 	// Run evaluation
-	await runEvaluation(config);
+	const summary = await runEvaluation(config);
+
+	if (args.webhookUrl) {
+		const dataset =
+			args.backend === 'langsmith'
+				? (args.datasetName ?? getDefaultDatasetName(args.suite))
+				: 'local-dataset';
+
+		await sendWebhookNotification({
+			webhookUrl: args.webhookUrl,
+			webhookSecret: args.webhookSecret,
+			summary,
+			dataset,
+			suite: args.suite,
+			metadata: { ...buildCIMetadata() },
+			logger,
+		});
+	}
 
 	// Always exit 0 on successful completion - pass/fail is informational, not an error
 	process.exit(0);
