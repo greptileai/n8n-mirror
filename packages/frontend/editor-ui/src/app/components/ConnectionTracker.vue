@@ -67,7 +67,9 @@ const connectionStatus = computed<ConnectionStatus>(() => {
 				</span>
 			</N8nTooltip>
 		</div>
-		<slot v-else />
+		<span v-show="!connectionStatus.hasError" class="slot-wrapper">
+			<slot />
+		</span>
 	</span>
 </template>
 
@@ -81,5 +83,9 @@ const connectionStatus = computed<ConnectionStatus>(() => {
 	display: flex;
 	align-items: center;
 	gap: var(--spacing--3xs);
+}
+
+.slot-wrapper {
+	display: contents;
 }
 </style>

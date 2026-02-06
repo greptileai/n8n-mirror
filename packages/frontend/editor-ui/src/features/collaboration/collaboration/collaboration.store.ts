@@ -1,6 +1,6 @@
 /* eslint-disable import-x/extensions */
 import { defineStore } from 'pinia';
-import { computed, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import type { Collaborator } from '@n8n/api-types';
 import type { IWorkflowDb } from '@/Interface';
@@ -388,22 +388,6 @@ export const useCollaborationStore = defineStore(STORES.COLLABORATION, () => {
 		}
 		collaboratingWorkflowId.value = null;
 	}
-
-	// Watch for workflowId changes and properly terminate/reinitialize collaboration
-	watch(
-		() => workflowsStore.workflowId,
-		async (newWorkflowId, oldWorkflowId) => {
-			// If the workflowId changed, terminate the old session
-			if (oldWorkflowId && newWorkflowId !== oldWorkflowId) {
-				terminate();
-
-				// If navigating to another saved workflow, initialize a new session
-				if (newWorkflowId && workflowsStore.isWorkflowSaved[newWorkflowId]) {
-					await initialize();
-				}
-			}
-		},
-	);
 
 	return {
 		collaborators,
