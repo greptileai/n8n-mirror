@@ -312,6 +312,7 @@ export function useBuilderMessages() {
 		content: string,
 		id: string,
 		revertVersion?: { id: string; createdAt: string },
+		focusedNodeNames?: string[],
 	): ChatUI.AssistantMessage {
 		return {
 			id,
@@ -319,6 +320,7 @@ export function useBuilderMessages() {
 			type: 'text',
 			content,
 			revertVersion,
+			...(focusedNodeNames && focusedNodeNames.length > 0 ? { focusedNodeNames } : {}),
 			read: true,
 		};
 	}

@@ -53,7 +53,6 @@ function getNodeType(nodeTypeName: string) {
 const inputRef = ref<InstanceType<typeof N8nPromptInput> | null>(null);
 const textValue = ref(props.modelValue);
 
-// Sync with prop
 watch(
 	() => props.modelValue,
 	(newValue) => {
@@ -61,7 +60,6 @@ watch(
 	},
 );
 
-// Emit on change
 watch(textValue, (newValue) => {
 	emit('update:modelValue', newValue);
 });
@@ -88,7 +86,6 @@ const hasUnconfirmedNodes = computed(() => unconfirmedNodes.value.length > 0);
 const confirmedCount = computed(() => confirmedNodes.value.length);
 const unconfirmedCount = computed(() => unconfirmedNodes.value.length);
 
-// Bundling logic: show bundled chip when 4+ nodes, individual chips for 1-3
 const shouldBundleConfirmed = computed(() => confirmedCount.value >= 4);
 const shouldBundleUnconfirmed = computed(() => unconfirmedCount.value >= 4);
 const individualConfirmedNodes = computed(() =>
@@ -101,10 +98,8 @@ const individualUnconfirmedNodes = computed(() =>
 function handleChipClick(nodeId: string) {
 	const node = focusedNodesStore.focusedNodesMap[nodeId];
 	if (node?.state === 'confirmed') {
-		// Pan canvas to the node
-		canvasEventBus.emit('nodes:select', { ids: [nodeId] });
+		canvasEventBus.emit('nodes:select', { ids: [nodeId], panIntoView: true });
 	} else {
-		// Unconfirmed → confirm
 		const isSelectedOnCanvas = focusedNodesStore.isNodeSelectedOnCanvas(nodeId);
 		focusedNodesStore.toggleNode(nodeId, isSelectedOnCanvas);
 	}
@@ -175,7 +170,6 @@ function handleSearchQueryUpdate(query: string) {
 }
 
 function handleClose() {
-	// Remove @query text if there are no matches when closing via click outside
 	closeDropdown(filteredNodes.value.length === 0);
 }
 
@@ -184,9 +178,7 @@ function focusInput() {
 }
 
 function handleMentionButtonClick(event: MouseEvent) {
-	// Stop propagation to prevent the click outside handler from immediately closing the dropdown
 	event.stopPropagation();
-	// Use the button element for positioning the dropdown
 	const button = event.currentTarget as HTMLElement;
 	if (button) {
 		openDropdown(button, { viaButton: true, alignRight: true });
@@ -338,16 +330,20 @@ defineExpose({
 	gap: var(--spacing--4xs);
 	height: 24px;
 	padding: 0 var(--spacing--2xs);
-	background-color: var(--color--green-100);
-	border: 1px solid var(--color--green-100);
+	/* stylelint-disable-next-line @n8n/css-var-naming */
+	background-color: var(--background--success);
+	/* stylelint-disable-next-line @n8n/css-var-naming */
+	border: 1px solid var(--background--success);
 	border-radius: var(--radius);
 	font-size: var(--font-size--2xs);
-	color: var(--color--green-800);
+	/* stylelint-disable-next-line @n8n/css-var-naming */
+	color: var(--text-color--success);
 	white-space: nowrap;
 }
 
 .bundledConfirmedIcon {
-	color: var(--color--green-800);
+	/* stylelint-disable-next-line @n8n/css-var-naming */
+	color: var(--text-color--success);
 }
 
 .removeButton {
@@ -361,10 +357,12 @@ defineExpose({
 	background: none;
 	border: none;
 	cursor: pointer;
-	color: var(--color--green-800);
+	/* stylelint-disable-next-line @n8n/css-var-naming */
+	color: var(--text-color--success);
 
 	&:hover {
-		color: var(--color--green-800);
+		/* stylelint-disable-next-line @n8n/css-var-naming */
+		color: var(--text-color--success);
 	}
 }
 
@@ -379,6 +377,7 @@ defineExpose({
 	border-radius: var(--radius);
 	font-size: var(--font-size--2xs);
 	font-weight: var(--font-weight--regular);
+	font-style: italic;
 	color: var(--color--text--tint-1);
 	cursor: pointer;
 	white-space: nowrap;

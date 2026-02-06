@@ -31,7 +31,6 @@ const inputRef = ref<HTMLInputElement | null>(null);
 const listRef = ref<HTMLDivElement | null>(null);
 const localQuery = ref(props.searchQuery);
 
-// Sync local query with prop (incoming changes from parent)
 watch(
 	() => props.searchQuery,
 	(newQuery) => {
@@ -39,7 +38,6 @@ watch(
 	},
 );
 
-// Emit local query changes to parent
 watch(localQuery, (newQuery) => {
 	emit('update:searchQuery', newQuery);
 });

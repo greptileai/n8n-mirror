@@ -26,11 +26,9 @@ const shouldCollapse = computed(() => focusedNodesStore.shouldCollapseChips);
 const confirmedCount = computed(() => focusedNodesStore.confirmedNodes.length);
 const unconfirmedCount = computed(() => focusedNodesStore.filteredUnconfirmedNodes.length);
 
-// Show bundled chip when 4+ nodes, individual chips for 1-3
 const shouldBundleConfirmed = computed(() => confirmedCount.value >= 4);
 const shouldBundleUnconfirmed = computed(() => unconfirmedCount.value >= 4);
 
-// Get individual nodes for display (1-3 nodes)
 const individualConfirmedNodes = computed(() =>
 	confirmedCount.value >= 1 && confirmedCount.value <= 3 ? focusedNodesStore.confirmedNodes : [],
 );
@@ -43,10 +41,8 @@ const individualUnconfirmedNodes = computed(() =>
 function handleChipClick(nodeId: string) {
 	const node = focusedNodesStore.focusedNodesMap[nodeId];
 	if (node?.state === 'confirmed') {
-		// Pan canvas to the node
-		canvasEventBus.emit('nodes:select', { ids: [nodeId] });
+		canvasEventBus.emit('nodes:select', { ids: [nodeId], panIntoView: true });
 	} else {
-		// Unconfirmed → confirm
 		const isSelectedOnCanvas = focusedNodesStore.isNodeSelectedOnCanvas(nodeId);
 		focusedNodesStore.toggleNode(nodeId, isSelectedOnCanvas);
 	}
@@ -200,16 +196,20 @@ function handleRemoveAllConfirmed() {
 	gap: var(--spacing--4xs);
 	height: 24px;
 	padding: 0 var(--spacing--2xs);
-	background-color: var(--color--green-100);
-	border: 1px solid var(--color--green-100);
+	/* stylelint-disable-next-line @n8n/css-var-naming */
+	background-color: var(--background--success);
+	/* stylelint-disable-next-line @n8n/css-var-naming */
+	border: 1px solid var(--background--success);
 	border-radius: var(--radius);
 	font-size: var(--font-size--2xs);
-	color: var(--color--green-800);
+	/* stylelint-disable-next-line @n8n/css-var-naming */
+	color: var(--text-color--success);
 	white-space: nowrap;
 }
 
 .bundledIcon {
-	color: var(--color--green-800);
+	/* stylelint-disable-next-line @n8n/css-var-naming */
+	color: var(--text-color--success);
 }
 
 .bundledUnconfirmedChip {
@@ -223,6 +223,7 @@ function handleRemoveAllConfirmed() {
 	border-radius: var(--radius);
 	font-size: var(--font-size--2xs);
 	font-weight: var(--font-weight--regular);
+	font-style: italic;
 	color: var(--color--text--tint-1);
 	cursor: pointer;
 	white-space: nowrap;
@@ -251,10 +252,12 @@ function handleRemoveAllConfirmed() {
 	background: none;
 	border: none;
 	cursor: pointer;
-	color: var(--color--green-800);
+	/* stylelint-disable-next-line @n8n/css-var-naming */
+	color: var(--text-color--success);
 
 	&:hover {
-		color: var(--color--green-800);
+		/* stylelint-disable-next-line @n8n/css-var-naming */
+		color: var(--text-color--success);
 	}
 }
 

@@ -6,7 +6,7 @@ import { useHistoryStore } from '@/app/stores/history.store';
 import { useCollaborationStore } from '@/features/collaboration/collaboration/collaboration.store';
 import { useWorkflowAutosaveStore } from '@/app/stores/workflowAutosave.store';
 import { AutoSaveState } from '@/app/constants';
-import { computed, watch, ref, useSlots } from 'vue';
+import { computed, watch, ref, nextTick, useSlots } from 'vue';
 import { useTelemetry } from '@/app/composables/useTelemetry';
 import { useI18n } from '@n8n/i18n';
 import { useWorkflowsStore } from '@/app/stores/workflows.store';
@@ -32,6 +32,7 @@ import AISettingsButton from '@/features/ai/assistant/components/Chat/AISettings
 import { useAssistantStore } from '@/features/ai/assistant/assistant.store';
 import { useSettingsStore } from '@/app/stores/settings.store';
 import { useFocusedNodesStore } from '@/features/ai/assistant/focusedNodes.store';
+import { useChatPanelStateStore } from '@/features/ai/assistant/chatPanelState.store';
 
 import { N8nAskAssistantChat, N8nText } from '@n8n/design-system';
 
@@ -51,6 +52,7 @@ const slots = useSlots();
 const workflowsStore = useWorkflowsStore();
 const assistantStore = useAssistantStore();
 const focusedNodesStore = useFocusedNodesStore();
+const chatPanelStateStore = useChatPanelStateStore();
 const router = useRouter();
 const i18n = useI18n();
 const route = useRoute();
@@ -401,6 +403,18 @@ watch(currentRoute, () => {
 		onNewWorkflow();
 	}
 });
+
+// Refocus chat input when a canvas node is clicked while chat is open
+watch(
+	() => chatPanelStateStore.focusRequested,
+	() => {
+		void nextTick(() => {
+			suggestionsInputRef.value?.focusInput() ??
+				chatInputRef.value?.focusInput() ??
+				n8nChatRef.value?.focusInput();
+		});
+	},
+);
 
 defineExpose({
 	focusInput: () => {

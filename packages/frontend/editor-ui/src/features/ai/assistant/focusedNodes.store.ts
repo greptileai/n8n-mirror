@@ -11,6 +11,8 @@ import type {
 	FocusedNodeState,
 	FocusedNodesContextPayload,
 } from './focusedNodes.types';
+import { useChatPanelStateStore } from './chatPanelState.store';
+import { useNDVStore } from '@/features/ndv/shared/ndv.store';
 import type { INodeIssues } from 'n8n-workflow';
 
 const COLLAPSE_THRESHOLD = 7;
@@ -20,16 +22,16 @@ export const useFocusedNodesStore = defineStore(STORES.FOCUSED_NODES, () => {
 	const workflowsStore = useWorkflowsStore();
 	const posthogStore = usePostHog();
 	const telemetry = useTelemetry();
+	const chatPanelStateStore = useChatPanelStateStore();
+	const ndvStore = useNDVStore();
 
 	const isFeatureEnabled = computed(() =>
 		posthogStore.isFeatureEnabled(FOCUSED_NODES_EXPERIMENT.name),
 	);
 
-	// State
 	const focusedNodesMap = ref<Record<string, FocusedNode>>({});
 	const canvasSelectedNodeIds = ref<Set<string>>(new Set());
 
-	// Computed
 	const confirmedNodes = computed(() =>
 		Object.values(focusedNodesMap.value).filter((node) => node.state === 'confirmed'),
 	);
@@ -38,7 +40,6 @@ export const useFocusedNodesStore = defineStore(STORES.FOCUSED_NODES, () => {
 		Object.values(focusedNodesMap.value).filter((node) => node.state === 'unconfirmed'),
 	);
 
-	// Hide unconfirmed pills when all workflow nodes are selected (adds no value over default context)
 	const filteredUnconfirmedNodes = computed(() => {
 		const totalWorkflowNodes = workflowsStore.allNodes.length;
 		const availableNodes = totalWorkflowNodes - confirmedNodes.value.length;
@@ -67,34 +68,28 @@ export const useFocusedNodesStore = defineStore(STORES.FOCUSED_NODES, () => {
 		return canvasSelectedNodeIds.value.has(nodeId);
 	}
 
-	// Helper to get node info from workflow
 	function getNodeInfo(nodeId: string): { name: string; type: string } | null {
 		const node = workflowsStore.allNodes.find((n) => n.id === nodeId);
 		if (!node) return null;
 		return { name: node.name, type: node.type };
 	}
 
-	// Telemetry types
 	type AddSource = 'context_menu' | 'canvas_selection' | 'mention' | 'keyboard_shortcut';
 	type RemoveMethod = 'badge_click' | 'clear_all' | 'node_deleted' | 'workflow_changed';
 
-	// Actions
 	function confirmNodes(
 		nodeIds: string[],
 		source: AddSource,
 		options?: { mentionQueryLength?: number },
 	) {
-		console.log('[FocusedNodesStore] confirmNodes called', { nodeIds, source });
 		const nodeTypes: string[] = [];
 
 		for (const nodeId of nodeIds) {
 			const existingNode = focusedNodesMap.value[nodeId];
 			if (existingNode) {
-				// Update state to confirmed
 				focusedNodesMap.value[nodeId] = { ...existingNode, state: 'confirmed' };
 				nodeTypes.push(existingNode.nodeType);
 			} else {
-				// Add new node as confirmed
 				const nodeInfo = getNodeInfo(nodeId);
 				if (nodeInfo) {
 					focusedNodesMap.value[nodeId] = {
@@ -120,21 +115,14 @@ export const useFocusedNodesStore = defineStore(STORES.FOCUSED_NODES, () => {
 		}
 	}
 
-	// Debounced version to avoid rapid state changes
 	const debouncedSetUnconfirmed = useDebounceFn((nodeIds: string[]) => {
-		console.log('[FocusedNodesStore] debouncedSetUnconfirmed called', { nodeIds });
-		// Get current confirmed node IDs to preserve them
 		const currentConfirmedIds = new Set(confirmedNodeIds.value);
-
-		// Build new map: keep confirmed nodes, add/update unconfirmed from selection
 		const newMap: Record<string, FocusedNode> = {};
 
-		// Keep all confirmed nodes
 		for (const node of confirmedNodes.value) {
 			newMap[node.nodeId] = node;
 		}
 
-		// Add unconfirmed nodes from canvas selection (if not already confirmed)
 		for (const nodeId of nodeIds) {
 			if (!currentConfirmedIds.has(nodeId)) {
 				const existingUnconfirmed = focusedNodesMap.value[nodeId];
@@ -158,7 +146,6 @@ export const useFocusedNodesStore = defineStore(STORES.FOCUSED_NODES, () => {
 	}, getDebounceTime(DEBOUNCE_TIME.INPUT.VALIDATION));
 
 	function setUnconfirmedFromCanvasSelection(nodeIds: string[]) {
-		console.log('[FocusedNodesStore] setUnconfirmedFromCanvasSelection called', { nodeIds });
 		canvasSelectedNodeIds.value = new Set(nodeIds);
 		void debouncedSetUnconfirmed(nodeIds);
 	}
@@ -168,10 +155,8 @@ export const useFocusedNodesStore = defineStore(STORES.FOCUSED_NODES, () => {
 		if (!node) return;
 
 		if (node.state === 'unconfirmed') {
-			// Unconfirmed → Confirmed (clicking unconfirmed badge = canvas_selection confirmation)
 			confirmNodes([nodeId], 'canvas_selection');
 		} else if (node.state === 'confirmed') {
-			// Confirmed → Remove (if not selected on canvas) or make unconfirmed (if selected)
 			if (isSelectedOnCanvas) {
 				focusedNodesMap.value[nodeId] = { ...node, state: 'unconfirmed' };
 			} else {
@@ -186,7 +171,6 @@ export const useFocusedNodesStore = defineStore(STORES.FOCUSED_NODES, () => {
 
 		const wasConfirmed = node.state === 'confirmed';
 		delete focusedNodesMap.value[nodeId];
-		// Trigger reactivity
 		focusedNodesMap.value = { ...focusedNodesMap.value };
 
 		if (wasConfirmed) {
@@ -203,7 +187,6 @@ export const useFocusedNodesStore = defineStore(STORES.FOCUSED_NODES, () => {
 		focusedNodesMap.value = {};
 
 		if (previousCount > 0) {
-			// Merged into ai.focusedNodes.removed with method 'clear_all'
 			telemetry.track('ai.focusedNodes.removed', {
 				method: 'clear_all',
 				removed_count: previousCount,
@@ -244,7 +227,6 @@ export const useFocusedNodesStore = defineStore(STORES.FOCUSED_NODES, () => {
 		const previousCount = confirmedNodes.value.length;
 		const confirmedIds = confirmedNodes.value.map((n) => n.nodeId);
 
-		// Remove all confirmed nodes, but keep those that are selected on canvas as unconfirmed
 		for (const nodeId of confirmedIds) {
 			if (canvasSelectedNodeIds.value.has(nodeId)) {
 				const node = focusedNodesMap.value[nodeId];
@@ -256,7 +238,6 @@ export const useFocusedNodesStore = defineStore(STORES.FOCUSED_NODES, () => {
 			}
 		}
 
-		// Trigger reactivity
 		focusedNodesMap.value = { ...focusedNodesMap.value };
 
 		if (previousCount > 0) {
@@ -268,11 +249,9 @@ export const useFocusedNodesStore = defineStore(STORES.FOCUSED_NODES, () => {
 		}
 	}
 
-	// Watch for workflow changes - reset all focused nodes
 	watch(
 		() => workflowsStore.workflowId,
 		(_newId, oldId) => {
-			// Only track if there were confirmed nodes and this isn't the initial load
 			const previousCount = confirmedNodes.value.length;
 			focusedNodesMap.value = {};
 
@@ -286,7 +265,6 @@ export const useFocusedNodesStore = defineStore(STORES.FOCUSED_NODES, () => {
 		},
 	);
 
-	// Watch for node deletions - auto-remove from focused nodes
 	watch(
 		() => workflowsStore.allNodes,
 		(newNodes) => {
@@ -316,7 +294,6 @@ export const useFocusedNodesStore = defineStore(STORES.FOCUSED_NODES, () => {
 		{ deep: true },
 	);
 
-	// Watch for node renames
 	watch(
 		() => workflowsStore.allNodes.map((n) => ({ id: n.id, name: n.name })),
 		(newNodeNames) => {
@@ -330,11 +307,16 @@ export const useFocusedNodesStore = defineStore(STORES.FOCUSED_NODES, () => {
 		{ deep: true },
 	);
 
-	/**
-	 * Builds the context payload for confirmed focused nodes.
-	 * This payload is sent to the AI workflow builder to provide context
-	 * about which nodes the user wants the AI to focus on.
-	 */
+	watch(
+		() => ndvStore.activeNode,
+		(node) => {
+			if (!isFeatureEnabled.value || !chatPanelStateStore.isOpen) return;
+			if (node && !focusedNodesMap.value[node.id]) {
+				setUnconfirmedFromCanvasSelection([node.id]);
+			}
+		},
+	);
+
 	function buildContextPayload(): FocusedNodesContextPayload[] {
 		if (!isFeatureEnabled.value) {
 			return [];
@@ -349,13 +331,11 @@ export const useFocusedNodesStore = defineStore(STORES.FOCUSED_NODES, () => {
 		const connectionsBySource = workflowsStore.connectionsBySourceNode;
 		const allNodes = workflowsStore.allNodes;
 
-		// Build a map of nodeId -> node for quick lookup
 		const nodeById = new Map(allNodes.map((n) => [n.id, n]));
 
 		return confirmedNodesList.map((focusedNode) => {
 			const node = nodeById.get(focusedNode.nodeId);
 			if (!node) {
-				// Fallback if node not found (shouldn't happen)
 				return {
 					name: focusedNode.nodeName,
 					incomingConnections: [],
@@ -363,7 +343,6 @@ export const useFocusedNodesStore = defineStore(STORES.FOCUSED_NODES, () => {
 				};
 			}
 
-			// Get incoming connections (nodes that connect TO this node)
 			const incomingConnections: string[] = [];
 			const nodeConnections = connectionsByDestination[node.name];
 			if (nodeConnections?.main) {
@@ -378,7 +357,6 @@ export const useFocusedNodesStore = defineStore(STORES.FOCUSED_NODES, () => {
 				}
 			}
 
-			// Get outgoing connections (nodes that this node connects TO)
 			const outgoingConnections: string[] = [];
 			const sourceConnections = connectionsBySource[node.name];
 			if (sourceConnections?.main) {
@@ -393,7 +371,6 @@ export const useFocusedNodesStore = defineStore(STORES.FOCUSED_NODES, () => {
 				}
 			}
 
-			// Build issues map (convert INodeIssues to Record<string, string[]>)
 			let issues: Record<string, string[]> | undefined;
 			if (node.issues) {
 				issues = {};
@@ -412,13 +389,11 @@ export const useFocusedNodesStore = defineStore(STORES.FOCUSED_NODES, () => {
 						}
 					}
 				}
-				// Clean up empty issues object
 				if (Object.keys(issues).length === 0) {
 					issues = undefined;
 				}
 			}
 
-			// Return only additional context - full node details are in currentWorkflow.nodes
 			return {
 				name: node.name,
 				issues,
@@ -429,10 +404,8 @@ export const useFocusedNodesStore = defineStore(STORES.FOCUSED_NODES, () => {
 	}
 
 	return {
-		// State
 		focusedNodesMap,
 		canvasSelectedNodeIds,
-		// Computed
 		isFeatureEnabled,
 		confirmedNodes,
 		unconfirmedNodes,
@@ -442,7 +415,6 @@ export const useFocusedNodesStore = defineStore(STORES.FOCUSED_NODES, () => {
 		confirmedNodeIds,
 		hasVisibleNodes,
 		tooManyUnconfirmed,
-		// Actions
 		confirmNodes,
 		setUnconfirmedFromCanvasSelection,
 		toggleNode,

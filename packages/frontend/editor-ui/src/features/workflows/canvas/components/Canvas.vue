@@ -65,6 +65,7 @@ import { useExperimentalNdvStore } from '../experimental/experimentalNdv.store';
 import { type ContextMenuAction } from '@/features/shared/contextMenu/composables/useContextMenuItems';
 import { useFocusedNodesStore } from '@/features/ai/assistant/focusedNodes.store';
 import { useChatPanelStore } from '@/features/ai/assistant/chatPanel.store';
+import { useChatPanelStateStore } from '@/features/ai/assistant/chatPanelState.store';
 
 const $style = useCssModule();
 
@@ -162,6 +163,7 @@ const { isMobileDevice, controlKeyCode } = useDeviceSupport();
 const experimentalNdvStore = useExperimentalNdvStore();
 const focusedNodesStore = useFocusedNodesStore();
 const chatPanelStore = useChatPanelStore();
+const chatPanelStateStore = useChatPanelStateStore();
 
 const isExperimentalNdvActive = computed(() => experimentalNdvStore.isActive(viewport.value.zoom));
 
@@ -409,7 +411,6 @@ watch(selectedNodes, (nodes) => {
 	}
 });
 
-// Sync canvas selection with focused nodes (unconfirmed badges) when chat panel is open
 watch(selectedNodeIds, (newIds) => {
 	if (chatPanelStore.isOpen && focusedNodesStore.isFeatureEnabled) {
 		focusedNodesStore.setUnconfirmedFromCanvasSelection(newIds);
@@ -444,6 +445,7 @@ function onNodeDragStop(event: NodeDragEvent) {
 function onNodeClick({ event, node }: NodeMouseEvent) {
 	if (chatPanelStore.isOpen && focusedNodesStore.isFeatureEnabled) {
 		focusedNodesStore.confirmNodes([node.id], 'canvas_selection');
+		chatPanelStateStore.focusRequested++;
 	}
 
 	emit('click:node', node.id, getProjectedPosition(event));
@@ -546,7 +548,6 @@ function onAddToAi(id: string) {
 }
 
 function onAddSelectedNodesToAi(nodeIds: string[]) {
-	// Gate behind feature flag
 	if (!focusedNodesStore.isFeatureEnabled) {
 		return;
 	}

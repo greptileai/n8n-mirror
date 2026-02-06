@@ -291,7 +291,6 @@ async function onSuggestionClick(suggestion: WorkflowSuggestion) {
 	await nextTick();
 	// Wait one more frame to ensure DOM is fully updated
 	await new Promise(requestAnimationFrame);
-	// Focus the input - use custom focus function if registered, otherwise use default
 	if (suggestionsInputFocusFn.value) {
 		suggestionsInputFocusFn.value();
 	} else {
@@ -579,7 +578,10 @@ defineExpose({
 		<div v-if="showFooterRating" :class="$style.feedbackWrapper" data-test-id="footer-rating">
 			<MessageRating minimal @feedback="onRateMessage" />
 		</div>
-		<div v-if="$slots.inputHeader && (showBottomInput || showSuggestions)" :class="$style.inputHeaderWrapper">
+		<div
+			v-if="$slots.inputHeader && (showBottomInput || showSuggestions)"
+			:class="$style.inputHeaderWrapper"
+		>
 			<slot name="inputHeader" />
 		</div>
 		<div

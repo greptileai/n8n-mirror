@@ -414,7 +414,8 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 		messageId: string,
 		revertVersion?: { id: string; createdAt: string },
 	) {
-		const userMsg = createUserMessage(userMessage, messageId, revertVersion);
+		const focusedNodeNames = focusedNodesStore.confirmedNodes.map((n) => n.nodeName);
+		const userMsg = createUserMessage(userMessage, messageId, revertVersion, focusedNodeNames);
 		chatMessages.value = clearRatingLogic([...chatMessages.value, userMsg]);
 		addLoadingAssistantMessage(locale.baseText('aiAssistant.thinkingSteps.thinking'));
 		streaming.value = true;
@@ -497,10 +498,8 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 
 		telemetry.track('User submitted builder message', trackingPayload);
 
-		// Track focused nodes usage when message is sent with focused nodes
 		const focusedCount = focusedNodesStore.confirmedNodes.length;
 		if (focusedCount > 0) {
-			// Simple heuristic to detect deictic references (e.g., "this node", "it", "this")
 			const deicticPatterns = /\b(this node|this|it|these nodes|these|that node|that)\b/i;
 			const hasDeicticRef = deicticPatterns.test(text);
 
