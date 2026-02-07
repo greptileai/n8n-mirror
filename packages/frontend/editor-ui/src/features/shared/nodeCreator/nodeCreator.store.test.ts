@@ -20,7 +20,6 @@ import { useNDVStore } from '@/features/ndv/shared/ndv.store';
 import { useNodeCreatorStore } from '@/features/shared/nodeCreator/nodeCreator.store';
 import { useNodeTypesStore } from '@/app/stores/nodeTypes.store';
 import { useWorkflowsStore } from '@/app/stores/workflows.store';
-import type * as nodeCreatorUtils from './nodeCreator.utils';
 
 const workflow_id = 'workflow-id';
 const category_name = 'category-name';
