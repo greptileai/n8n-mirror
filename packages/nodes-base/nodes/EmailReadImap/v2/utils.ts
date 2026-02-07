@@ -54,6 +54,10 @@ async function parseRawEmail(
 
 const EMAIL_BATCH_SIZE = 20;
 
+/**
+ * Fetches and processes new emails from the IMAP connection, using atomic
+ * deduplication to prevent duplicate executions in distributed environments.
+ */
 export async function getNewEmails(
 	this: ITriggerFunctions,
 	{

@@ -51,6 +51,10 @@ export class TriggerContext extends NodeExecutionContext implements ITriggerFunc
 			...getRequestHelperFunctions(workflow, node, additionalData),
 			...getBinaryHelperFunctions(additionalData, workflow.id),
 			...getSchedulingFunctions(workflow.id, workflow.timezone, node.id),
+			/**
+			 * Provides deduplication helper functions to the trigger context.
+			 * This allows polling triggers to use n8n's centralized deduplication engine.
+			 */
 			...getDeduplicationHelperFunctions(workflow, node),
 		};
 	}
