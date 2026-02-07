@@ -29,6 +29,7 @@ import type {
 	WaitingWebhookRequest,
 	WebhookAccessControlOptions,
 } from './webhook.types';
+import type { IWebhookMethodResolver } from './webhook-method-resolver.types';
 
 import { ConflictError } from '@/errors/response-errors/conflict.error';
 import { NotFoundError } from '@/errors/response-errors/not-found.error';
@@ -42,9 +43,11 @@ import { applyCors } from '@/utils/cors.util';
  * Service for handling the execution of webhooks of Wait nodes that use the
  * [Resume On Webhook Call](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.wait/#on-webhook-call)
  * feature.
+ *
+ * Implements IWebhookMethodResolver to provide explicit method resolution for CORS preflight.
  */
 @Service()
-export class WaitingWebhooks implements IWebhookManager {
+export class WaitingWebhooks implements IWebhookManager, IWebhookMethodResolver {
 	protected includeForms = false;
 
 	constructor(
@@ -56,17 +59,35 @@ export class WaitingWebhooks implements IWebhookManager {
 	) {}
 
 	/**
-	 * Gets all HTTP methods supported by a waiting webhook for the given path.
+	 * Resolves HTTP methods supported by a waiting webhook (implements IWebhookMethodResolver).
 	 *
 	 * Path format: `{executionId}` or `{executionId}/{suffix}`
 	 * - `executionId`: The execution ID waiting for webhook resume
 	 * - `suffix`: Optional webhook suffix (used when multiple wait nodes exist)
 	 *
-	 * **Invariants:**
-	 * - Returns empty array for invalid/missing executions (security: don't leak execution existence)
+	 * **Security Contract:**
+	 * - Returns empty array for invalid/missing executions (prevents information disclosure)
 	 * - Returns empty array for finished/cancelled executions (no webhook can resume them)
 	 * - Returns empty array for executions in invalid states (running, error, crashed)
 	 * - Only returns methods for webhooks that can actually resume the execution
+	 *
+	 * **Why empty array instead of throwing:**
+	 * - CORS preflight requests should not reveal execution existence/state
+	 * - Empty methods list results in proper CORS rejection without information leak
+	 * - Actual webhook execution will throw appropriate errors with proper context
+	 *
+	 * @param path - Webhook path (executionId or executionId/suffix)
+	 * @returns Promise resolving to array of supported HTTP methods
+	 */
+	async resolveMethods(path: string): Promise<IHttpRequestMethods[]> {
+		return this.getWebhookMethods(path);
+	}
+
+	/**
+	 * Gets all HTTP methods supported by a waiting webhook for the given path.
+	 *
+	 * This method implements the core logic for method resolution, which is then
+	 * exposed via the IWebhookMethodResolver interface.
 	 *
 	 * **Edge Cases Handled:**
 	 * - Execution doesn't exist → [] (prevents information disclosure)
@@ -76,11 +97,6 @@ export class WaitingWebhooks implements IWebhookManager {
 	 * - Execution errored/crashed → [] (webhook can't resume failed execution)
 	 * - Invalid executionId format → [] (graceful degradation)
 	 * - Node not found → [] (workflow structure changed)
-	 *
-	 * **Why empty array instead of throwing:**
-	 * - CORS preflight requests should not reveal execution existence/state
-	 * - Empty methods list results in proper CORS rejection without information leak
-	 * - Actual webhook execution will throw appropriate errors with proper context
 	 */
 	async getWebhookMethods(path: string): Promise<IHttpRequestMethods[]> {
 		// Type guard: Ensure path is a non-empty string

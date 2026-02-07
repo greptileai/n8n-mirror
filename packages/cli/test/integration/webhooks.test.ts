@@ -142,7 +142,14 @@ describe('WebhookServer', () => {
 
 		describe('Original bug reproduction: null origin + JSON POST', () => {
 			beforeEach(() => {
-				waitingWebhooks.getWebhookMethods?.mockResolvedValue(['POST']);
+				// Mock the new resolveMethods interface (IWebhookMethodResolver)
+				if ('resolveMethods' in waitingWebhooks) {
+					(waitingWebhooks as any).resolveMethods = jest.fn().mockResolvedValue(['POST']);
+				}
+				// Fallback to legacy getWebhookMethods for backward compatibility
+				if (waitingWebhooks.getWebhookMethods) {
+					waitingWebhooks.getWebhookMethods.mockResolvedValue(['POST']);
+				}
 				waitingWebhooks.findAccessControlOptions.mockResolvedValue({
 					allowedOrigins: '*',
 				});
@@ -150,7 +157,12 @@ describe('WebhookServer', () => {
 
 			it('should handle OPTIONS preflight before execution starts (execution not found)', async () => {
 				// Simulate preflight request before execution exists
-				waitingWebhooks.getWebhookMethods?.mockResolvedValue([]);
+				if ('resolveMethods' in waitingWebhooks) {
+					(waitingWebhooks as any).resolveMethods = jest.fn().mockResolvedValue([]);
+				}
+				if (waitingWebhooks.getWebhookMethods) {
+					waitingWebhooks.getWebhookMethods.mockResolvedValue([]);
+				}
 
 				const response = await agent
 					.options(`/${pathPrefix}/nonexistent-exec-id`)
@@ -165,7 +177,12 @@ describe('WebhookServer', () => {
 			});
 
 			it('should handle OPTIONS preflight while execution is waiting', async () => {
-				waitingWebhooks.getWebhookMethods?.mockResolvedValue(['POST']);
+				if ('resolveMethods' in waitingWebhooks) {
+					(waitingWebhooks as any).resolveMethods = jest.fn().mockResolvedValue(['POST']);
+				}
+				if (waitingWebhooks.getWebhookMethods) {
+					waitingWebhooks.getWebhookMethods.mockResolvedValue(['POST']);
+				}
 				waitingWebhooks.executeWebhook.mockResolvedValueOnce({
 					noWebhookResponse: false,
 					responseCode: 200,
@@ -186,8 +203,13 @@ describe('WebhookServer', () => {
 			});
 
 			it('should handle OPTIONS preflight after execution finishes gracefully', async () => {
-				// Execution finished - getWebhookMethods returns empty array
-				waitingWebhooks.getWebhookMethods?.mockResolvedValue([]);
+				// Execution finished - resolveMethods returns empty array
+				if ('resolveMethods' in waitingWebhooks) {
+					(waitingWebhooks as any).resolveMethods = jest.fn().mockResolvedValue([]);
+				}
+				if (waitingWebhooks.getWebhookMethods) {
+					waitingWebhooks.getWebhookMethods.mockResolvedValue([]);
+				}
 
 				const response = await agent
 					.options(`/${pathPrefix}/finished-exec-id`)
@@ -206,8 +228,16 @@ describe('WebhookServer', () => {
 				// - Browser from file:// URL (origin: null)
 				// - POST request with Content-Type: application/json
 				// - Browser sends OPTIONS preflight first
+				//
+				// Before the fix: OPTIONS request would fail with "No 'Access-Control-Allow-Origin' header"
+				// After the fix: OPTIONS request succeeds with proper CORS headers, allowing POST to proceed
 
-				waitingWebhooks.getWebhookMethods?.mockResolvedValue(['POST']);
+				if ('resolveMethods' in waitingWebhooks) {
+					(waitingWebhooks as any).resolveMethods = jest.fn().mockResolvedValue(['POST']);
+				}
+				if (waitingWebhooks.getWebhookMethods) {
+					waitingWebhooks.getWebhookMethods.mockResolvedValue(['POST']);
+				}
 				waitingWebhooks.executeWebhook.mockResolvedValueOnce({
 					noWebhookResponse: false,
 					responseCode: 200,

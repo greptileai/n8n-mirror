@@ -117,6 +117,15 @@ describe('WaitingWebhooks', () => {
 		});
 	});
 
+	describe('resolveMethods (IWebhookMethodResolver)', () => {
+		it('should delegate to getWebhookMethods', async () => {
+			executionRepository.findSingleExecution.mockResolvedValue(undefined);
+
+			const methods = await waitingWebhooks.resolveMethods('exec-123');
+			expect(methods).toEqual([]);
+		});
+	});
+
 	describe('getWebhookMethods', () => {
 		beforeEach(() => {
 			jest.spyOn(WorkflowExecuteAdditionalData, 'getBase').mockResolvedValue({} as any);
