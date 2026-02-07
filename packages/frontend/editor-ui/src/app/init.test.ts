@@ -299,6 +299,7 @@ describe('Init', () => {
 
 				cloudPlanStore.userIsTrialing = true;
 				cloudPlanStore.trialExpired = false;
+				cloudPlanStore.shouldShowBanner = true;
 
 				const cloudStoreSpy = vi.spyOn(cloudPlanStore, 'initialize').mockResolvedValueOnce();
 
