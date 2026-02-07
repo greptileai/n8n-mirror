@@ -1,4 +1,4 @@
-import { WorkflowRepository } from '@n8n/db';
+import { WorkflowRepository, WorkflowHistoryRepository } from '@n8n/db';
 import { Command } from '@n8n/decorators';
 import { Container } from '@n8n/di';
 import fs from 'fs';
@@ -17,11 +17,7 @@ const flagsSchema = z.object({
 		)
 		.optional(),
 	id: z.string().describe('The ID of the workflow to export').optional(),
-	output: z
-		.string()
-		.alias('o')
-		.describe('Output file name or directory if using separate files')
-		.optional(),
+	output: z.string().describe('Output file name or directory if using separate files').optional(),
 	pretty: z.boolean().describe('Format the output in an easier to read fashion').optional(),
 	separate: z
 		.boolean()
@@ -29,6 +25,8 @@ const flagsSchema = z.object({
 			'Exports one file per workflow (useful for versioning). Must inform a directory via --output.',
 		)
 		.optional(),
+	version: z.string().describe('The version ID to export').optional(),
+	published: z.boolean().describe('Export the published/active version').optional(),
 });
 
 @Command({
@@ -37,6 +35,8 @@ const flagsSchema = z.object({
 	examples: [
 		'--all',
 		'--id=5 --output=file.json',
+		'--id=5 --version=abc-123-def',
+		'--id=5 --published',
 		'--all --output=backups/latest/',
 		'--backup --output=backups/latest/',
 	],
@@ -51,6 +51,16 @@ export class ExportWorkflowsCommand extends BaseCommand<z.infer<typeof flagsSche
 			flags.all = true;
 			flags.pretty = true;
 			flags.separate = true;
+		}
+
+		if (flags.version && flags.published) {
+			this.logger.info('Cannot use both --version and --published flags. Please specify one.');
+			return;
+		}
+
+		if ((flags.version || flags.published) && flags.all) {
+			this.logger.info('Version flags (--version, --published) cannot be used with --all flag.');
+			return;
 		}
 
 		if (!flags.all && !flags.id) {
@@ -110,6 +120,48 @@ export class ExportWorkflowsCommand extends BaseCommand<z.infer<typeof flagsSche
 			throw new UserError('No workflows found with specified filters');
 		}
 
+		if (flags.id && (flags.version || flags.published)) {
+			const workflow = workflows[0];
+			let targetVersionId: string;
+
+			if (flags.published) {
+				if (!workflow.activeVersionId) {
+					throw new UserError(
+						`Workflow "${workflow.name}" (${workflow.id}) has no published version`,
+					);
+				}
+				targetVersionId = workflow.activeVersionId;
+			} else {
+				targetVersionId = flags.version!;
+			}
+
+			if (targetVersionId !== workflow.versionId) {
+				const workflowHistory = await Container.get(WorkflowHistoryRepository).findOne({
+					where: {
+						workflowId: workflow.id,
+						versionId: targetVersionId,
+					},
+				});
+
+				if (!workflowHistory) {
+					throw new UserError(
+						`Version "${targetVersionId}" not found for workflow "${workflow.name}" (${workflow.id})`,
+					);
+				}
+
+				workflow.nodes = workflowHistory.nodes;
+				workflow.connections = workflowHistory.connections;
+				workflow.versionId = workflowHistory.versionId;
+
+				if (workflowHistory.name !== null) {
+					workflow.name = workflowHistory.name;
+				}
+				if (workflowHistory.description !== null) {
+					workflow.description = workflowHistory.description;
+				}
+			}
+		}
+
 		if (flags.separate) {
 			let fileContents: string;
 			let i: number;
@@ -137,8 +189,7 @@ export class ExportWorkflowsCommand extends BaseCommand<z.infer<typeof flagsSche
 		}
 	}
 
-	async catch(error: Error) {
+	async catch(_error: Error) {
 		this.logger.error('Error exporting workflows. See log messages for details.');
-		this.logger.error(error.message);
 	}
 }
