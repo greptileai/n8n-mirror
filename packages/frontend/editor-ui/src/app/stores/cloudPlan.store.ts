@@ -44,10 +44,11 @@ export const useCloudPlanStore = defineStore(STORES.CLOUD_PLAN, () => {
 	// Whether forceShow is enabled - shows banner even if previously dismissed
 	const bannerForceShow = computed(() => bannerConfig.value?.forceShow === true);
 
-	// Check if TRIAL or TRIAL_OVER banner was previously dismissed
+	// Check if TRIAL banner was previously dismissed
 	const isBannerDismissed = computed(() => {
 		const dismissed = settingsStore.permanentlyDismissedBanners;
-		return dismissed.includes('TRIAL') || dismissed.includes('TRIAL_OVER');
+
+		return dismissed.includes('TRIAL');
 	});
 
 	// Whether to show trial banner:
