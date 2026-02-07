@@ -113,7 +113,18 @@ export async function getNewEmails(
 		}
 		results = await imapConnection.search(searchCriteria, fetchOptions, limit);
 
-		this.logger.debug(`Process ${results.length} new emails in node "EmailReadImap"`);
+		// We use the deduplication helper to ensure that each email is only processed once
+		// even in a multi-worker environment. The helper uses n8n's central database to track UIDs atomically.
+		const { new: newUids } = await this.helpers.checkProcessedAndRecord(
+			results.map((m) => m.attributes.uid.toString()),
+			'node',
+			{ mode: 'latestIncrementalKey' },
+		);
+		const newUidsSet = new Set(newUids.map((uid) => parseInt(uid as string, 10)));
+
+		this.logger.debug(
+			`Process ${results.length} emails (${newUidsSet.size} new) in node "EmailReadImap"`,
+		);
 
 		const newEmails: INodeExecutionData[] = [];
 		let newEmail: INodeExecutionData;
@@ -130,8 +141,7 @@ export async function getNewEmails(
 			) as string;
 
 			for (const message of results) {
-				const lastMessageUid = this.getWorkflowStaticData('node').lastMessageUid as number;
-				if (lastMessageUid !== undefined && message.attributes.uid <= lastMessageUid) {
+				if (!newUidsSet.has(message.attributes.uid)) {
 					continue;
 				}
 
@@ -167,8 +177,7 @@ export async function getNewEmails(
 			}
 
 			for (const message of results) {
-				const lastMessageUid = this.getWorkflowStaticData('node').lastMessageUid as number;
-				if (lastMessageUid !== undefined && message.attributes.uid <= lastMessageUid) {
+				if (!newUidsSet.has(message.attributes.uid)) {
 					continue;
 				}
 
@@ -217,8 +226,7 @@ export async function getNewEmails(
 			}
 		} else if (format === 'raw') {
 			for (const message of results) {
-				const lastMessageUid = this.getWorkflowStaticData('node').lastMessageUid as number;
-				if (lastMessageUid !== undefined && message.attributes.uid <= lastMessageUid) {
+				if (!newUidsSet.has(message.attributes.uid)) {
 					continue;
 				}
 
