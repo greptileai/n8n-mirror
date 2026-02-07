@@ -48,7 +48,7 @@ export const useCloudPlanStore = defineStore(STORES.CLOUD_PLAN, () => {
 	const isBannerDismissed = computed(() => {
 		const dismissed = settingsStore.permanentlyDismissedBanners;
 
-		return dismissed.includes('TRIAL');
+		return dismissed.includes('TRIAL') || dismissed.includes('TRIAL_OVER');
 	});
 
 	// Whether to show trial banner:
