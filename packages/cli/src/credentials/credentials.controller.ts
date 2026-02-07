@@ -1,8 +1,13 @@
 import {
 	CreateCredentialDto,
+	CredentialsForWorkflowQueryDto,
 	CredentialsGetManyRequestQuery,
 	CredentialsGetOneRequestQuery,
 	GenerateCredentialNameRequestQuery,
+	ShareCredentialsBodyDto,
+	TestCredentialsBodyDto,
+	TransferCredentialBodyDto,
+	UpdateCredentialDto,
 } from '@n8n/api-types';
 import { LicenseState, Logger } from '@n8n/backend-common';
 import { GlobalConfig } from '@n8n/config';
@@ -29,8 +34,7 @@ import { hasGlobalScope, PROJECT_OWNER_ROLE_SLUG } from '@n8n/permissions';
 // eslint-disable-next-line n8n-local-rules/misplaced-n8n-typeorm-import
 import { In } from '@n8n/typeorm';
 import { deepCopy } from 'n8n-workflow';
-import type { ICredentialDataDecryptedObject } from 'n8n-workflow';
-import { z } from 'zod';
+import type { ICredentialDataDecryptedObject, ICredentialsDecrypted } from 'n8n-workflow';
 
 import { CredentialsFinderService } from './credentials-finder.service';
 import { CredentialsService } from './credentials.service';
@@ -85,11 +89,24 @@ export class CredentialsController {
 	}
 
 	@Get('/for-workflow')
-	async getProjectCredentials(req: CredentialRequest.ForWorkflow) {
-		const options = z
-			.union([z.object({ workflowId: z.string() }), z.object({ projectId: z.string() })])
-			.parse(req.query);
-		return await this.credentialsService.getCredentialsAUserCanUseInAWorkflow(req.user, options);
+	async getProjectCredentials(
+		req: CredentialRequest.ForWorkflow,
+		_res: unknown,
+		@Query query: CredentialsForWorkflowQueryDto,
+	) {
+		// Use type guards to narrow the union type safely
+		if (query.workflowId !== undefined) {
+			return await this.credentialsService.getCredentialsAUserCanUseInAWorkflow(req.user, {
+				workflowId: query.workflowId,
+			});
+		}
+		if (query.projectId !== undefined) {
+			return await this.credentialsService.getCredentialsAUserCanUseInAWorkflow(req.user, {
+				projectId: query.projectId,
+			});
+		}
+		// Should never reach here due to DTO validation
+		throw new BadRequestError('Either workflowId or projectId must be provided');
 	}
 
 	@Get('/new')
@@ -134,8 +151,12 @@ export class CredentialsController {
 
 	// TODO: Write at least test cases for the failure paths.
 	@Post('/test')
-	async testCredentials(req: CredentialRequest.Test) {
-		const { credentials } = req.body;
+	async testCredentials(
+		req: CredentialRequest.Test,
+		_res: unknown,
+		@Body payload: TestCredentialsBodyDto,
+	) {
+		const { credentials } = payload;
 
 		const storedCredential = await this.credentialsFinderService.findCredentialForUser(
 			credentials.id,
@@ -148,6 +169,8 @@ export class CredentialsController {
 		}
 
 		const mergedCredentials = deepCopy(credentials);
+		// Ensure name is always set, falling back to stored credential's name
+		mergedCredentials.name = credentials.name ?? storedCredential.name;
 		const decryptedData = this.credentialsService.decrypt(storedCredential, true);
 
 		// When a sharee (or project viewer) opens a credential, the fields and the
@@ -158,7 +181,7 @@ export class CredentialsController {
 			req.user,
 			storedCredential,
 			decryptedData,
-			mergedCredentials,
+			mergedCredentials as ICredentialsDecrypted,
 		);
 
 		if (mergedCredentials.data) {
@@ -168,7 +191,10 @@ export class CredentialsController {
 			);
 		}
 
-		return await this.credentialsService.test(req.user.id, mergedCredentials);
+		return await this.credentialsService.test(
+			req.user.id,
+			mergedCredentials as ICredentialsDecrypted,
+		);
 	}
 
 	@Post('/')
@@ -202,9 +228,12 @@ export class CredentialsController {
 
 	@Patch('/:credentialId')
 	@ProjectScope('credential:update')
-	async updateCredentials(req: CredentialRequest.Update) {
+	async updateCredentials(
+		req: CredentialRequest.Update,
+		_res: unknown,
+		@Body payload: UpdateCredentialDto,
+	) {
 		const {
-			body,
 			user,
 			params: { credentialId },
 		} = req;
@@ -231,11 +260,14 @@ export class CredentialsController {
 
 		const decryptedData = this.credentialsService.decrypt(credential, true);
 		// We never want to allow users to change the oauthTokenData
-		delete body.data?.oauthTokenData;
-
+		// Create a copy of the payload data without oauthTokenData
+		const payloadData = payload.data ? { ...payload.data } : undefined;
+		if (payloadData) {
+			delete payloadData.oauthTokenData;
+		}
 		const preparedCredentialData = await this.credentialsService.prepareUpdateData(
 			req.user,
-			req.body,
+			{ ...payload, data: payloadData },
 			decryptedData,
 		);
 		const newCredentialData = this.credentialsService.createEncryptedData({
@@ -246,7 +278,7 @@ export class CredentialsController {
 		});
 
 		// Update isGlobal if provided in the payload and user has permission
-		const isGlobal = body.isGlobal;
+		const isGlobal = payload.isGlobal;
 		if (isGlobal !== undefined && isGlobal !== credential.isGlobal) {
 			if (!this.licenseState.isSharingLicensed()) {
 				throw new ForbiddenError('You are not licensed for sharing credentials');
@@ -261,7 +293,7 @@ export class CredentialsController {
 			newCredentialData.isGlobal = isGlobal;
 		}
 
-		newCredentialData.isResolvable = body.isResolvable ?? credential.isResolvable;
+		newCredentialData.isResolvable = payload.isResolvable ?? credential.isResolvable;
 		const responseData = await this.credentialsService.update(credentialId, newCredentialData);
 
 		if (responseData === null) {
@@ -320,16 +352,13 @@ export class CredentialsController {
 	@Licensed('feat:sharing')
 	@Put('/:credentialId/share')
 	@ProjectScope('credential:share')
-	async shareCredentials(req: CredentialRequest.Share) {
+	async shareCredentials(
+		req: CredentialRequest.Share,
+		_res: unknown,
+		@Body payload: ShareCredentialsBodyDto,
+	) {
 		const { credentialId } = req.params;
-		const { shareWithIds } = req.body;
-
-		if (
-			!Array.isArray(shareWithIds) ||
-			!shareWithIds.every((userId) => typeof userId === 'string')
-		) {
-			throw new BadRequestError('Bad request');
-		}
+		const { shareWithIds } = payload;
 
 		const credential = await this.credentialsFinderService.findCredentialForUser(
 			credentialId,
@@ -398,13 +427,15 @@ export class CredentialsController {
 
 	@Put('/:credentialId/transfer')
 	@ProjectScope('credential:move')
-	async transfer(req: CredentialRequest.Transfer) {
-		const body = z.object({ destinationProjectId: z.string() }).parse(req.body);
-
+	async transfer(
+		req: CredentialRequest.Transfer,
+		_res: unknown,
+		@Body payload: TransferCredentialBodyDto,
+	) {
 		return await this.enterpriseCredentialsService.transferOne(
 			req.user,
 			req.params.credentialId,
-			body.destinationProjectId,
+			payload.destinationProjectId,
 		);
 	}
 }
