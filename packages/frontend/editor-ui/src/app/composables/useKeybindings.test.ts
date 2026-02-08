@@ -163,4 +163,101 @@ describe('useKeybindings', () => {
 		document.dispatchEvent(event);
 		expect(handler).toHaveBeenCalled();
 	});
+
+	it('should trigger handler for Alt+key shortcut', async () => {
+		const handler = vi.fn();
+		const keymap = ref({ alt_i: handler });
+
+		useKeybindings(keymap);
+
+		const event = new KeyboardEvent('keydown', { key: 'i', altKey: true });
+		document.dispatchEvent(event);
+
+		expect(handler).toHaveBeenCalled();
+	});
+
+	it('should call run() from object handler when disabled() returns false', async () => {
+		const run = vi.fn();
+		const handler = { disabled: () => false, run };
+		const keymap = ref({ a: handler });
+
+		useKeybindings(keymap);
+
+		const event = new KeyboardEvent('keydown', { key: 'a' });
+		document.dispatchEvent(event);
+
+		expect(run).toHaveBeenCalled();
+	});
+
+	it('should skip object handler when disabled() returns true', async () => {
+		const run = vi.fn();
+		const handler = { disabled: () => true, run };
+		const keymap = ref({ a: handler });
+
+		useKeybindings(keymap);
+
+		const event = new KeyboardEvent('keydown', { key: 'a' });
+		document.dispatchEvent(event);
+
+		expect(run).not.toHaveBeenCalled();
+	});
+
+	it('should support multiple Alt+key combinations', async () => {
+		const handlerI = vi.fn();
+		const handlerJ = vi.fn();
+		const keymap = ref({ alt_i: handlerI, alt_j: handlerJ });
+
+		useKeybindings(keymap);
+
+		const eventI = new KeyboardEvent('keydown', { key: 'i', altKey: true });
+		document.dispatchEvent(eventI);
+		expect(handlerI).toHaveBeenCalled();
+		expect(handlerJ).not.toHaveBeenCalled();
+
+		const eventJ = new KeyboardEvent('keydown', { key: 'j', altKey: true });
+		document.dispatchEvent(eventJ);
+		expect(handlerJ).toHaveBeenCalled();
+	});
+
+	it('should resolve alt shortcuts via keyboard layout map for Colemak', async () => {
+		// Simulate the Keyboard Layout Map API (Colemak: physical KeyL → logical 'i')
+		const mockLayoutMap = new Map([['KeyL', 'i']]) as unknown as KeyboardLayoutMap;
+		Object.defineProperty(navigator, 'keyboard', {
+			value: {
+				getLayoutMap: vi.fn().mockResolvedValue(mockLayoutMap),
+				addEventListener: vi.fn(),
+				removeEventListener: vi.fn(),
+			},
+			configurable: true,
+			writable: true,
+		});
+
+		const handler = vi.fn();
+		const keymap = ref({ alt_i: handler });
+
+		useKeybindings(keymap);
+
+		// Wait for the async getLayoutMap to resolve
+		await vi.waitFor(() => {
+			expect(navigator.keyboard!.getLayoutMap).toHaveBeenCalled();
+		});
+
+		// On macOS Colemak, Alt+I (physical KeyL) produces a dead key in event.key
+		// byKey = 'alt+dead' → no match, byCode = 'alt+l' → no match
+		// byLayout should resolve KeyL → 'i' via layout map → 'alt+i' → match
+		const event = new KeyboardEvent('keydown', {
+			key: 'Dead',
+			code: 'KeyL',
+			altKey: true,
+		});
+		document.dispatchEvent(event);
+		expect(handler).toHaveBeenCalled();
+
+		// Clean up
+		Object.defineProperty(navigator, 'keyboard', {
+			value: undefined,
+			configurable: true,
+			writable: true,
+		});
+	});
 });

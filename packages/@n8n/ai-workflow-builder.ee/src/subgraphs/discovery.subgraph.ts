@@ -27,7 +27,11 @@ import type { CoordinationLogEntry } from '../types/coordination';
 import { createDiscoveryMetadata } from '../types/coordination';
 import type { WorkflowMetadata } from '../types/tools';
 import { applySubgraphCacheMarkers } from '../utils/cache-control';
-import { buildWorkflowSummary, createContextMessage } from '../utils/context-builders';
+import {
+	buildWorkflowSummary,
+	buildSelectedNodesSummary,
+	createContextMessage,
+} from '../utils/context-builders';
 import { appendArrayReducer, cachedTemplatesReducer } from '../utils/state-reducers';
 import { executeSubgraphTools, extractUserRequest } from '../utils/subgraph-helpers';
 
@@ -485,8 +489,17 @@ export class DiscoverySubgraph extends BaseSubgraph<
 		contextParts.push(userRequest);
 		contextParts.push('</user_request>');
 
-		// 2. Current workflow summary (just node names, to know what exists)
-		// Discovery doesn't need full JSON, just awareness of existing nodes
+		const selectedNodesSummary = buildSelectedNodesSummary(parentState.workflowContext);
+		if (selectedNodesSummary) {
+			contextParts.push('=== SELECTED NODES ===');
+			contextParts.push('<selected_nodes>');
+			contextParts.push(selectedNodesSummary);
+			contextParts.push(
+				'When user says "add X before/after this", find nodes that work well with the selected node(s).',
+			);
+			contextParts.push('</selected_nodes>');
+		}
+
 		if (parentState.workflowJSON.nodes.length > 0) {
 			contextParts.push('<existing_workflow_summary>');
 			contextParts.push(buildWorkflowSummary(parentState.workflowJSON));

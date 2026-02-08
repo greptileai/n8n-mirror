@@ -39,6 +39,7 @@ import { useWorkflowSaving } from '@/app/composables/useWorkflowSaving';
 import { useUIStore } from '@/app/stores/ui.store';
 import { useDocumentTitle } from '@/app/composables/useDocumentTitle';
 import { useBrowserNotifications } from '@/app/composables/useBrowserNotifications';
+import { useFocusedNodesStore } from '@/features/ai/assistant/focusedNodes.store';
 
 const INFINITE_CREDITS = -1;
 export const ENABLED_VIEWS = BUILDER_ENABLED_VIEWS;
@@ -141,6 +142,7 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 	const uiStore = useUIStore();
 	const router = useRouter();
 	const workflowSaver = useWorkflowSaving({ router });
+	const focusedNodesStore = useFocusedNodesStore();
 
 	// Composables
 	const {
@@ -412,7 +414,8 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 		messageId: string,
 		revertVersion?: { id: string; createdAt: string },
 	) {
-		const userMsg = createUserMessage(userMessage, messageId, revertVersion);
+		const focusedNodeNames = focusedNodesStore.confirmedNodes.map((n) => n.nodeName);
+		const userMsg = createUserMessage(userMessage, messageId, revertVersion, focusedNodeNames);
 		chatMessages.value = clearRatingLogic([...chatMessages.value, userMsg]);
 		addLoadingAssistantMessage(locale.baseText('aiAssistant.thinkingSteps.thinking'));
 		streaming.value = true;
@@ -494,6 +497,17 @@ export const useBuilderStore = defineStore(STORES.BUILDER, () => {
 		}
 
 		telemetry.track('User submitted builder message', trackingPayload);
+
+		const focusedCount = focusedNodesStore.confirmedNodes.length;
+		if (focusedCount > 0) {
+			const deicticPatterns = /\b(this node|this|it|these nodes|these|that node|that)\b/i;
+			const hasDeicticRef = deicticPatterns.test(text);
+
+			telemetry.track('ai.focusedNodes.chatSent', {
+				focused_count: focusedCount,
+				has_deictic_ref: hasDeicticRef,
+			});
+		}
 	}
 
 	/**

@@ -5,26 +5,29 @@ import { ChatPromptTemplate } from '@langchain/core/prompts';
 import type { RunnableConfig } from '@langchain/core/runnables';
 
 import {
-	buildResponderPrompt,
-	buildRecursionErrorWithWorkflowGuidance,
-	buildRecursionErrorNoWorkflowGuidance,
-	buildGeneralErrorGuidance,
 	buildDataTableCreationGuidance,
+	buildGeneralErrorGuidance,
+	buildRecursionErrorNoWorkflowGuidance,
+	buildRecursionErrorWithWorkflowGuidance,
+	buildResponderPrompt,
 } from '@/prompts';
 
 import type { CoordinationLogEntry } from '../types/coordination';
 import type { DiscoveryContext } from '../types/discovery-types';
 import { isAIMessage } from '../types/langchain';
 import type { SimpleWorkflow } from '../types/workflow';
-import { buildSimplifiedExecutionContext, buildWorkflowOverview } from '../utils/context-builders';
 import {
-	getErrorEntry,
+	buildSelectedNodesContextBlock,
+	buildSimplifiedExecutionContext,
+	buildWorkflowOverview,
+} from '../utils/context-builders';
+import {
 	getBuilderOutput,
+	getErrorEntry,
 	hasRecursionErrorsCleared,
 } from '../utils/coordination-log';
 import { extractDataTableInfo } from '../utils/data-table-helpers';
 import type { ChatPayload } from '../workflow-builder-agent';
-
 const systemPrompt = ChatPromptTemplate.fromMessages([
 	[
 		'system',
@@ -55,10 +58,10 @@ export interface ResponderContext {
 	discoveryContext?: DiscoveryContext | null;
 	/** Current workflow state */
 	workflowJSON: SimpleWorkflow;
+	/** Workflow context including selected nodes and execution data */
+	workflowContext?: ChatPayload['workflowContext'];
 	/** Summary of previous conversation (from compaction) */
 	previousSummary?: string;
-	/** Workflow context with execution data */
-	workflowContext?: ChatPayload['workflowContext'];
 }
 
 /**
@@ -83,6 +86,12 @@ export class ResponderAgent {
 		// Previous conversation summary (from compaction)
 		if (context.previousSummary) {
 			contextParts.push(`**Previous Conversation Summary:**\n${context.previousSummary}`);
+		}
+
+		// Selected nodes context (for deictic resolution)
+		const selectedNodesBlock = buildSelectedNodesContextBlock(context.workflowContext);
+		if (selectedNodesBlock) {
+			contextParts.push(`=== SELECTED NODES ===\n${selectedNodesBlock}`);
 		}
 
 		// Check for state management actions (compact/clear)
