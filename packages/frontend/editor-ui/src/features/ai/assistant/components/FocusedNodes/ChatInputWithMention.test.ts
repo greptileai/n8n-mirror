@@ -49,7 +49,7 @@ vi.mock('@n8n/design-system', async (importOriginal) => {
 				'autofocus',
 			],
 			emits: ['update:modelValue', 'input', 'keydown', 'submit', 'stop', 'upgrade-click'],
-			setup(props, { slots, emit, expose }) {
+			setup(_props, { slots, emit, expose }) {
 				expose({
 					focusInput: vi.fn(),
 				});

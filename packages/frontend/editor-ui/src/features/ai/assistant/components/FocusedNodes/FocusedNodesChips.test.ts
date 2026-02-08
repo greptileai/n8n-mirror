@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { setActivePinia } from 'pinia';
 import { createTestingPinia } from '@pinia/testing';
 import { createComponentRenderer } from '@/__tests__/render';
-import { mockedStore } from '@/__tests__/utils';
 import FocusedNodesChips from './FocusedNodesChips.vue';
 import { useFocusedNodesStore } from '../../focusedNodes.store';
 import type { FocusedNode } from '../../focusedNodes.types';

@@ -147,9 +147,7 @@ describe('useNodeMention', () => {
 			handleInput({} as InputEvent, input1);
 			expect(showDropdown.value).toBe(true);
 
-			// Continue typing
-			const input2 = createMockInput('@co', 3);
-			// Need to use same input ref, so simulate continuing typing
+			// Continue typing - use same input ref, so simulate continuing typing
 			Object.defineProperty(input1, 'value', { value: '@co', configurable: true });
 			Object.defineProperty(input1, 'selectionStart', {
 				get: () => 3,

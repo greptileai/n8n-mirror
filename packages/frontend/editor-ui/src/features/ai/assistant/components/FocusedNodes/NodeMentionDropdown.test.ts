@@ -139,7 +139,7 @@ describe('NodeMentionDropdown', () => {
 			await getByText('HTTP Request').parentElement?.click();
 
 			expect(emitted().select).toBeTruthy();
-			expect(emitted().select[0][0]).toEqual(defaultNodes[0]);
+			expect((emitted().select as unknown[][])[0][0]).toEqual(defaultNodes[0]);
 		});
 
 		it('should emit highlight on mouseenter', async () => {
@@ -152,7 +152,7 @@ describe('NodeMentionDropdown', () => {
 			await items[1].dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
 
 			expect(emitted().highlight).toBeTruthy();
-			expect(emitted().highlight[0][0]).toBe(1);
+			expect((emitted().highlight as unknown[][])[0][0]).toBe(1);
 		});
 	});
 
