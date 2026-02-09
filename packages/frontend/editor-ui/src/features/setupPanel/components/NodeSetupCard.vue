@@ -89,6 +89,7 @@ onMounted(() => {
 
 <template>
 	<div
+		data-test-id="node-setup-card"
 		:class="[
 			$style.card,
 			{
@@ -98,9 +99,10 @@ onMounted(() => {
 			},
 		]"
 	>
-		<header :class="$style.header" @click="onHeaderClick">
+		<header data-test-id="node-setup-card-header" :class="$style.header" @click="onHeaderClick">
 			<N8nIcon
 				v-if="!expanded && state.isComplete"
+				data-test-id="node-setup-card-complete-icon"
 				icon="check"
 				:class="$style['complete-icon']"
 				size="medium"
@@ -143,16 +145,20 @@ onMounted(() => {
 				>
 					<div :class="$style['credential-label-row']">
 						<label
+							data-test-id="node-setup-card-credential-label"
 							:for="`credential-picker-${state.node.name}-${requirement.credentialType}`"
 							:class="$style['credential-label']"
 						>
-							Credential
+							{{ i18n.baseText('setupPanel.credentialLabel') }}
 						</label>
 						<N8nTooltip v-if="requirement.nodesWithSameCredential.length > 1" placement="top">
 							<template #content>
 								{{ requirement.nodesWithSameCredential.join(', ') }}
 							</template>
-							<span :class="$style['shared-nodes-hint']">
+							<span
+								data-test-id="node-setup-card-shared-nodes-hint"
+								:class="$style['shared-nodes-hint']"
+							>
 								{{
 									i18n.baseText('setupPanel.usedInNodes', {
 										interpolate: {
@@ -182,6 +188,7 @@ onMounted(() => {
 						{{ i18n.baseText('generic.complete') }}
 					</N8nText>
 				</div>
+				<<<<<<< HEAD
 				<N8nTooltip v-if="state.isTrigger" :disabled="!tooltipText" placement="top">
 					<template #content>{{ tooltipText }}</template>
 					<N8nButton
@@ -193,6 +200,16 @@ onMounted(() => {
 						@click="onTestClick"
 					/>
 				</N8nTooltip>
+				=======
+				<N8nButton
+					data-test-id="node-setup-card-test-button"
+					:label="i18n.baseText('node.testStep')"
+					:disabled="!state.isComplete"
+					icon="flask-conical"
+					size="small"
+					@click="onTestClick"
+				/>
+				>>>>>>> ADO-4750-setup-panel-cards
 			</footer>
 		</template>
 	</div>
