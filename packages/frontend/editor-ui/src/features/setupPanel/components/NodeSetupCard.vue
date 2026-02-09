@@ -8,7 +8,7 @@ import CredentialPicker from '@/features/credentials/components/CredentialPicker
 import { useNodeTypesStore } from '@/app/stores/nodeTypes.store';
 
 import type { NodeSetupState } from '../setupPanel.types';
-import { useNodeExecution } from '../composables/useNodeExecution';
+import { useNodeExecution } from '@/app/composables/useNodeExecution';
 
 const props = defineProps<{
 	state: NodeSetupState;
