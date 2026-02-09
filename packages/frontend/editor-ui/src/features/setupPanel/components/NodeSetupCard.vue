@@ -188,10 +188,10 @@ onMounted(() => {
 						{{ i18n.baseText('generic.complete') }}
 					</N8nText>
 				</div>
-				<<<<<<< HEAD
 				<N8nTooltip v-if="state.isTrigger" :disabled="!tooltipText" placement="top">
 					<template #content>{{ tooltipText }}</template>
 					<N8nButton
+						data-test-id="node-setup-card-test-button"
 						:label="buttonLabel"
 						:disabled="isButtonDisabled"
 						:loading="isLoading"
@@ -200,16 +200,6 @@ onMounted(() => {
 						@click="onTestClick"
 					/>
 				</N8nTooltip>
-				=======
-				<N8nButton
-					data-test-id="node-setup-card-test-button"
-					:label="i18n.baseText('node.testStep')"
-					:disabled="!state.isComplete"
-					icon="flask-conical"
-					size="small"
-					@click="onTestClick"
-				/>
-				>>>>>>> ADO-4750-setup-panel-cards
 			</footer>
 		</template>
 	</div>
