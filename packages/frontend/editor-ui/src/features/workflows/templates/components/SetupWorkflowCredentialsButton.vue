@@ -104,7 +104,7 @@ const openSetupModal = () => {
 const handleTemplateSetup = () => {
 	if (isSetupPanelFeatureEnabled.value) {
 		openSetupPanel();
-	} else if (isNewTemplatesSetupEnabled.value) {
+	} else {
 		openSetupModal();
 	}
 };

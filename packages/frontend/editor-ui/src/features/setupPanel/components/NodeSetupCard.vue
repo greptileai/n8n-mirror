@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, watch } from 'vue';
 import { useI18n } from '@n8n/i18n';
-import { N8nButton, N8nIcon, N8nTooltip, N8nText } from '@n8n/design-system';
+import { N8nButton, N8nIcon, N8nText, N8nTooltip } from '@n8n/design-system';
 
 import NodeIcon from '@/app/components/NodeIcon.vue';
 import CredentialPicker from '@/features/credentials/components/CredentialPicker/CredentialPicker.vue';
+import SetupCredentialLabel from './SetupCredentialLabel.vue';
 import { useNodeTypesStore } from '@/app/stores/nodeTypes.store';
 
 import type { NodeSetupState } from '../setupPanel.types';
@@ -134,32 +135,11 @@ onMounted(() => {
 					:key="requirement.credentialType"
 					:class="$style['credential-container']"
 				>
-					<div :class="$style['credential-label-row']">
-						<label
-							data-test-id="node-setup-card-credential-label"
-							:for="`credential-picker-${state.node.name}-${requirement.credentialType}`"
-							:class="$style['credential-label']"
-						>
-							{{ i18n.baseText('setupPanel.credentialLabel') }}
-						</label>
-						<N8nTooltip v-if="requirement.nodesWithSameCredential.length > 1" placement="top">
-							<template #content>
-								{{ requirement.nodesWithSameCredential.join(', ') }}
-							</template>
-							<span
-								data-test-id="node-setup-card-shared-nodes-hint"
-								:class="$style['shared-nodes-hint']"
-							>
-								{{
-									i18n.baseText('setupPanel.usedInNodes', {
-										interpolate: {
-											count: String(requirement.nodesWithSameCredential.length),
-										},
-									})
-								}}
-							</span>
-						</N8nTooltip>
-					</div>
+					<SetupCredentialLabel
+						:node-name="state.node.name"
+						:credential-type="requirement.credentialType"
+						:nodes-with-same-credential="requirement.nodesWithSameCredential"
+					/>
 					<CredentialPicker
 						create-button-type="secondary"
 						:class="$style['credential-picker']"
@@ -260,23 +240,6 @@ onMounted(() => {
 	display: flex;
 	flex-direction: column;
 	gap: var(--spacing--3xs);
-}
-
-.credential-label-row {
-	display: flex;
-	align-items: center;
-	gap: var(--spacing--2xs);
-}
-
-.credential-label {
-	font-size: var(--font-size--sm);
-	color: var(--color--text--shade-1);
-}
-
-.shared-nodes-hint {
-	font-size: var(--font-size--sm);
-	color: var(--color--text--tint-1);
-	cursor: default;
 }
 
 .credential-picker {

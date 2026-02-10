@@ -1,16 +1,17 @@
 import { computed, type Ref } from 'vue';
 
 import type { INodeUi } from '@/Interface';
-import type { NodeCredentialRequirement, NodeSetupState } from '../setupPanel.types';
+import type { NodeSetupState } from '../setupPanel.types';
 
 import { useWorkflowsStore } from '@/app/stores/workflows.store';
 import { useCredentialsStore } from '@/features/credentials/credentials.store';
 import { useNodeHelpers } from '@/app/composables/useNodeHelpers';
 import { useNodeTypesStore } from '@/app/stores/nodeTypes.store';
 import { injectWorkflowState } from '@/app/composables/useWorkflowState';
-import { getNodeTypeDisplayableCredentials } from '@/app/utils/nodes/nodeTransforms';
 import { useToast } from '@/app/composables/useToast';
 import { useI18n } from '@n8n/i18n';
+
+import { getNodeCredentialTypes, buildNodeSetupState } from '../setupPanel.utils';
 
 /**
  * Composable that manages workflow setup state for credential configuration.
@@ -34,35 +35,6 @@ export const useWorkflowSetupState = (nodes?: Ref<INodeUi[]>) => {
 		return credentialTypeInfo?.displayName ?? credentialType;
 	};
 
-	/**
-	 * Get all credential types that a node requires.
-	 * Sources:
-	 * 1. Node type definition — standard credentials with displayOptions
-	 * 2. Node issues — dynamic credentials (e.g. in HTTP Request node) that are missing or invalid
-	 * 3. Assigned credentials — dynamic credentials already properly set
-	 */
-	const getNodeCredentialTypes = (node: INodeUi): string[] => {
-		const credentialTypes = new Set<string>();
-
-		const displayableCredentials = getNodeTypeDisplayableCredentials(nodeTypesStore, node);
-		for (const cred of displayableCredentials) {
-			credentialTypes.add(cred.name);
-		}
-
-		const credentialIssues = node.issues?.credentials ?? {};
-		for (const credType of Object.keys(credentialIssues)) {
-			credentialTypes.add(credType);
-		}
-
-		if (node.credentials) {
-			for (const credType of Object.keys(node.credentials)) {
-				credentialTypes.add(credType);
-			}
-		}
-
-		return Array.from(credentialTypes);
-	};
-
 	const isTriggerNode = (node: INodeUi): boolean => {
 		return nodeTypesStore.isTriggerNode(node.type);
 	};
@@ -83,7 +55,7 @@ export const useWorkflowSetupState = (nodes?: Ref<INodeUi[]>) => {
 			.filter((node) => !node.disabled)
 			.map((node) => ({
 				node,
-				credentialTypes: getNodeCredentialTypes(node),
+				credentialTypes: getNodeCredentialTypes(nodeTypesStore, node),
 				isTrigger: isTriggerNode(node),
 			}))
 			.filter(({ credentialTypes, isTrigger }) => credentialTypes.length > 0 || isTrigger);
@@ -114,48 +86,18 @@ export const useWorkflowSetupState = (nodes?: Ref<INodeUi[]>) => {
 	 * Node setup states - one entry per node that requires setup.
 	 * This data is used by cards component.
 	 */
-	const nodeSetupStates = computed<NodeSetupState[]>(() => {
-		return nodesRequiringSetup.value.map(({ node, credentialTypes, isTrigger }) => {
-			const credentialIssues = node.issues?.credentials ?? {};
-
-			// Build requirements from all credential types
-			const credentialRequirements: NodeCredentialRequirement[] = credentialTypes.map(
-				(credType) => {
-					const credValue = node.credentials?.[credType];
-					const selectedCredentialId =
-						typeof credValue === 'string' ? undefined : (credValue?.id ?? undefined);
-
-					const issues = credentialIssues[credType];
-					const issueMessages = issues ? (Array.isArray(issues) ? issues : [issues]) : [];
-
-					return {
-						credentialType: credType,
-						credentialDisplayName: getCredentialDisplayName(credType),
-						selectedCredentialId,
-						issues: issueMessages,
-						nodesWithSameCredential: credentialTypeToNodeNames.value.get(credType) ?? [],
-					};
-				},
-			);
-
-			const credentialsConfigured = credentialRequirements.every(
-				(req) => req.selectedCredentialId && req.issues.length === 0,
-			);
-
-			// For triggers: complete only after successful execution
-			// For regular nodes: complete when credentials are configured
-			const isComplete = isTrigger
-				? credentialsConfigured && hasTriggerExecutedSuccessfully(node.name)
-				: credentialsConfigured;
-
-			return {
+	const nodeSetupStates = computed<NodeSetupState[]>(() =>
+		nodesRequiringSetup.value.map(({ node, credentialTypes, isTrigger }) =>
+			buildNodeSetupState(
 				node,
-				credentialRequirements,
-				isComplete,
+				credentialTypes,
+				getCredentialDisplayName,
+				credentialTypeToNodeNames.value,
 				isTrigger,
-			};
-		});
-	});
+				hasTriggerExecutedSuccessfully(node.name),
+			),
+		),
+	);
 
 	const totalCredentialsMissing = computed(() => {
 		return nodeSetupStates.value.reduce((total, state) => {
