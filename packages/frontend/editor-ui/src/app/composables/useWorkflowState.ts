@@ -254,19 +254,32 @@ export function useWorkflowState() {
 			return;
 		}
 
-		const runData = ws.workflowExecutionData.data?.resultData.runData ?? {};
+		const currentRunData = ws.workflowExecutionData.data?.resultData.runData ?? {};
+		const filteredRunData = Object.fromEntries(
+			Object.entries(currentRunData).map(([nodeName, tasks]) => [
+				nodeName,
+				tasks.filter(({ executionStatus }) => executionStatus === 'success'),
+			]),
+		);
 
-		for (const nodeName in runData) {
-			runData[nodeName] = runData[nodeName].filter(
-				({ executionStatus }) => executionStatus === 'success',
-			);
-		}
-
-		if (stopData) {
-			ws.workflowExecutionData.status = stopData.status;
-			ws.workflowExecutionData.startedAt = stopData.startedAt;
-			ws.workflowExecutionData.stoppedAt = stopData.stoppedAt;
-		}
+		const currentData = ws.workflowExecutionData.data;
+		ws.workflowExecutionData = {
+			...ws.workflowExecutionData,
+			...(stopData && {
+				status: stopData.status,
+				startedAt: stopData.startedAt,
+				stoppedAt: stopData.stoppedAt,
+			}),
+			...(currentData && {
+				data: {
+					...currentData,
+					resultData: {
+						...currentData.resultData,
+						runData: filteredRunData,
+					},
+				},
+			}),
+		};
 	}
 
 	function resetState() {
