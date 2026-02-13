@@ -50,4 +50,5 @@ export const STORES = {
 	EXPERIMENT_EMPTY_STATE_BUILDER_PROMPT: 'emptyStateBuilderPrompt',
 	SETUP_PANEL: 'setupPanel',
 	FOCUSED_NODES: 'focusedNodes',
+	SECURITY_SCANNER: 'securityScanner',
 } as const;
