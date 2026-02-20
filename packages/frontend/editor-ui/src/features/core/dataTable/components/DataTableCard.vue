@@ -1,26 +1,41 @@
 <script setup lang="ts">
-import type { DataTable } from '@/features/core/dataTable/dataTable.types';
 import { DATA_TABLE_DETAILS } from '@/features/core/dataTable/constants';
 import { useI18n } from '@n8n/i18n';
 import { computed } from 'vue';
 import DataTableActions from '@/features/core/dataTable/components/DataTableActions.vue';
 import { useDataTableStore } from '@/features/core/dataTable/dataTable.store';
 import TimeAgo from '@/app/components/TimeAgo.vue';
+import ProjectCardBadge from '@/features/collaboration/projects/components/ProjectCardBadge.vue';
 
 import { N8nBadge, N8nCard, N8nIcon, N8nLink, N8nText } from '@n8n/design-system';
+import type { DataTableResource } from '../types';
+import { ResourceType } from '@/features/collaboration/projects/projects.utils';
+import { useProjectsStore } from '@/features/collaboration/projects/projects.store';
+import { ProjectTypes } from '@/features/collaboration/projects/projects.types';
 type Props = {
-	dataTable: DataTable;
+	dataTable: DataTableResource;
 	readOnly?: boolean;
 	showOwnershipBadge?: boolean;
 };
 
 const i18n = useI18n();
 const dataTableStore = useDataTableStore();
+const projectsStore = useProjectsStore();
 
 const props = withDefaults(defineProps<Props>(), {
 	actions: () => [],
 	readOnly: false,
 	showOwnershipBadge: false,
+});
+
+const isSomeoneElsesDataTable = computed(
+	() =>
+		props.dataTable.project?.type !== ProjectTypes.Team &&
+		props.dataTable.project?.id !== projectsStore.personalProject?.id,
+);
+
+const showCardBreadcrumbs = computed(() => {
+	return props.showOwnershipBadge && !isSomeoneElsesDataTable.value;
 });
 
 const dataTableRoute = computed(() => {
@@ -108,6 +123,20 @@ const getDataTableSize = computed(() => {
 					</div>
 				</template>
 				<template #append>
+					<div :class="$style.cardActions" @click.stop>
+						<ProjectCardBadge
+							v-if="showOwnershipBadge"
+							:class="{
+								[$style.cardBadge]: true,
+								[$style['with-breadcrumbs']]: showCardBreadcrumbs,
+							}"
+							:resource="dataTable"
+							:resource-type="ResourceType.DataTable"
+							:resource-type-label="'Data Table'"
+							:personal-project="projectsStore.personalProject"
+							:show-badge-border="false"
+						/>
+					</div>
 					<div :class="$style['card-actions']" @click.prevent>
 						<DataTableActions
 							:data-table="props.dataTable"
