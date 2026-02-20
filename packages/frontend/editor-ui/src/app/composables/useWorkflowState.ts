@@ -121,11 +121,6 @@ export function useWorkflowState() {
 		return true;
 	}
 
-	function setActive(activeVersionId: string | null) {
-		ws.workflow.active = activeVersionId !== null;
-		ws.workflow.activeVersionId = activeVersionId;
-	}
-
 	function setWorkflowId(id?: string) {
 		// Set the workflow ID directly, or empty string if not provided
 		ws.workflow.id = id || '';
@@ -268,7 +263,6 @@ export function useWorkflowState() {
 		setWorkflowExecutionData(null);
 		resetAllNodesIssues();
 
-		setActive(ws.defaults.activeVersionId);
 		setWorkflowId('');
 		setWorkflowName({ newName: '', setStateDirty: false });
 		setWorkflowSettings({ ...ws.defaults.settings });
@@ -474,7 +468,6 @@ export function useWorkflowState() {
 		removeAllNodes,
 		setWorkflowExecutionData,
 		resetAllNodesIssues,
-		setActive,
 		setWorkflowId,
 		setWorkflowName,
 		setWorkflowSettings,
