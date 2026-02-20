@@ -782,7 +782,8 @@ export class ChatHubModelsService {
 			return null;
 		}
 
-		const inputModalities = this.chatHubWorkflowService.parseInputModalities(
+		const allowFileUploads = chatTriggerParams.options?.allowFileUploads ?? false;
+		const allowedFilesMimeTypes = this.chatHubWorkflowService.resolveAllowedMimeTypes(
 			chatTriggerParams.options,
 		);
 
@@ -809,7 +810,8 @@ export class ChatHubModelsService {
 			createdAt: activeVersion.createdAt ? activeVersion.createdAt.toISOString() : null,
 			updatedAt: activeVersion.updatedAt ? activeVersion.updatedAt.toISOString() : null,
 			metadata: {
-				inputModalities,
+				allowFileUploads,
+				allowedFilesMimeTypes,
 				capabilities: {
 					functionCalling: false,
 				},
