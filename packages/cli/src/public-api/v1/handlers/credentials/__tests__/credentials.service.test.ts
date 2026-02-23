@@ -1,8 +1,16 @@
+import { Container } from '@n8n/di';
+import { mock } from 'jest-mock-extended';
+import type { InstanceSettings } from 'n8n-core';
+import { Cipher } from 'n8n-core';
 import type { GenericValue, IDataObject, INodeProperties } from 'n8n-workflow';
 
 import type { IDependency } from '@/public-api/types';
 
 import { toJsonSchema } from '../credentials.service';
+
+// Set up real Cipher with mocked InstanceSettings for encryption
+const cipher = new Cipher(mock<InstanceSettings>({ encryptionKey: 'test-encryption-key' }));
+Container.set(Cipher, cipher);
 
 describe('CredentialsService', () => {
 	describe('toJsonSchema', () => {
