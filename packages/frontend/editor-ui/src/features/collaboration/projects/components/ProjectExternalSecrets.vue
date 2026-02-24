@@ -262,11 +262,11 @@ watch([currentPage, itemsPerPage], async () => {
 	await fetchSecretsForCurrentPage();
 });
 
-// Fetch project secret providers when currentProjectId is available
+// Fetch project secret providers when currentProjectId is available and section is visible
 watch(
-	() => projectsStore.currentProjectId,
-	async (newProjectId) => {
-		if (newProjectId && showExternalSecretsSection.value) {
+	[() => projectsStore.currentProjectId, showExternalSecretsSection],
+	async ([newProjectId, showSection]) => {
+		if (newProjectId && showSection) {
 			await fetchProjectSecretConnections();
 		}
 	},
@@ -276,7 +276,7 @@ watch(
 onMounted(async () => {
 	if (!showExternalSecretsSection.value) return;
 	await Promise.all([
-		secretsProviders.fetchProviderTypes(),
+		secretsProviders.fetchProviderTypes(projectsStore.currentProjectId ?? undefined),
 		secretsProviders.fetchActiveConnections(),
 	]);
 	if (canCreateGlobalSecretsStore.value) {
