@@ -8,8 +8,6 @@ export type TaskRunnerMode = z.infer<typeof runnerModeSchema>;
 
 @Config
 export class TaskRunnersConfig {
-	enabled: boolean = true;
-
 	/**
 	 * Whether the task runner should run as a child process spawned by n8n (internal mode)
 	 * or as a separate process launched outside n8n (external mode).
