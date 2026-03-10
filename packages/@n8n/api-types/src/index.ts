@@ -177,19 +177,6 @@ export {
 export type { UsageState } from './schemas/usage.schema';
 
 export type {
-	BreakingChangeRuleSeverity,
-	BreakingChangeRecommendation,
-	BreakingChangeAffectedWorkflow,
-	BreakingChangeInstanceIssue,
-	BreakingChangeWorkflowIssue,
-	BreakingChangeInstanceRuleResult,
-	BreakingChangeWorkflowRuleResult,
-	BreakingChangeReportResult,
-	BreakingChangeLightReportResult,
-	BreakingChangeVersion,
-} from './schemas/breaking-changes.schema';
-
-export type {
 	SecretsProviderType,
 	SecretsProviderState,
 	SecretsProviderConnectionTestState,

@@ -36,7 +36,6 @@ export class ModuleRegistry {
 		'data-table',
 		'mcp',
 		'provisioning',
-		'breaking-changes',
 		'source-control',
 		'dynamic-credentials',
 		'chat-hub',

@@ -43,7 +43,6 @@ describe('permissions', () => {
 			role: {},
 			chatHub: {},
 			chatHubAgent: {},
-			breakingChanges: {},
 			apiKey: {},
 			credentialResolver: {},
 		});
@@ -80,7 +79,6 @@ describe('permissions', () => {
 			'workflow:update',
 			'folder:create',
 			'insights:list',
-			'breakingChanges:list',
 			'apiKey:manage',
 		];
 
@@ -162,9 +160,6 @@ describe('permissions', () => {
 			role: {},
 			chatHub: {},
 			chatHubAgent: {},
-			breakingChanges: {
-				list: true,
-			},
 			apiKey: {
 				manage: true,
 			},

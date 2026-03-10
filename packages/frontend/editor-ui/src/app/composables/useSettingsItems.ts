@@ -144,15 +144,6 @@ export function useSettingsItems() {
 			route: { to: { name: VIEWS.COMMUNITY_NODES } },
 		});
 
-		menuItems.push({
-			id: 'settings-migration-report',
-			icon: 'list-checks',
-			label: i18n.baseText('settings.migrationReport'),
-			position: 'top',
-			available: canUserAccessRouteByName(VIEWS.MIGRATION_REPORT),
-			route: { to: { name: VIEWS.MIGRATION_REPORT } },
-		});
-
 		// Append module-registered settings sidebar items.
 		const moduleItems = uiStore.settingsSidebarItems;
 

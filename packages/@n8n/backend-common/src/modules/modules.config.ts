@@ -9,7 +9,6 @@ export const MODULE_NAMES = [
 	'data-table',
 	'mcp',
 	'provisioning',
-	'breaking-changes',
 	'source-control',
 	'dynamic-credentials',
 	'chat-hub',

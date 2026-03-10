@@ -27,7 +27,6 @@ export const LOG_SCOPES = [
 	'cron',
 	'community-nodes',
 	'chat-hub',
-	'breaking-changes',
 	'circuit-breaker',
 	'source-control',
 	'dynamic-credentials',
