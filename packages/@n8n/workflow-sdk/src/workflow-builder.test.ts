@@ -414,6 +414,59 @@ describe('Workflow Builder', () => {
 			// Slack's error output (index 1) should connect to Telegram
 			expect(json.connections['Send Slack']?.main[1]?.[0]?.node).toBe('Error Alert');
 		});
+
+		it('should add nodes from nested .onError() chains', () => {
+			// Build: trigger → http1.onError(http2.onError(errorFinal.to(downstream)))
+			// All 5 nodes should appear in toJSON().nodes
+			const t = trigger({
+				type: 'n8n-nodes-base.manualTrigger',
+				version: 1,
+				config: { name: 'Start' },
+			});
+			const http1 = node({
+				type: 'n8n-nodes-base.httpRequest',
+				version: 4.2,
+				config: { name: 'HTTP 1', onError: 'continueErrorOutput' },
+			});
+			const http2 = node({
+				type: 'n8n-nodes-base.httpRequest',
+				version: 4.2,
+				config: { name: 'HTTP 2', onError: 'continueErrorOutput' },
+			});
+			const errorFinal = node({
+				type: 'n8n-nodes-base.noOp',
+				version: 1,
+				config: { name: 'Error Final' },
+			});
+			const downstream = node({
+				type: 'n8n-nodes-base.noOp',
+				version: 1,
+				config: { name: 'Downstream' },
+			});
+
+			// Nested .onError chain: http1 errors to http2, http2 errors to errorFinal→downstream
+			const wf = workflow('test-id', 'Test')
+				.add(t)
+				.to(http1.onError(http2.onError(errorFinal.to(downstream))));
+
+			const json = wf.toJSON();
+			const nodeNames = json.nodes.map((n) => n.name);
+
+			// All 5 nodes must be present
+			expect(nodeNames).toContain('Start');
+			expect(nodeNames).toContain('HTTP 1');
+			expect(nodeNames).toContain('HTTP 2');
+			expect(nodeNames).toContain('Error Final');
+			expect(nodeNames).toContain('Downstream');
+			expect(json.nodes).toHaveLength(5);
+
+			// http1 error output → http2
+			expect(json.connections['HTTP 1']?.main[1]?.[0]?.node).toBe('HTTP 2');
+			// http2 error output → errorFinal
+			expect(json.connections['HTTP 2']?.main[1]?.[0]?.node).toBe('Error Final');
+			// errorFinal → downstream
+			expect(json.connections['Error Final']?.main[0]?.[0]?.node).toBe('Downstream');
+		});
 	});
 
 	describe('.settings()', () => {
@@ -2501,6 +2554,67 @@ describe('Workflow Builder', () => {
 				// The newline after the .replace() call is outside any string, should NOT be escaped
 				expect(setNode?.parameters?.text).toBe('={{ $json.text.replace(/\\"/g, "escaped")\n}}');
 			});
+		});
+	});
+
+	describe('depth overflow protection', () => {
+		it('handles convergence patterns without depth overflow', () => {
+			// Diamond pattern: trigger → IF → (true: A, false: B) → both to Merge → End
+			// This creates convergence that previously caused exponential recursion
+			const mergeNode = node({
+				type: 'n8n-nodes-base.merge',
+				version: 3,
+				config: { name: 'Merge' },
+			});
+			const nodeA = node({
+				type: 'n8n-nodes-base.noOp',
+				version: 1,
+				config: { name: 'A' },
+			}).to(mergeNode.input(0));
+			const nodeB = node({
+				type: 'n8n-nodes-base.noOp',
+				version: 1,
+				config: { name: 'B' },
+			}).to(mergeNode.input(1));
+			const ifNode = node({
+				type: 'n8n-nodes-base.if' as const,
+				version: 2,
+				config: { name: 'IF' },
+			});
+			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+			const ifBuilder = ifNode.onTrue!(nodeA).onFalse(nodeB);
+			const end = node({ type: 'n8n-nodes-base.noOp', version: 1, config: { name: 'End' } });
+
+			const t = trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} });
+			const wf = workflow('test', 'Test').add(t.to(ifBuilder));
+			// Also connect merge output to end
+			wf.add(mergeNode.to(end));
+
+			// Should not throw - convergence should be handled efficiently
+			const exported = wf.toJSON();
+			expect(exported.nodes.length).toBeGreaterThanOrEqual(5);
+		});
+
+		it('throws when branch depth exceeds MAX_BRANCH_DEPTH', () => {
+			// Build deeply nested IF composites — each true branch is another IF builder
+			// This triggers recursive addBranchToGraph calls via the IfElse composite handler
+			// MAX_BRANCH_DEPTH is 500, so we need > 500 nesting levels
+			const leaf = node({ type: 'n8n-nodes-base.noOp', version: 1, config: { name: 'Leaf' } });
+			let current: NodeInstance<string, string, unknown> = leaf;
+			for (let i = 0; i < 510; i++) {
+				const ifNode = node({
+					type: 'n8n-nodes-base.if' as const,
+					version: 2,
+					config: { name: `IF ${i}` },
+				});
+				// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+				current = ifNode.onTrue!(current) as unknown as NodeInstance<string, string, unknown>;
+			}
+
+			const t = trigger({ type: 'n8n-nodes-base.manualTrigger', version: 1, config: {} });
+			const wf = workflow('test', 'Test').add(t);
+
+			expect(() => wf.to(current)).toThrow(/Maximum branch depth/);
 		});
 	});
 });

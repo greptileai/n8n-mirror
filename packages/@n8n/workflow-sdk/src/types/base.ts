@@ -155,6 +155,53 @@ export interface IConnections {
 	[key: string]: INodeConnections;
 }
 
+/**
+ * Normalize workflow connections in-place.
+ * Some workflows store connections as flat tuples [nodeName, type, index]
+ * instead of the standard {node, type, index} objects. This converts them
+ * to canonical object format so all downstream code sees a consistent shape.
+ */
+export function normalizeConnections(connections: IConnections): void {
+	for (const nodeConns of Object.values(connections)) {
+		for (const [connType, outputs] of Object.entries(nodeConns)) {
+			if (!Array.isArray(outputs)) continue;
+			for (let i = 0; i < outputs.length; i++) {
+				const slot = outputs[i] as unknown;
+				if (!Array.isArray(slot)) continue;
+				// Flat tuple: [string, string, number] instead of [{node, type, index}]
+				if (slot.length > 0 && slot.length <= 3 && typeof slot[0] === 'string') {
+					outputs[i] = [
+						{
+							node: slot[0],
+							type: (slot[1] as string) ?? 'main',
+							index: (slot[2] as number) ?? 0,
+						},
+					];
+				}
+			}
+			nodeConns[connType] = outputs;
+		}
+	}
+}
+
+/**
+ * Generate a unique name by appending an incrementing counter (starting at 2).
+ * The first instance keeps the original baseName; duplicates get "baseName 2", "baseName 3", etc.
+ *
+ * @param baseName - The original name to deduplicate
+ * @param exists - Callback that returns true if a name is already taken
+ * @returns A unique name derived from baseName
+ */
+export function generateUniqueName(baseName: string, exists: (name: string) => boolean): string {
+	let counter = 2;
+	let uniqueName = `${baseName} ${counter}`;
+	while (exists(uniqueName)) {
+		counter++;
+		uniqueName = `${baseName} ${counter}`;
+	}
+	return uniqueName;
+}
+
 // =============================================================================
 // Internal: Serialization types
 // =============================================================================
@@ -335,7 +382,7 @@ export interface SubnodeConfig {
 	retriever?: RetrieverInstance;
 	documentLoader?: DocumentLoaderInstance | DocumentLoaderInstance[];
 	textSplitter?: TextSplitterInstance;
-	reranker?: RerankerInstance;
+	reranker?: RerankerInstance | RerankerInstance[];
 }
 
 // =============================================================================

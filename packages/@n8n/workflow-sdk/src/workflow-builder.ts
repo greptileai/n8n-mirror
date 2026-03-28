@@ -47,6 +47,9 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 	private _meta?: { templateId?: string; instanceId?: string; [key: string]: unknown };
 	private _registry?: PluginRegistry;
 	private _staleIdToKeyMap?: Map<string, string>;
+	private _branchDepth = 0;
+	private _dispatchedComposites = new WeakSet<object>();
+	private static readonly MAX_BRANCH_DEPTH = 500;
 
 	constructor(
 		id: string,
@@ -437,6 +440,11 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 	}
 
 	toJSON(): WorkflowJSON {
+		// Ensure composite targets from .onError() connections are added to the graph.
+		// This handles cases where a chain node has .onError(ifElseBuilder) — the composite
+		// isn't in the chain's allNodes, so it wasn't dispatched during chain processing.
+		this.addMissingCompositeTargets();
+
 		// Merge connections declared on node instances via .to() into the graph
 		this.mergeInstanceConnections();
 
@@ -452,6 +460,35 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 		};
 
 		return jsonSerializer.serialize(ctx);
+	}
+
+	/**
+	 * Scan all nodes in the graph for connection targets that are composite types
+	 * (e.g., IfElseBuilder from .onError()) and dispatch them to add their nodes.
+	 * This runs once before serialization to catch composites missed during chain processing.
+	 */
+	private addMissingCompositeTargets(): void {
+		const registry = this._registry ?? pluginRegistry;
+		// Iterate over a snapshot of current nodes to avoid issues with map mutation during iteration
+		const currentNodes = [...this._nodes.values()];
+		for (const graphNode of currentNodes) {
+			if (typeof graphNode.instance.getConnections !== 'function') continue;
+			const connections = graphNode.instance.getConnections();
+			for (const { target } of connections) {
+				if (registry.isCompositeType(target)) {
+					// Skip composites already dispatched during parsing (.add(), .to(), chain processing).
+					// Only dispatch composites that were missed (e.g., .onError() on chain nodes).
+					if (
+						typeof target === 'object' &&
+						target !== null &&
+						this._dispatchedComposites.has(target)
+					) {
+						continue;
+					}
+					this.tryPluginDispatch(this._nodes, target);
+				}
+			}
+		}
 	}
 
 	/**
@@ -700,7 +737,9 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 		const registry = this._registry ?? pluginRegistry;
 		const connections = chain.getConnections();
 		for (const { target } of connections) {
-			// Skip if target is a composite type (already handled by plugin dispatch elsewhere)
+			// Skip composite types — they are handled either:
+			// - In the caller's allNodes iteration (for chain members)
+			// - Via addSingleNodeConnectionTargets (for .onError() targets)
 			if (registry.isCompositeType(target)) continue;
 
 			// Handle NodeChains - use addBranchToGraph to add all nodes with their connections
@@ -717,6 +756,7 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 					if (actualKey && nameMapping && actualKey !== inputTargetNode.name) {
 						nameMapping.set(inputTargetNode.id, actualKey);
 					}
+					this.addSingleNodeConnectionTargets(nodes, inputTargetNode);
 				}
 				continue;
 			}
@@ -728,6 +768,7 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 				if (actualKey && nameMapping && actualKey !== targetNode.name) {
 					nameMapping.set(targetNode.id, actualKey);
 				}
+				this.addSingleNodeConnectionTargets(nodes, targetNode);
 			}
 		}
 	}
@@ -746,8 +787,11 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 		const registry = this._registry ?? pluginRegistry;
 		const connections = nodeInstance.getConnections();
 		for (const { target } of connections) {
-			// Skip if target is a composite type (already handled by plugin dispatch elsewhere)
-			if (registry.isCompositeType(target)) continue;
+			// Dispatch composite types (e.g., IfElseBuilder from .onError()) to plugin handlers
+			if (registry.isCompositeType(target)) {
+				this.tryPluginDispatch(nodes, target);
+				continue;
+			}
 
 			// Handle NodeChains - use addBranchToGraph to add all nodes with their connections
 			if (isNodeChain(target)) {
@@ -760,6 +804,7 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 				const inputTargetNode = target.node;
 				if (!nodes.has(inputTargetNode.name)) {
 					this.addNodeWithSubnodes(nodes, inputTargetNode);
+					this.addSingleNodeConnectionTargets(nodes, inputTargetNode);
 				}
 				continue;
 			}
@@ -768,6 +813,7 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 			const targetNode = target;
 			if (!nodes.has(targetNode.name)) {
 				this.addNodeWithSubnodes(nodes, targetNode);
+				this.addSingleNodeConnectionTargets(nodes, targetNode);
 			}
 		}
 	}
@@ -796,10 +842,22 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 		//   .add(merge_node.to(set_Default_True_2.to(is_Approved.onTrue(x_Post.to(x_Result)))))
 		// The second line needs to add the onTrue() branch even though the IF node already exists.
 
-		// Try plugin dispatch
+		// Skip re-dispatch of already-processed composites.
+		// The first dispatch fully processes all branch nodes. Re-dispatching
+		// the same object causes exponential recursion in convergence patterns
+		// (multiple paths reaching the same node).
 		const registry = this._registry ?? pluginRegistry;
+		if (typeof target === 'object' && target !== null && this._dispatchedComposites.has(target)) {
+			return registry.resolveCompositeHeadName(target, nameMapping);
+		}
+
+		// Try plugin dispatch
 		const handler = registry.findCompositeHandler(target);
 		if (handler) {
+			// Track dispatched composites so addMissingCompositeTargets can skip them
+			if (typeof target === 'object' && target !== null) {
+				this._dispatchedComposites.add(target);
+			}
 			const ctx = this.createMutablePluginContext(nodes, nameMapping);
 			return handler.addNodes(target, ctx);
 		}
@@ -918,6 +976,25 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 		branch: NodeInstance<string, string, unknown>,
 		nameMapping?: Map<string, string>,
 	): string {
+		// Guard against infinite recursion from cycles in branch chains
+		if (this._branchDepth >= WorkflowBuilderImpl.MAX_BRANCH_DEPTH) {
+			throw new Error(
+				`Maximum branch depth (${WorkflowBuilderImpl.MAX_BRANCH_DEPTH}) exceeded while building workflow graph`,
+			);
+		}
+		this._branchDepth++;
+		try {
+			return this._addBranchToGraphInner(nodes, branch, nameMapping);
+		} finally {
+			this._branchDepth--;
+		}
+	}
+
+	private _addBranchToGraphInner(
+		nodes: Map<string, GraphNode>,
+		branch: NodeInstance<string, string, unknown>,
+		nameMapping?: Map<string, string>,
+	): string {
 		// Create nameMapping if not passed (tracks node ID -> actual map key for renamed nodes)
 		const effectiveNameMapping = nameMapping ?? new Map<string, string>();
 		const registry = this._registry ?? pluginRegistry;
@@ -1006,6 +1083,7 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 									if (targetPluginResult === undefined && !nodes.has(targetChainNode.name)) {
 										// Not a composite and not already present - add as regular node
 										this.addNodeWithSubnodes(nodes, targetChainNode);
+										this.addSingleNodeConnectionTargets(nodes, targetChainNode);
 									}
 								}
 							} else if (
@@ -1013,6 +1091,10 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 								!nodes.has((target as NodeInstance<string, string, unknown>).name)
 							) {
 								this.addNodeWithSubnodes(nodes, target as NodeInstance<string, string, unknown>);
+								this.addSingleNodeConnectionTargets(
+									nodes,
+									target as NodeInstance<string, string, unknown>,
+								);
 							}
 
 							// Use the effectiveNameMapping to get the actual key if the node was renamed
@@ -1053,7 +1135,11 @@ class WorkflowBuilderImpl implements WorkflowBuilder {
 		} else {
 			// Single node - add it and return its name
 			// Note: Composites are handled by tryPluginDispatch at the entry point
+			const alreadyPresent = nodes.has(branch.name);
 			const actualKey = this.addNodeWithSubnodes(nodes, branch);
+			if (!alreadyPresent) {
+				this.addSingleNodeConnectionTargets(nodes, branch);
+			}
 			// If the node was renamed, track it and return the actual key
 			if (actualKey && actualKey !== branch.name) {
 				effectiveNameMapping.set(branch.id, actualKey);

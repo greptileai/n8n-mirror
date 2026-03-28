@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import { deepCopy } from 'n8n-workflow';
 import * as path from 'path';
 
 import { generateWorkflowCode } from './index';
@@ -10,17 +11,55 @@ import {
 	COMMITTED_FIXTURES_DIR,
 } from '../__tests__/fixtures-download';
 import type { WorkflowJSON } from '../types/base';
+import { normalizeConnections } from '../types/base';
+import {
+	escapeNewlinesInExpressionStrings,
+	isPlaceholderValue,
+} from '../workflow-builder/string-utils';
 
-// Workflows with known issues that need to be skipped
-// 5979: Code generator creates duplicate inline nodes, causing duplicate detection to rename them
-const SKIP_WORKFLOWS = new Set<string>(['5979']);
-
-// Workflows to skip validation due to known codegen bugs (invalid warnings)
-// These produce warnings that don't exist in the original workflow (codegen issues to fix)
-// Once fixed, these should be moved to expectedWarnings in manifest.json
-// NOTE: All previous workflows have been fixed and moved to expectedWarnings in manifests
-const SKIP_VALIDATION_WORKFLOWS = new Set<string>([
-	// Currently empty - all codegen bugs have been fixed!
+/** Workflow IDs where deep connection comparison is skipped (known codegen/parser gaps).
+ * Remaining patterns: merge VarRef leaks in SIB/composite downstream chains,
+ * multi-trigger fan-out ordering, and missing connections in complex convergence. */
+// prettier-ignore
+const SKIP_DEEP_CONNECTION_CHECK = new Set<string>([
+	'1',
+	'2',
+	'2747',
+	'2749',
+	'3161',
+	'3585',
+	'3683',
+	'3762',
+	'3820',
+	'4223',
+	'4557',
+	'4589',
+	'4627',
+	'4637',
+	'5013',
+	'5081',
+	'5160',
+	'5370',
+	'5383',
+	'5400',
+	'5449',
+	'5611',
+	'5750',
+	'5887',
+	'5988',
+	'6278',
+	'6518',
+	'6783',
+	'7168',
+	'9192',
+	'9780',
+	'10132',
+	'10256',
+	'10406',
+	'10749',
+	'11605',
+	'12447',
+	'13080',
 ]);
 
 interface ExpectedWarning {
@@ -48,14 +87,15 @@ function loadWorkflowsFromDir(dir: string, workflows: TestWorkflow[]): void {
 			id: string | number;
 			name: string;
 			success: boolean;
+			skip?: boolean;
+			skipReason?: string;
 			expectedWarnings?: ExpectedWarning[];
 		}>;
 	};
 
 	for (const entry of manifest.workflows) {
 		if (!entry.success) continue;
-		if (SKIP_WORKFLOWS.has(String(entry.id))) continue;
-
+		if (entry.skip) continue;
 		const filePath = path.join(dir, `${entry.id}.json`);
 		if (fs.existsSync(filePath)) {
 			// eslint-disable-next-line n8n-local-rules/no-uncaught-json-parse -- Test fixture file
@@ -2330,6 +2370,7 @@ describe('Codegen Roundtrip with Real Workflows', () => {
 			};
 
 			// Helper to recursively add __rl: true to resource locator values
+			// and clear placeholder values in list mode (matches builder normalization)
 			const normalizeResourceLocators = (params: unknown): unknown => {
 				if (typeof params !== 'object' || params === null) return params;
 				if (Array.isArray(params)) return params.map(normalizeResourceLocators);
@@ -2337,10 +2378,14 @@ describe('Codegen Roundtrip with Real Workflows', () => {
 				const result: Record<string, unknown> = {};
 				for (const [key, value] of Object.entries(params as Record<string, unknown>)) {
 					if (isResourceLocatorLike(value)) {
-						result[key] = {
-							__rl: true,
-							...(normalizeResourceLocators(value) as Record<string, unknown>),
-						};
+						const rlValue = value;
+						const normalized = normalizeResourceLocators(value) as Record<string, unknown>;
+						// Clear placeholder values in list mode (matches builder behavior)
+						if (rlValue.mode === 'list' && isPlaceholderValue(rlValue.value)) {
+							result[key] = { __rl: true, ...normalized, value: '' };
+						} else {
+							result[key] = { __rl: true, ...normalized };
+						}
 					} else if (typeof value === 'object' && value !== null) {
 						result[key] = normalizeResourceLocators(value);
 					} else {
@@ -2374,14 +2419,28 @@ describe('Codegen Roundtrip with Real Workflows', () => {
 				if (!p || typeof p !== 'object') return p;
 				const obj = p as Record<string, unknown>;
 				if (Object.keys(obj).length === 0) return undefined;
-				if (nodeType === 'n8n-nodes-base.stickyNote' && obj.content === '') {
-					const { content, ...rest } = obj;
-					return Object.keys(rest).length === 0 ? undefined : rest;
+				if (nodeType === 'n8n-nodes-base.stickyNote') {
+					// Strip empty content and non-serializable color values (null, empty object)
+					const cleaned = { ...obj };
+					if (cleaned.content === '') delete cleaned.content;
+					if (cleaned.color === null || cleaned.color === undefined) {
+						delete cleaned.color;
+					} else if (
+						typeof cleaned.color === 'object' &&
+						Object.keys(cleaned.color as Record<string, unknown>).length === 0
+					) {
+						delete cleaned.color;
+					}
+					return Object.keys(cleaned).length === 0 ? undefined : cleaned;
 				}
 				// Normalize resource locators (add __rl: true) for fair comparison
 				// since SDK-generated code adds __rl: true to all resource locators
 				// Also normalize expressions (strip leading = from double-equals)
-				return normalizeExpressions(normalizeResourceLocators(p));
+				// Also normalize newlines in expression strings (raw \n → \\n inside quotes)
+				// since the serializer legitimately escapes raw newlines in JS string literals
+				return escapeNewlinesInExpressionStrings(
+					normalizeExpressions(normalizeResourceLocators(p)),
+				);
 			};
 
 			// Helper function for filtering empty connections, orphaned connections (from non-existent nodes),
@@ -2402,6 +2461,8 @@ describe('Codegen Roundtrip with Real Workflows', () => {
 					)) {
 						// Filter each output slot to remove connections to non-existent target nodes
 						const filteredOutputs = (outputs || []).map((slot: unknown) => {
+							// Normalize null/undefined slots to empty arrays
+							if (slot === null || slot === undefined) return [] as unknown[];
 							if (!Array.isArray(slot)) return slot as unknown[];
 							// Filter out connections to non-existent nodes
 							if (validNodeNames) {
@@ -2411,6 +2472,15 @@ describe('Codegen Roundtrip with Real Workflows', () => {
 							}
 							return slot as unknown[];
 						});
+						// Strip trailing empty arrays (semantically equivalent to absent)
+						while (filteredOutputs.length > 0) {
+							const lastSlot = filteredOutputs[filteredOutputs.length - 1];
+							if (Array.isArray(lastSlot) && lastSlot.length === 0) {
+								filteredOutputs.pop();
+							} else {
+								break;
+							}
+						}
 						// Only include non-empty output slots
 						const nonEmptyOutputs = filteredOutputs.filter(
 							(arr: unknown) => Array.isArray(arr) && arr.length > 0,
@@ -2424,6 +2494,23 @@ describe('Codegen Roundtrip with Real Workflows', () => {
 					}
 				}
 				return result;
+			};
+
+			const sortSlotConnections = (conns: Record<string, unknown>) => {
+				for (const nodeConns of Object.values(conns)) {
+					for (const outputs of Object.values(nodeConns as Record<string, unknown[][]>)) {
+						if (!Array.isArray(outputs)) continue;
+						for (const slot of outputs) {
+							if (Array.isArray(slot) && slot.length > 1) {
+								slot.sort((a: unknown, b: unknown) => {
+									const aNode = (a as { node?: string }).node ?? '';
+									const bNode = (b as { node?: string }).node ?? '';
+									return aNode.localeCompare(bNode);
+								});
+							}
+						}
+					}
+				}
 			};
 
 			// Helper to normalize warnings for comparison
@@ -2440,28 +2527,25 @@ describe('Codegen Roundtrip with Real Workflows', () => {
 					const parsedJson: WorkflowJSON = builder.toJSON();
 
 					// Validate the parsed workflow
-					if (!SKIP_VALIDATION_WORKFLOWS.has(id)) {
-						const validationResult = builder.validate();
+					const validationResult = builder.validate();
 
-						// Get actual warnings
-						const actualWarnings: ExpectedWarning[] = validationResult.warnings
-							.map((w: { code: string; nodeName?: string }) => ({
-								code: w.code,
-								nodeName: w.nodeName,
-							}))
-							.sort((a: ExpectedWarning, b: ExpectedWarning) =>
-								normalizeWarning(a).localeCompare(normalizeWarning(b)),
-							);
-
-						// Get expected warnings (from manifest or empty array)
-						const expected = (expectedWarnings ?? []).sort(
-							(a: ExpectedWarning, b: ExpectedWarning) =>
-								normalizeWarning(a).localeCompare(normalizeWarning(b)),
+					// Get actual warnings
+					const actualWarnings: ExpectedWarning[] = validationResult.warnings
+						.map((w: { code: string; nodeName?: string }) => ({
+							code: w.code,
+							nodeName: w.nodeName,
+						}))
+						.sort((a: ExpectedWarning, b: ExpectedWarning) =>
+							normalizeWarning(a).localeCompare(normalizeWarning(b)),
 						);
 
-						// Compare warnings
-						expect(actualWarnings).toEqual(expected);
-					}
+					// Get expected warnings (from manifest or empty array)
+					const expected = (expectedWarnings ?? []).sort((a: ExpectedWarning, b: ExpectedWarning) =>
+						normalizeWarning(a).localeCompare(normalizeWarning(b)),
+					);
+
+					// Compare warnings
+					expect(actualWarnings).toEqual(expected);
 
 					// Verify basic structure
 					expect(parsedJson.id ?? '').toBe(json.id ?? '');
@@ -2478,7 +2562,9 @@ describe('Codegen Roundtrip with Real Workflows', () => {
 
 						if (parsedNode) {
 							expect(parsedNode.type).toBe(originalNode.type);
-							expect(parsedNode.typeVersion).toBe(originalNode.typeVersion);
+							// typeVersion: undefined is semantically equivalent to 1
+							// Compare as numbers since string typeVersions are normalized to numbers
+							expect(parsedNode.typeVersion).toBe(Number(originalNode.typeVersion ?? 1));
 							expect(normalizeParams(parsedNode.parameters, parsedNode.type)).toEqual(
 								normalizeParams(originalNode.parameters, originalNode.type),
 							);
@@ -2498,9 +2584,24 @@ describe('Codegen Roundtrip with Real Workflows', () => {
 					const validNodeNames = new Set(
 						json.nodes.map((n) => n.name).filter((name): name is string => !!name),
 					);
-					const filteredOriginal = filterEmptyConnections(json.connections, validNodeNames);
+					// Normalize original connections (clone first to avoid mutating input)
+					// since the original JSON may have flat tuple connections
+					const normalizedOriginalConns = deepCopy(json.connections);
+					normalizeConnections(normalizedOriginalConns);
+					const filteredOriginal = filterEmptyConnections(normalizedOriginalConns, validNodeNames);
 					const filteredParsed = filterEmptyConnections(parsedJson.connections);
+
+					// Verify all connection source keys match
 					expect(Object.keys(filteredParsed).sort()).toEqual(Object.keys(filteredOriginal).sort());
+
+					// Deep connection comparison (skip known-broken workflows)
+					if (!SKIP_DEEP_CONNECTION_CHECK.has(id)) {
+						sortSlotConnections(filteredOriginal);
+						sortSlotConnections(filteredParsed);
+						for (const nodeName of Object.keys(filteredOriginal)) {
+							expect(filteredParsed[nodeName]).toEqual(filteredOriginal[nodeName]);
+						}
+					}
 				});
 			});
 		});
