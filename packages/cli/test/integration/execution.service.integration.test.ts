@@ -81,6 +81,7 @@ describe('ExecutionService', () => {
 				waitTill: null,
 				retrySuccessId: null,
 				workflowName: expect.any(String),
+				customData: expect.any(Object),
 				annotation: {
 					tags: expect.arrayContaining([]),
 					vote: null,
@@ -511,6 +512,32 @@ describe('ExecutionService', () => {
 			expect(output.estimated).toBe(false);
 			expect(output.results).toEqual([expect.objectContaining({ id: firstId })]);
 		});
+
+		it('should return customData object with metadata keys', async () => {
+			const workflow = await createWorkflow();
+
+			const [firstExecution, secondExecution] = await Promise.all([
+				createExecution({ metadata: [{ key: 'key1', value: 'value1' }] }, workflow),
+				createExecution({ metadata: [{ key: 'key2', value: 'value2' }] }, workflow),
+			]);
+
+			const query: ExecutionSummaries.RangeQuery = {
+				kind: 'range',
+				range: { limit: 20 },
+				accessibleWorkflowIds: [workflow.id],
+			};
+
+			const output = await executionService.findRangeWithCount(query);
+
+			expect(output.count).toBe(2);
+			expect(output.estimated).toBe(false);
+			expect(output.results).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({ id: firstExecution.id, customData: { key1: 'value1' } }),
+					expect.objectContaining({ id: secondExecution.id, customData: { key2: 'value2' } }),
+				]),
+			);
+		});
 	});
 
 	describe('getConcurrentExecutionsCount', () => {
@@ -701,6 +728,7 @@ describe('ExecutionService', () => {
 			startedAt: expect.any(String),
 			stoppedAt: expect.any(String),
 			waitTill: null,
+			customData: expect.any(Object),
 			retrySuccessId: null,
 			workflowName: expect.any(String),
 		};
