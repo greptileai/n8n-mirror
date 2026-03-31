@@ -21,11 +21,23 @@ export class WorkflowsConfig {
 
 	/** Whether to enable workflow dependency indexing. */
 	@Env('N8N_WORKFLOWS_INDEXING_ENABLED')
-	indexingEnabled: boolean = true;
+	indexingEnabled: boolean = false;
 
 	/** Whether to use workflow publication service.
 	 * NOTE: this feature is still under development.
 	 */
 	@Env('N8N_USE_WORKFLOW_PUBLICATION_SERVICE')
 	useWorkflowPublicationService: boolean = false;
+
+	/** Whether workflow sharing is disabled */
+	@Env('N8N_DISABLE_WORKFLOW_SHARING')
+	disableSharing: boolean = false;
+
+	/** Minimum allowed schedule interval in seconds for schedule triggers */
+	@Env('N8N_MIN_SCHEDULE_INTERVAL_SECONDS')
+	minScheduleIntervalSeconds: number = 300;
+
+	/** DO NOT USE - Enable draft/publish workflow feature */
+	@Env('N8N_ENV_FEAT_WORKFLOWS_DRAFT_PUBLISH_ENABLED')
+	draftPublishEnabled: boolean = false;
 }
