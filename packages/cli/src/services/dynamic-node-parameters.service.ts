@@ -20,7 +20,13 @@ import type {
 	ILocalLoadOptionsFunctions,
 	IExecuteData,
 } from 'n8n-workflow';
-import { Workflow, UnexpectedError, createEmptyRunExecutionData } from 'n8n-workflow';
+import {
+	Workflow,
+	UnexpectedError,
+	UserError,
+	ExpressionError,
+	createEmptyRunExecutionData,
+} from 'n8n-workflow';
 
 import { NodeTypes } from '@/node-types';
 
@@ -115,7 +121,7 @@ export class DynamicNodeParametersService {
 		// Need to use untyped call since `this` usage is widespread and we don't have `strictBindCallApply`
 		// enabled in `tsconfig.json`
 		// eslint-disable-next-line @typescript-eslint/no-unsafe-return
-		return method.call(thisArgs);
+		return await this.withCredentialExpressionErrorHandling(() => method.call(thisArgs));
 	}
 
 	/** Returns the available options via a loadOptions param */
@@ -216,7 +222,9 @@ export class DynamicNodeParametersService {
 		const workflow = this.getWorkflow(nodeTypeAndVersion, currentNodeParameters, credentials);
 		const thisArgs = this.getThisArg(path, additionalData, workflow);
 		// eslint-disable-next-line @typescript-eslint/no-unsafe-return
-		return method.call(thisArgs, filter, paginationToken);
+		return await this.withCredentialExpressionErrorHandling(() =>
+			method.call(thisArgs, filter, paginationToken),
+		);
 	}
 
 	/** Returns the available mapping fields for the ResourceMapper component */
@@ -232,8 +240,10 @@ export class DynamicNodeParametersService {
 		const method = this.getMethod('resourceMapping', methodName, nodeType);
 		const workflow = this.getWorkflow(nodeTypeAndVersion, currentNodeParameters, credentials);
 		const thisArgs = this.getThisArg(path, additionalData, workflow);
-		return this.removeDuplicateResourceMappingFields(
-			(await method.call(thisArgs)) as ResourceMapperFields,
+		return await this.withCredentialExpressionErrorHandling(async () =>
+			this.removeDuplicateResourceMappingFields(
+				(await method.call(thisArgs)) as ResourceMapperFields,
+			),
 		);
 	}
 
@@ -267,7 +277,27 @@ export class DynamicNodeParametersService {
 		const workflow = this.getWorkflow(nodeTypeAndVersion, currentNodeParameters, credentials);
 		const thisArgs = this.getThisArg(path, additionalData, workflow);
 		// eslint-disable-next-line @typescript-eslint/no-unsafe-return
-		return method.call(thisArgs, payload);
+		return await this.withCredentialExpressionErrorHandling(() => method.call(thisArgs, payload));
+	}
+
+	/**
+	 * Wraps a function call and translates `ExpressionError` with `no_execution_data` type
+	 * into a `UserError` with a user-friendly message.
+	 *
+	 * This happens when a credential uses expressions (e.g. `$json`) that require
+	 * execution data from a previous node, but no execution data is available.
+	 */
+	private async withCredentialExpressionErrorHandling<T>(fn: () => Promise<T>): Promise<T> {
+		try {
+			return await fn();
+		} catch (error) {
+			if (error instanceof ExpressionError && error.context.type === 'no_execution_data') {
+				throw new UserError(
+					'The selected credential uses expressions (e.g. $json) that cannot be resolved when loading options. Use a static credential value or switch to the ID/URL mode to enter the value manually.',
+				);
+			}
+			throw error;
+		}
 	}
 
 	private getMethod(

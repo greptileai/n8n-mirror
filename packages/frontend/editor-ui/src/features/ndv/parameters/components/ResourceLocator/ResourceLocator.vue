@@ -83,6 +83,7 @@ const NODE_API_AUTH_ERROR_MESSAGES = [
 	'NodeApiError: Unable to sign without access token',
 	'secretOrPrivateKey must be an asymmetric key when using RS256',
 ];
+const CREDENTIAL_EXPRESSION_ERROR_PATTERN = 'credential uses expressions';
 
 interface IResourceLocatorQuery {
 	results: INodeListSearchItems[];
@@ -197,9 +198,13 @@ const hasCredentialError = computed(() => {
 		.split('\n')
 		.some((line) => NODE_API_AUTH_ERROR_MESSAGES.includes(line.trim()));
 
+	const message = currentResponse.value?.errorDetails?.message ?? '';
+	const isCredentialExpressionError = message.includes(CREDENTIAL_EXPRESSION_ERROR_PATTERN);
+
 	return (
+		isCredentialExpressionError ||
 		PERMISSION_ERROR_CODES.includes(currentResponse.value?.errorDetails?.httpCode ?? '') ||
-		NODE_API_AUTH_ERROR_MESSAGES.includes(currentResponse.value?.errorDetails?.message ?? '') ||
+		NODE_API_AUTH_ERROR_MESSAGES.includes(message) ||
 		stackTraceContainsCredentialError
 	);
 });

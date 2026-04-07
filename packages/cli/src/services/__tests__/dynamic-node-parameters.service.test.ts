@@ -6,6 +6,8 @@ import {
 	type INodeType,
 	type IWorkflowExecuteAdditionalData,
 	type ResourceMapperFields,
+	ExpressionError,
+	UserError,
 } from 'n8n-workflow';
 
 import { DynamicNodeParametersService } from '../dynamic-node-parameters.service';
@@ -75,6 +77,75 @@ describe('DynamicNodeParametersService', () => {
 					{ id: '3', displayName: 'Field 3', defaultMatch: false, required: true, display: true },
 				],
 			});
+		});
+	});
+
+	describe('credential expression error handling', () => {
+		it('should throw UserError when method throws ExpressionError with no_execution_data', async () => {
+			const listSearchMethod = jest
+				.fn()
+				.mockRejectedValue(
+					new ExpressionError('No execution data available', { type: 'no_execution_data' }),
+				);
+			nodeTypes.getByNameAndVersion.mockReturnValue(
+				mock<INodeType>({
+					description: {
+						properties: [],
+					},
+					methods: {
+						listSearch: {
+							search: listSearchMethod,
+						},
+					},
+				}),
+			);
+
+			await expect(
+				service.getResourceLocatorResults(
+					'search',
+					'test',
+					mock<IWorkflowExecuteAdditionalData>(),
+					{ name: 'TestNode', version: 1 },
+					mock<INodeParameters>(),
+				),
+			).rejects.toThrow(UserError);
+
+			await expect(
+				service.getResourceLocatorResults(
+					'search',
+					'test',
+					mock<IWorkflowExecuteAdditionalData>(),
+					{ name: 'TestNode', version: 1 },
+					mock<INodeParameters>(),
+				),
+			).rejects.toThrow('credential uses expressions');
+		});
+
+		it('should re-throw other errors as-is', async () => {
+			const originalError = new Error('Some other error');
+			const listSearchMethod = jest.fn().mockRejectedValue(originalError);
+			nodeTypes.getByNameAndVersion.mockReturnValue(
+				mock<INodeType>({
+					description: {
+						properties: [],
+					},
+					methods: {
+						listSearch: {
+							search: listSearchMethod,
+						},
+					},
+				}),
+			);
+
+			await expect(
+				service.getResourceLocatorResults(
+					'search',
+					'test',
+					mock<IWorkflowExecuteAdditionalData>(),
+					{ name: 'TestNode', version: 1 },
+					mock<INodeParameters>(),
+				),
+			).rejects.toThrow(originalError);
 		});
 	});
 
